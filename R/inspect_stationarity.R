@@ -1,66 +1,64 @@
 source("./R/utils_av.R")
 
-
-country_name <- "Brasil"
-
-h_max = 6
-#################################### Load Data #######################################
-
-data_path <- "./data/excel/"
-
-file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
-file_paths <- paste0(data_path, file_names)
-country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")
-
-general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
-                                    "month", "conf_emp", "conf_ibre", "ip_ine", 
-                                    "vta_auto", "exist"))
-# to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
-# "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
-extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
-                           Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
-                           Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                           Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                           Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                           Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
-                           Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
-                           Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                           Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
-                           Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
-
-variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
-
-data_qm_xts <- get_gdp_shaped_data(data_path = data_path, 
-                                   list_variables_to_drop = variables_to_drop,
-                                   only_complete_cases = TRUE,
-                                   apply_log = FALSE)
-
-data_qm_mts <- map(data_qm_xts, to_ts_q)
-
-data_qm_xts_yoy <- map(data_qm_xts, make_yoy_xts)
-data_qm_mts_yoy <- map(data_qm_xts_yoy, to_ts_q)
-
-data_qm_xts_yoy_diff <- map(data_qm_xts_yoy, diff.xts, na.pad = FALSE)
-data_qm_mts_yoy_diff <- map(data_qm_xts_yoy_diff, to_ts_q)
-
-level_data_ts <- data_qm_mts[[country_name]]
-yoy_data_ts <- data_qm_mts_yoy[[country_name]]
-diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
-
+# Ecuador causes an error
+level_data_ts <- get_data(country_name = "Uruguay",
+                             data_transform = "level", apply_log = FALSE)
 level_rgdp_ts <- level_data_ts[ , "rgdp"]
+this_series <- level_rgdp_ts
+
+tests_of_stationarity_a <- suppressWarnings(comb_ndiffs(level_rgdp_ts))
 
 
-### ----- stationarity tests
+# print(stati_a)
 
-ndiffs(level_rgdp_ts)
+# Ecuador causes an error
+# country_names <- c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia",
+#                    "Ecuador", "Mexico", "Paraguay", "Peru", "Uruguay")
+country_names <- c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia",
+                   "Mexico", "Paraguay", "Peru", "Uruguay")
+
+all_countries_data <- get_data(country_name = "all",
+                               data_transform = "level")
+
+stationarity_list <- list_along(country_names)
+tictoc::tic()
+for (i in seq_along(country_names)) {
+  country_name <- country_names[i]
+  level_data_ts <- all_countries_data [[country_name]]
+  
+  level_rgdp_ts <- level_data_ts[ , "rgdp"]
+  tests_of_stationarity <- suppressWarnings(comb_ndiffs(level_rgdp_ts))
+  tests_of_stationarity$country <- country_name
+  
+  stationarity_list[[i]] <- tests_of_stationarity
+  
+}
+tictoc::toc()
+
+all_countries_rgdp_stati <- reduce(stationarity_list, rbind)
 
 
-ndiffs(level_rgdp_ts, test = "adf" ) 
-
-nsdiffs(level_rgdp_ts)
 
 
-
-
-
-
+# 
+# ### --- let's test it with more varied results
+# 
+# fake_row_1 <- tibble(test = "fake1", alpha = 0.05, deter_part = "trend",
+#                      default_seas = 0, sta_result = 0, sta_result_after_seas = 0)
+# 
+# fake_row_2 <- tibble(test = "fake2", alpha = 0.05, deter_part = "trend",
+#                      default_seas = 0, sta_result = 1, sta_result_after_seas = 1)
+# 
+# fake_row_3 <- tibble(test = "fake3", alpha = 0.05, deter_part = "trend",
+#                      default_seas = 1, sta_result = 2, sta_result_after_seas = 1)
+# 
+# moo <- rbind(fake_row_1, fake_row_2, fake_row_3, select(stati_a, -recommendation)) 
+#   
+# foo <- moo %>% 
+#   mutate(recommedation = pmap_chr(list(default_seas, sta_result, sta_result_after_seas),
+#                          ~ make_recommendation(seas = ..1, sta = ..2, 
+#                                     sta_after_seas = ..3))
+#          )
+# 
+# 
+# print(foo)
