@@ -1,6 +1,5 @@
 source("./R/utils_av.R")
 
-### ----------- data preparation part, a function in the future
 
 country_name <- "Brasil"
 
@@ -31,31 +30,34 @@ extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "",
 
 variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
 
-data_qm_xts_log <- get_gdp_shaped_data(data_path = data_path, 
-                                       list_variables_to_drop = variables_to_drop,
-                                       only_complete_cases = TRUE,
-                                       apply_log = TRUE)
+data_qm_xts <- get_gdp_shaped_data(data_path = data_path, 
+                                   list_variables_to_drop = variables_to_drop,
+                                   only_complete_cases = TRUE,
+                                   apply_log = FALSE)
 
-data_qm_mts_log <- map(data_qm_xts_log, to_ts_q)
+data_qm_mts <- map(data_qm_xts, to_ts_q)
 
-data_qm_xts_log_yoy <- map(data_qm_xts_log, make_yoy_xts)
-data_qm_mts_log_yoy <- map(data_qm_xts_log_yoy, to_ts_q)
+data_qm_xts_yoy <- map(data_qm_xts, make_yoy_xts)
+data_qm_mts_yoy <- map(data_qm_xts_yoy, to_ts_q)
 
-data_qm_xts_log_yoy_diff <- map(data_qm_xts_log_yoy, diff.xts, na.pad = FALSE)
-data_qm_mts_log_yoy_diff <- map(data_qm_xts_log_yoy_diff, to_ts_q)
+data_qm_xts_yoy_diff <- map(data_qm_xts_yoy, diff.xts, na.pad = FALSE)
+data_qm_mts_yoy_diff <- map(data_qm_xts_yoy_diff, to_ts_q)
 
-level_data_ts <- data_qm_mts_log[[country_name]]
-yoy_data_ts <- data_qm_mts_log_yoy[[country_name]]
-diff_yoy_data_ts <- data_qm_mts_log_yoy_diff[[country_name]]
+level_data_ts <- data_qm_mts[[country_name]]
+yoy_data_ts <- data_qm_mts_yoy[[country_name]]
+diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
 
-loglev_rgdp_ts <- level_data_ts[ , "rgdp"]
+level_rgdp_ts <- level_data_ts[ , "rgdp"]
 
 
 ### ----- stationarity tests
 
-ndiffs(loglev_rgdp_ts)
+ndiffs(level_rgdp_ts)
 
-nsdiffs(loglev_rgdp_ts)
+
+ndiffs(level_rgdp_ts, test = "adf" ) 
+
+nsdiffs(level_rgdp_ts)
 
 
 
