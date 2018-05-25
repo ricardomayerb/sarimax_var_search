@@ -1,7 +1,7 @@
 source("./R/utils_av.R")
 
 # Ecuador causes an error
-level_data_ts <- get_data(country_name = "Uruguay",
+level_data_ts <- get_data(country_name = "Ecuador",
                              data_transform = "level", apply_log = FALSE)
 level_rgdp_ts <- level_data_ts[ , "rgdp"]
 this_series <- level_rgdp_ts
@@ -12,10 +12,10 @@ tests_of_stationarity_a <- suppressWarnings(comb_ndiffs(level_rgdp_ts))
 # print(stati_a)
 
 # Ecuador causes an error
-# country_names <- c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia",
-#                    "Ecuador", "Mexico", "Paraguay", "Peru", "Uruguay")
 country_names <- c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia",
-                   "Mexico", "Paraguay", "Peru", "Uruguay")
+                   "Ecuador", "Mexico", "Paraguay", "Peru", "Uruguay")
+# country_names <- c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia",
+#                    "Mexico", "Paraguay", "Peru", "Uruguay")
 
 all_countries_data <- get_data(country_name = "all",
                                data_transform = "level")

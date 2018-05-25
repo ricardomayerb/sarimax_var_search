@@ -262,36 +262,46 @@ drop_this_vars <- function(df, vars_to_drop) {
 }
 
 
+my_diff <- function(series, lag = 1, differences = 1) {
+  if (differences == 0) {
+    x_diff <- series
+  } else {
+    x_diff <- diff(series, lag = lag, differences = differences)
+  }
+  return(x_diff)
+}
 
 
-comb_ndiffs <- function(this_series, do_stati_after_seas = TRUE, 
-                        return_4_seas = FALSE, do_other_seas = FALSE) {
+
+comb_ndiffs <- function(this_series, return_4_seas = FALSE, 
+                        do_other_seas = FALSE) {
   
   tests_names <- c("kpss", "pp", "adf")
   tests_season_names <- c("seas", "ocsb", "hegy", "ch")
   tests_alpha <- c(0.01, 0.05, 0.1)
   tests_type <- c("level", "trend")
   
-  if (do_stati_after_seas) {
-    tests_of_stationarity <- as_tibble(
-      expand.grid(tests_names, tests_alpha, tests_type,
-                  stringsAsFactors = FALSE)) %>% 
-      rename(test = Var1, alpha = Var2, deter_part = Var3) %>% 
-      mutate(default_seas = map_dbl(alpha,
-                                    ~ nsdiffs(x = this_series, alpha = .)),
-             sta_result = pmap_dbl(list(test, alpha, deter_part),
-                                   ~ ndiffs(x = this_series, alpha = ..2,
-                                            test = ..1, type = ..3)),
-             sta_result_after_seas = pmap_dbl(
-               list(test, alpha, deter_part, default_seas),
-               ~ ndiffs(x = diff(this_series, lag = ..4), 
-                        alpha = ..2, test = ..1, type = ..3)),
-             recommendation = pmap_chr(
-               list(default_seas, sta_result, sta_result_after_seas),
-               ~ make_recommendation(seas = ..1, sta = ..2, sta_after_seas = ..3)
-                                     )
-      )
-    if(do_other_seas) {
+  
+  tests_of_stationarity <- as_tibble(
+    expand.grid(tests_names, tests_alpha, tests_type,
+                stringsAsFactors = FALSE)) %>% 
+    rename(test = Var1, alpha = Var2, deter_part = Var3) %>% 
+    mutate(default_seas = map_dbl(alpha,
+                                  ~ nsdiffs(x = this_series, alpha = .)),
+           sta_result = pmap_dbl(list(test, alpha, deter_part),
+                                 ~ ndiffs(x = this_series, alpha = ..2,
+                                          test = ..1, type = ..3)),
+           sta_result_after_seas = pmap_dbl(
+             list(test, alpha, deter_part, default_seas),
+             ~ ndiffs(x = my_diff(this_series, lag = 4, differences = ..4), 
+                      alpha = ..2, test = ..1, type = ..3)),
+           recommendation = pmap_chr(
+             list(default_seas, sta_result, sta_result_after_seas),
+             ~ make_recommendation(seas = ..1, sta = ..2, sta_after_seas = ..3)
+           )
+    )
+    
+  if (do_other_seas) {
       tests_of_seasonality <- as_tibble(
         expand.grid(tests_season_names, tests_alpha, stringsAsFactors = FALSE)) %>% 
         rename(test = Var1, alpha = Var2) %>% 
@@ -300,48 +310,19 @@ comb_ndiffs <- function(this_series, do_stati_after_seas = TRUE,
                                         ~ nsdiffs(x = this_series, alpha = .y,
                                                   test = .x)))
         )
-    }
-    
-  } else {
-    tests_of_stationarity  <- as_tibble(expand.grid(tests_names, tests_alpha, tests_type,
-                                                        stringsAsFactors = FALSE)) %>% 
-      rename(test = Var1, alpha = Var2, deter_part = Var3) %>% 
-      mutate(default_seas = map_dbl(alpha,
-                                    ~ suppressWarnings(
-                                      nsdiffs(x = this_series, alpha = .))),
-             sta_result = pmap_dbl(list(test, alpha, deter_part),
-                                   ~ ndiffs(x = this_series, alpha = ..2,
-                                            test = ..1, type = ..3))
-      )
-    
-    if(do_other_seas) {
-      tests_of_seasonality  <-  as_tibble(expand.grid(tests_season_names, tests_alpha, 
-                                                      stringsAsFactors = FALSE)) %>% 
-        rename(test = Var1, alpha = Var2) %>% 
-        mutate(seas_result = map2_dbl(test, alpha,  
-                                      ~ suppressWarnings(
-                                        nsdiffs(x = this_series, alpha = .y,
-                                                test = .x)))
-        )
-    }
-    
-
   }
   
-  if(! do_other_seas) {
+  
+  if (return_4_seas) {
+    return(list(stationarity = tests_of_stationarity, 
+                seas = tests_of_seasonality))
+  } else {
     return(tests_of_stationarity)
-  } else {
-    if (return_4_seas) {
-      return(list(stationarity = tests_of_stationarity, 
-                  seas = tests_of_seasonality))
-    } else {
-      return(tests_of_stationarity)
-    }
   }
-  
-  
-  
+ 
 }
+
+
 
 make_recommendation <- function(seas, sta, sta_after_seas) {
   
@@ -357,6 +338,12 @@ make_recommendation <- function(seas, sta, sta_after_seas) {
   } 
   if (seas == 0 & sta_after_seas == 1) {
     recommendation <- "diff"
+  } 
+  if (seas == 0 & sta_after_seas == 2) {
+    recommendation <- "diff_diff"
+  } 
+  if (seas == 1 & sta_after_seas == 2) {
+    recommendation <- "diff_diff_yoy"
   } 
   
   return(recommendation)
