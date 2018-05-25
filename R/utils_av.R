@@ -39,22 +39,37 @@ get_data <- function(country_name, data_path = "./data/excel/",
   
   if (data_transform == "level") {
     data_qm_mts <- map(data_qm_xts, to_ts_q)
-    level_data_ts <- data_qm_mts[[country_name]]
-    return(level_data_ts)
+    if (country_name == "all") {
+      return(data_qm_mts)
+    } else {
+      level_data_ts <- data_qm_mts[[country_name]]
+      return(level_data_ts)
+    }
+    
   } 
   
   if (data_transform == "yoy") {
     data_qm_xts_yoy <- map(data_qm_xts, make_yoy_xts)
     data_qm_mts_yoy <- map(data_qm_xts_yoy, to_ts_q)
-    yoy_data_ts <- data_qm_mts_yoy[[country_name]]
-    return(yoy_data_ts)
+    if (country_name == "all") {
+      return(data_qm_mts_yoy)
+    } else {
+      yoy_data_ts <- data_qm_mts_yoy[[country_name]]
+      return(yoy_data_ts)
+    }
+    
   }
   
   if (data_transform == "diff_yoy") {
     data_qm_xts_yoy_diff <- map(data_qm_xts_yoy, diff.xts, na.pad = FALSE)
     data_qm_mts_yoy_diff <- map(data_qm_xts_yoy_diff, to_ts_q)
-    diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
-    return(diff_yoy_data_ts)
+    if (country_name == "all") {
+      return(data_qm_mts_yoy_diff)
+    } else {
+      diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
+      return(diff_yoy_data_ts)
+    }
+    
   }
   
   
@@ -250,7 +265,7 @@ drop_this_vars <- function(df, vars_to_drop) {
 
 
 comb_ndiffs <- function(this_series, do_stati_after_seas = TRUE, 
-                        return_4_seas = FALSE) {
+                        return_4_seas = FALSE, do_other_seas = FALSE) {
   
   tests_names <- c("kpss", "pp", "adf")
   tests_season_names <- c("seas", "ocsb", "hegy", "ch")
@@ -276,15 +291,17 @@ comb_ndiffs <- function(this_series, do_stati_after_seas = TRUE,
                ~ make_recommendation(seas = ..1, sta = ..2, sta_after_seas = ..3)
                                      )
       )
+    if(do_other_seas) {
+      tests_of_seasonality <- as_tibble(
+        expand.grid(tests_season_names, tests_alpha, stringsAsFactors = FALSE)) %>% 
+        rename(test = Var1, alpha = Var2) %>% 
+        mutate(seas_result = map2_dbl(test, alpha,
+                                      suppressWarnings(
+                                        ~ nsdiffs(x = this_series, alpha = .y,
+                                                  test = .x)))
+        )
+    }
     
-    tests_of_seasonality <- as_tibble(
-      expand.grid(tests_season_names, tests_alpha, stringsAsFactors = FALSE)) %>% 
-      rename(test = Var1, alpha = Var2) %>% 
-      mutate(seas_result = map2_dbl(test, alpha,
-                                    suppressWarnings(
-                                      ~ nsdiffs(x = this_series, alpha = .y,
-                                                            test = .x)))
-      )
   } else {
     tests_of_stationarity  <- as_tibble(expand.grid(tests_names, tests_alpha, tests_type,
                                                         stringsAsFactors = FALSE)) %>% 
@@ -297,24 +314,53 @@ comb_ndiffs <- function(this_series, do_stati_after_seas = TRUE,
                                             test = ..1, type = ..3))
       )
     
+    if(do_other_seas) {
+      tests_of_seasonality  <-  as_tibble(expand.grid(tests_season_names, tests_alpha, 
+                                                      stringsAsFactors = FALSE)) %>% 
+        rename(test = Var1, alpha = Var2) %>% 
+        mutate(seas_result = map2_dbl(test, alpha,  
+                                      ~ suppressWarnings(
+                                        nsdiffs(x = this_series, alpha = .y,
+                                                test = .x)))
+        )
+    }
     
-    tests_of_seasonality  <-  as_tibble(expand.grid(tests_season_names, tests_alpha, 
-                                                        stringsAsFactors = FALSE)) %>% 
-      rename(test = Var1, alpha = Var2) %>% 
-      mutate(seas_result = map2_dbl(test, alpha,  
-                                    ~ suppressWarnings(
-                                      nsdiffs(x = this_series, alpha = .y,
-                                              test = .x)))
-      )
 
   }
   
-  if (return_4_seas) {
-    return(list(stationarity = tests_of_stationarity, 
-                seas = tests_of_seasonality))
+  if(! do_other_seas) {
+    return(tests_of_stationarity)
   } else {
-    return(list(stationarity = tests_of_stationarity))
+    if (return_4_seas) {
+      return(list(stationarity = tests_of_stationarity, 
+                  seas = tests_of_seasonality))
+    } else {
+      return(tests_of_stationarity)
+    }
   }
   
+  
+  
 }
+
+make_recommendation <- function(seas, sta, sta_after_seas) {
+  
+  if (seas == 1 & sta_after_seas == 0) {
+    recommendation <- "yoy"
+  } 
+  
+  if (seas == 0 & sta_after_seas == 0) {
+    recommendation <- "level"
+  } 
+  if (seas == 1 & sta_after_seas == 1) {
+    recommendation <- "diff_yoy"
+  } 
+  if (seas == 0 & sta_after_seas == 1) {
+    recommendation <- "diff"
+  } 
+  
+  return(recommendation)
+  
+}
+
 
