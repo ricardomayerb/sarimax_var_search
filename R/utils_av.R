@@ -6,6 +6,59 @@ library(timetk)
 library(lubridate)
 library(forecast)
 
+get_data <- function(country_name, data_path = "./data/excel/", 
+                     data_transform = "level", apply_log = FALSE) {
+  
+  file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
+  file_paths <- paste0(data_path, file_names)
+  country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")
+  
+  general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
+                                      "month", "conf_emp", "conf_ibre", "ip_ine", 
+                                      "vta_auto", "exist"))
+  # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
+  # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
+  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
+                             Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
+                             Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
+                             Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
+                             Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
+  
+  variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
+  
+  data_qm_xts <- get_gdp_shaped_data(data_path = data_path, 
+                                     list_variables_to_drop = variables_to_drop,
+                                     only_complete_cases = TRUE,
+                                     apply_log = apply_log)
+  
+  
+  if (data_transform == "level") {
+    data_qm_mts <- map(data_qm_xts, to_ts_q)
+    level_data_ts <- data_qm_mts[[country_name]]
+    return(level_data_ts)
+  } 
+  
+  if (data_transform == "yoy") {
+    data_qm_xts_yoy <- map(data_qm_xts, make_yoy_xts)
+    data_qm_mts_yoy <- map(data_qm_xts_yoy, to_ts_q)
+    yoy_data_ts <- data_qm_mts_yoy[[country_name]]
+    return(yoy_data_ts)
+  }
+  
+  if (data_transform == "diff_yoy") {
+    data_qm_xts_yoy_diff <- map(data_qm_xts_yoy, diff.xts, na.pad = FALSE)
+    data_qm_mts_yoy_diff <- map(data_qm_xts_yoy_diff, to_ts_q)
+    diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
+    return(diff_yoy_data_ts)
+  }
+  
+  
+}
 
 make_yoy_xts <- function(df_xts) {
   new_xts <- diff.xts(df_xts, lag = 4, na.pad = FALSE)/lag.xts(
@@ -192,3 +245,76 @@ read_gather_qm_data <- function(data_path = "./data/pre_r_data/",
 drop_this_vars <- function(df, vars_to_drop) {
   new_df <- df[,!(names(df) %in% vars_to_drop)]
 }
+
+
+
+
+comb_ndiffs <- function(this_series, do_stati_after_seas = TRUE, 
+                        return_4_seas = FALSE) {
+  
+  tests_names <- c("kpss", "pp", "adf")
+  tests_season_names <- c("seas", "ocsb", "hegy", "ch")
+  tests_alpha <- c(0.01, 0.05, 0.1)
+  tests_type <- c("level", "trend")
+  
+  if (do_stati_after_seas) {
+    tests_of_stationarity <- as_tibble(
+      expand.grid(tests_names, tests_alpha, tests_type,
+                  stringsAsFactors = FALSE)) %>% 
+      rename(test = Var1, alpha = Var2, deter_part = Var3) %>% 
+      mutate(default_seas = map_dbl(alpha,
+                                    ~ nsdiffs(x = this_series, alpha = .)),
+             sta_result = pmap_dbl(list(test, alpha, deter_part),
+                                   ~ ndiffs(x = this_series, alpha = ..2,
+                                            test = ..1, type = ..3)),
+             sta_result_after_seas = pmap_dbl(
+               list(test, alpha, deter_part, default_seas),
+               ~ ndiffs(x = diff(this_series, lag = ..4), 
+                        alpha = ..2, test = ..1, type = ..3)),
+             recommendation = pmap_chr(
+               list(default_seas, sta_result, sta_result_after_seas),
+               ~ make_recommendation(seas = ..1, sta = ..2, sta_after_seas = ..3)
+                                     )
+      )
+    
+    tests_of_seasonality <- as_tibble(
+      expand.grid(tests_season_names, tests_alpha, stringsAsFactors = FALSE)) %>% 
+      rename(test = Var1, alpha = Var2) %>% 
+      mutate(seas_result = map2_dbl(test, alpha,
+                                    suppressWarnings(
+                                      ~ nsdiffs(x = this_series, alpha = .y,
+                                                            test = .x)))
+      )
+  } else {
+    tests_of_stationarity  <- as_tibble(expand.grid(tests_names, tests_alpha, tests_type,
+                                                        stringsAsFactors = FALSE)) %>% 
+      rename(test = Var1, alpha = Var2, deter_part = Var3) %>% 
+      mutate(default_seas = map_dbl(alpha,
+                                    ~ suppressWarnings(
+                                      nsdiffs(x = this_series, alpha = .))),
+             sta_result = pmap_dbl(list(test, alpha, deter_part),
+                                   ~ ndiffs(x = this_series, alpha = ..2,
+                                            test = ..1, type = ..3))
+      )
+    
+    
+    tests_of_seasonality  <-  as_tibble(expand.grid(tests_season_names, tests_alpha, 
+                                                        stringsAsFactors = FALSE)) %>% 
+      rename(test = Var1, alpha = Var2) %>% 
+      mutate(seas_result = map2_dbl(test, alpha,  
+                                    ~ suppressWarnings(
+                                      nsdiffs(x = this_series, alpha = .y,
+                                              test = .x)))
+      )
+
+  }
+  
+  if (return_4_seas) {
+    return(list(stationarity = tests_of_stationarity, 
+                seas = tests_of_seasonality))
+  } else {
+    return(list(stationarity = tests_of_stationarity))
+  }
+  
+}
+

@@ -48,3 +48,9 @@ yoy_data_ts <- data_qm_mts_yoy[[country_name]]
 diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
 
 level_rgdp_ts <- level_data_ts[ , "rgdp"]
+
+fn_level_data_ts <- get_data(data_path = data_path, country_name = "Brasil",
+                             data_transform = "level", apply_log = FALSE)
+
+identical(fn_level_data_ts, level_data_ts)
+identical(fn_level_data_ts[ , "rgdp"], level_rgdp_ts)
