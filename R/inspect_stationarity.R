@@ -40,6 +40,7 @@ for (i in seq_along(country_names)) {
     this_variable_ts <- level_data_ts[ , this_variable]
     tests_of_stationarity <- suppressWarnings(comb_ndiffs(this_variable_ts))
     tests_of_stationarity$country <- country_name
+    tests_of_stationarity$variable <- this_variable
     
     reco <- get_reco_from_sta(tests_of_stationarity, this_variable)
     
