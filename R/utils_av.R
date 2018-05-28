@@ -274,7 +274,7 @@ my_diff <- function(series, lag = 1, differences = 1) {
 
 
 comb_ndiffs <- function(this_series, return_4_seas = FALSE, 
-                        do_other_seas = FALSE) {
+                        do_other_seas = FALSE, seas_test = "seas") {
   
   tests_names <- c("kpss", "pp", "adf")
   tests_season_names <- c("seas", "ocsb", "hegy", "ch")
@@ -283,33 +283,37 @@ comb_ndiffs <- function(this_series, return_4_seas = FALSE,
   
   
   tests_of_stationarity <- as_tibble(
-    expand.grid(tests_names, tests_alpha, tests_type,
+    expand.grid(tests_names, tests_type, tests_alpha,
                 stringsAsFactors = FALSE)) %>% 
-    rename(test = Var1, alpha = Var2, deter_part = Var3) %>% 
-    mutate(default_seas = map_dbl(alpha,
-                                  ~ nsdiffs(x = this_series, alpha = .)),
+    rename(test = Var1, deter_part = Var2, alpha = Var3) %>% 
+    mutate(seas_result = map_dbl(alpha,
+                                  ~ nsdiffs(x = this_series, alpha = ., 
+                                            test = seas_test)),
+           seas_test = seas_test,
            sta_result = pmap_dbl(list(test, alpha, deter_part),
                                  ~ ndiffs(x = this_series, alpha = ..2,
                                           test = ..1, type = ..3)),
            sta_result_after_seas = pmap_dbl(
-             list(test, alpha, deter_part, default_seas),
+             list(test, alpha, deter_part, seas_result),
              ~ ndiffs(x = my_diff(this_series, lag = 4, differences = ..4), 
                       alpha = ..2, test = ..1, type = ..3)),
            recommendation = pmap_chr(
-             list(default_seas, sta_result, sta_result_after_seas),
+             list(seas_result, sta_result, sta_result_after_seas),
              ~ make_recommendation(seas = ..1, sta = ..2, sta_after_seas = ..3)
            )
-    )
-    
+    ) %>% 
+    dplyr::select(test, deter_part, alpha, sta_result, seas_test,
+                  seas_result, sta_result_after_seas, recommendation)
+  
   if (do_other_seas) {
-      tests_of_seasonality <- as_tibble(
-        expand.grid(tests_season_names, tests_alpha, stringsAsFactors = FALSE)) %>% 
-        rename(test = Var1, alpha = Var2) %>% 
-        mutate(seas_result = map2_dbl(test, alpha,
-                                      suppressWarnings(
-                                        ~ nsdiffs(x = this_series, alpha = .y,
-                                                  test = .x)))
-        )
+    tests_of_seasonality <- as_tibble(
+      expand.grid(tests_season_names, tests_alpha, stringsAsFactors = FALSE)) %>% 
+      rename(test = Var1, alpha = Var2) %>% 
+      mutate(seas_result = map2_dbl(test, alpha,
+                                    suppressWarnings(
+                                      ~ nsdiffs(x = this_series, alpha = .y,
+                                                test = .x)))
+      )
   }
   
   
@@ -319,7 +323,7 @@ comb_ndiffs <- function(this_series, return_4_seas = FALSE,
   } else {
     return(tests_of_stationarity)
   }
- 
+  
 }
 
 
@@ -348,6 +352,135 @@ make_recommendation <- function(seas, sta, sta_after_seas) {
   
   return(recommendation)
   
+}
+
+
+get_reco <- function(country_name, variable_name, data_transform) {
+  
+  level_data_ts <- get_data(country_name = country_name,
+                            data_transform = data_transform, apply_log = FALSE)
+  level_rgdp_ts <- level_data_ts[ , variable_name]
+  this_series <- level_rgdp_ts
+  
+  stdata <- suppressWarnings(comb_ndiffs(level_rgdp_ts)) %>% 
+    arrange(test, deter_part, alpha)
+  
+  stdata$country <- country_name
+  
+  unanim <- stdata %>% 
+    mutate(unanimity = min(recommendation) == max(recommendation),
+           unanimity = ifelse(unanimity, recommendation, NA)) %>% 
+    select(country, unanimity) %>% 
+    unique()
+  
+  unanim_deter_level <- stdata %>%
+    filter(deter_part == "level" ) %>% 
+    mutate(unan_level = min(recommendation) == max(recommendation),
+           unan_level = ifelse(unan_level, recommendation, NA)) %>% 
+    select(country, unan_level) %>% 
+    unique()
+  
+  unanim_05_deter_level <- stdata %>%
+    filter(deter_part == "level", alpha == 0.05 ) %>% 
+    mutate(unan_05_level = min(recommendation) == max(recommendation),
+           unan_05_level = ifelse(unan_05_level, recommendation, NA)) %>% 
+    select(country, unan_05_level) %>% 
+    unique()
+  
+  unanim_kpss <- stdata %>% 
+    filter(test == "kpss") %>% 
+    mutate(unan_kpss = min(recommendation) == max(recommendation),
+           unan_kpss = ifelse(unan_kpss, recommendation, NA)) %>% 
+    select(country, unan_kpss) %>% 
+    unique()
+  
+  unanim_kpss_level <- stdata %>% 
+    filter(test == "kpss", deter_part == "level") %>% 
+    mutate(unan_kpss_lev = min(recommendation) == max(recommendation),
+           unan_kpss_lev = ifelse(unan_kpss_lev, recommendation, NA)) %>% 
+    select(country, unan_kpss_lev) %>% 
+    unique()
+  
+  kpss_reco <- stdata %>% 
+    filter(test == "kpss", deter_part == "level", alpha == 0.05) %>%
+    select(country, recommendation) %>% 
+    rename(kpss_05_level = recommendation)
+  
+  country_recos <- left_join(unanim, unanim_deter_level, by = "country") %>% 
+    left_join(unanim_05_deter_level, by = "country") %>% 
+    left_join(unanim_kpss, by = "country") %>% 
+    left_join(unanim_kpss_level, by = "country") %>% 
+    left_join(kpss_reco, by = "country")
+  
+  country_recos$variable <- variable_name
+  
+  yoy_reco <- stdata %>% 
+    filter(recommendation == "yoy")
+  
+  diff_yoy_reco <- stdata %>% 
+    filter(recommendation == "diff_yoy")
+  
+  return(country_recos)
+}
+
+
+
+get_reco_from_sta <- function(stdata, variable_name) {
+  
+  unanim <- stdata %>% 
+    mutate(unanimity = min(recommendation) == max(recommendation),
+           unanimity = ifelse(unanimity, recommendation, NA)) %>% 
+    select(country, unanimity) %>% 
+    unique()
+  
+  unanim_deter_level <- stdata %>%
+    filter(deter_part == "level" ) %>% 
+    mutate(unan_level = min(recommendation) == max(recommendation),
+           unan_level = ifelse(unan_level, recommendation, NA)) %>% 
+    select(country, unan_level) %>% 
+    unique()
+  
+  unanim_05_deter_level <- stdata %>%
+    filter(deter_part == "level", alpha == 0.05 ) %>% 
+    mutate(unan_05_level = min(recommendation) == max(recommendation),
+           unan_05_level = ifelse(unan_05_level, recommendation, NA)) %>% 
+    select(country, unan_05_level) %>% 
+    unique()
+  
+  unanim_kpss <- stdata %>% 
+    filter(test == "kpss") %>% 
+    mutate(unan_kpss = min(recommendation) == max(recommendation),
+           unan_kpss = ifelse(unan_kpss, recommendation, NA)) %>% 
+    select(country, unan_kpss) %>% 
+    unique()
+  
+  unanim_kpss_level <- stdata %>% 
+    filter(test == "kpss", deter_part == "level") %>% 
+    mutate(unan_kpss_lev = min(recommendation) == max(recommendation),
+           unan_kpss_lev = ifelse(unan_kpss_lev, recommendation, NA)) %>% 
+    select(country, unan_kpss_lev) %>% 
+    unique()
+  
+  kpss_reco <- stdata %>% 
+    filter(test == "kpss", deter_part == "level", alpha == 0.05) %>%
+    select(country, recommendation) %>% 
+    rename(kpss_05_level = recommendation)
+  
+  country_recos <- left_join(unanim, unanim_deter_level, by = "country") %>% 
+    left_join(unanim_05_deter_level, by = "country") %>% 
+    left_join(unanim_kpss, by = "country") %>% 
+    left_join(unanim_kpss_level, by = "country") %>% 
+    left_join(kpss_reco, by = "country")
+  
+  country_recos$variable <- variable_name
+  
+  # yoy_reco <- stdata %>% 
+  #   filter(recommendation == "yoy")
+  # 
+  # diff_yoy_reco <- stdata %>% 
+  #   filter(recommendation == "diff_yoy")
+  
+  return(country_recos)
 }
 
 
