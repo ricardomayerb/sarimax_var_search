@@ -1,7 +1,7 @@
 source("./R/utils_av.R")
 
 
-country_name <- "Brasil"
+country_name <- "Chile"
 
 h_max = 6
 #################################### Load Data #######################################

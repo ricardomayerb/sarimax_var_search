@@ -6,6 +6,117 @@ library(timetk)
 library(lubridate)
 library(forecast)
 
+
+get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
+  
+  file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
+  file_paths <- paste0(data_path, file_names)
+  country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")  
+  names(file_paths) <- country_names
+  names(file_names) <- country_names
+  
+  general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
+                                      "month", "conf_emp", "conf_ibre", "ip_ine", 
+                                      "vta_auto", "exist"))
+  # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
+  # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
+  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
+                             Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
+                             Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
+                             Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
+                             Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
+  
+  variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
+  
+  if (!is.null(country)) {
+    file_paths <- file_paths[country]
+    file_names <- file_names[country]
+    country_names <- country
+  }
+  
+  if(length(country == 1)) {
+    is_single_country <- TRUE
+  } else {
+    is_single_country <- FALSE
+  }
+  
+  all_files_q <- list_along(country_names)
+  all_files_m <- list_along(country_names)
+  all_files_m_q <- list_along(country_names)
+  countries_merged_q_m <- list_along(country_names)
+  countries_merged_q_m_ts <- list_along(country_names)
+  
+  
+  
+  for (i in seq_along(country_names)) {
+    
+    this_q <- read_excel(file_paths[i], sheet = "quarterly")
+    this_q <- as_tbl_time(this_q, index = date)
+    this_q <- dplyr::select(this_q, -c(year, hlookup))
+    
+    if(country_names[i] == "Uruguay") {
+      this_q[, "rm"] <- - this_q[, "rm"]
+    }
+    
+    
+    all_files_q[[i]] <- this_q
+    
+    this_m <- read_excel(file_paths[i], sheet = "monthly")
+    this_m <- as_tbl_time(this_m, index = date)
+    all_files_m[[i]] <- this_m
+    
+    this_m_q <- this_m  %>%
+      collapse_by(period = "quarterly") %>%
+      group_by(date) %>% transmute_all(mean) %>%
+      distinct(date, .keep_all = TRUE) %>% 
+      ungroup() 
+    
+    all_files_m_q[[i]] <- this_m_q
+    
+    m_and_q <- left_join(this_q, this_m_q, by = "date")
+    
+    this_vars_to_drop <- variables_to_drop[[i]]
+    m_and_q <- drop_this_vars(m_and_q, this_vars_to_drop)
+    
+    # m_and_q$year <- NULL
+    # m_and_q$quarter <- NULL
+    # m_and_q$month <- NULL
+    # m_and_q$hlookup <- NULL
+    # m_and_q$trim <- NULL
+    
+    
+    maq_start <- first(tk_index(m_and_q))
+    m_and_q_ts <- suppressWarnings(tk_ts(m_and_q, frequency = 4, 
+                                         start = c(year(maq_start), quarter(maq_start))))
+    
+    countries_merged_q_m[[i]] <- m_and_q
+    countries_merged_q_m_ts[[i]] <- m_and_q_ts
+    
+  }
+  
+  names(all_files_q) <- country_names
+  names(all_files_m) <- country_names
+  names(all_files_m_q) <- country_names
+  names(countries_merged_q_m) <- country_names
+  names(countries_merged_q_m_ts) <- country_names
+  
+  # countries_merged_q_m <- countries_merged_q_m %>% 
+  #   dplyr::select(-c(year, quarter, month, hlookup))
+  
+  if (is_single_country) {
+    return(countries_merged_q_m_ts[[1]])
+  } else {
+    return(countries_merged_q_m_ts)
+  }
+  
+  
+}
+
 get_data <- function(country_name, data_path = "./data/excel/", 
                      data_transform = "level", apply_log = FALSE) {
   
@@ -82,7 +193,7 @@ make_yoy_xts <- function(df_xts) {
 
 
 make_yoy_ts <- function(df_ts) {
-  new_ts <- diff.ts(df_ts, lag = 4)/lag.ts(df_xts, k = 4)
+  new_ts <- base::diff(df_ts, lag = 4)/stats::lag(df_ts, k = 4)
 }
 
 to_ts_q <- function(df_xts){
@@ -481,6 +592,59 @@ get_reco_from_sta <- function(stdata, variable_name) {
   #   filter(recommendation == "diff_yoy")
   
   return(country_recos)
+}
+
+follow_rec <- function(data_tbl_ts, table_of_recommendations) {
+  
+  rec_rows <- nrow(table_of_recommendations)
+  
+  rec_column <- "kpss_05_level"
+  
+  new_variables_list <- list_along(1:rec_rows)
+  
+  for (i in seq_len(rec_rows)) {
+    
+    this_rec <- table_of_recommendations[[i, rec_column]]
+    this_variable <- table_of_recommendations[[i, "variable"]]
+    this_variable_ts <- data_tbl_ts[, this_variable] 
+    
+    
+    
+    if (this_rec == "level") {
+      new_variable_ts <- this_variable_ts
+    }
+    
+    if (this_rec == "yoy") {
+      new_variable_ts <- make_yoy_ts(this_variable_ts)
+    }
+    
+    if (this_rec == "diff") {
+      new_variable_ts <- base::diff(this_variable_ts)
+    }
+    
+    if (this_rec == "diff_yoy") {
+      new_variable_ts <- base::diff(make_yoy_ts(this_variable_ts))
+    }
+    
+    if (this_rec == "diff_diff") {
+      new_variable_ts <- base::diff(this_variable_ts, differences = 2)
+    }
+    
+    if (this_rec == "diff_diff_yoy") {
+      new_variable_ts <- base::diff(make_yoy_ts(this_variable_ts),
+                                    differences = 2)
+    }
+    
+    new_variables_list[[i]] <- new_variable_ts
+
+    
+  }
+  
+  new_data_ts <- reduce(new_variables_list, ts.union)
+  colnames(new_data_ts) <- colnames(data_tbl_ts)
+  
+  return(new_data_ts)
+  
 }
 
 
