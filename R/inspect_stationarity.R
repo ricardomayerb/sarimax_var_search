@@ -49,10 +49,12 @@ for (i in seq_along(country_names)) {
     
   }
   
-  
-  
 }
 tictoc::toc()
+
+
+reco_by_country_list <- map(sta_reco_list,  ~ reduce(., rbind))
+reco_all_countries_tbl  <- map_df(sta_reco_list,  ~ reduce(., rbind))
 
 # all_countries_reco <- reduce(sta_reco_list, rbind)
 # 
