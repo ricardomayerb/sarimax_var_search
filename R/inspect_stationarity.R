@@ -31,25 +31,55 @@ sta_reco_list <- list_along(country_names)
 tictoc::tic()
 for (i in seq_along(country_names)) {
   country_name <- country_names[i]
-  level_data_ts <- all_countries_data [[country_name]]
+  level_data_ts <- all_countries_data[[country_name]]
   
-  level_rgdp_ts <- level_data_ts[ , "rgdp"]
-  tests_of_stationarity <- suppressWarnings(comb_ndiffs(level_rgdp_ts))
-  tests_of_stationarity$country <- country_name
+  names_of_variables <- colnames(level_data_ts)
   
-  reco <- get_reco_from_sta(tests_of_stationarity, "rgdp")
+  for (j in seq_along(names_of_variables)) {
+    this_variable <- names_of_variables[j]
+    this_variable_ts <- level_data_ts[ , this_variable]
+    tests_of_stationarity <- suppressWarnings(comb_ndiffs(this_variable_ts))
+    tests_of_stationarity$country <- country_name
+    
+    reco <- get_reco_from_sta(tests_of_stationarity, this_variable)
+    
+    stationarity_list[[i]][[j]] <- tests_of_stationarity
+    sta_reco_list[[i]][[j]] <- reco
+    
+  }
   
-  stationarity_list[[i]] <- tests_of_stationarity
-  sta_reco_list[[i]] <- reco
+  
   
 }
 tictoc::toc()
 
-all_countries_reco <- reduce(sta_reco_list, rbind)
+# all_countries_reco <- reduce(sta_reco_list, rbind)
+# 
+# all_countries_rgdp_stati <- reduce(stationarity_list, rbind) %>% 
+#   group_by(country, test) %>% 
+#   arrange(country, test, deter_part, alpha)
 
-all_countries_rgdp_stati <- reduce(stationarity_list, rbind) %>% 
-  group_by(country, test) %>% 
-  arrange(country, test, deter_part, alpha)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # stdata <- tests_of_stationarity_e 
