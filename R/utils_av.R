@@ -193,7 +193,7 @@ make_yoy_xts <- function(df_xts) {
 
 
 make_yoy_ts <- function(df_ts) {
-  new_ts <- base::diff(df_ts, lag = 4)/stats::lag(df_ts, k = 4)
+  new_ts <- base::diff(df_ts, lag = 4)/stats::lag(df_ts, k = -4)
 }
 
 to_ts_q <- function(df_xts){
