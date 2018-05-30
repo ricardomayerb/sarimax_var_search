@@ -1,3 +1,5 @@
+library(MTS)
+library(vars)
 library(xts)
 library(tibbletime)
 library(tidyverse)
@@ -7,9 +9,8 @@ library(lubridate)
 library(forecast)
 library(gridExtra)
 library(grid)
-library(MTS)
 library(haven)
-library(vars)
+
 
 add_average_fcs <- function(var_fc_tbl, n_ave = c(1, 3, 5)) {
   just_fcs <- var_fc_tbl %>% dplyr::select(fc_rgdp_mean, tibble_id)
@@ -682,8 +683,13 @@ get_data <- function(country_name, data_path = "./data/excel/",
   
 }
 
+<<<<<<< HEAD
 
 
+=======
+
+
+>>>>>>> 4e5fcb0215559b573991e136c64b1c1dd6f50d84
 get_gdp_start_end <- function(data) {
   
   na_omitted_rgdp  <- data %>% dplyr::select(date, rgdp) %>% 
@@ -770,7 +776,7 @@ get_reco <- function(country_name, variable_name, data_transform) {
   unanim <- stdata %>% 
     mutate(unanimity = min(recommendation) == max(recommendation),
            unanimity = ifelse(unanimity, recommendation, NA)) %>% 
-    select(country, unanimity) %>% 
+    dplyr::select(country, unanimity) %>% 
     unique()
   
   unanim_deter_level <- stdata %>%
@@ -830,7 +836,7 @@ get_reco_from_sta <- function(stdata, variable_name) {
   unanim <- stdata %>% 
     mutate(unanimity = min(recommendation) == max(recommendation),
            unanimity = ifelse(unanimity, recommendation, NA)) %>% 
-    select(country, unanimity) %>% 
+    dplyr::select(country, unanimity) %>% 
     unique()
   
   unanim_deter_level <- stdata %>%
@@ -882,6 +888,7 @@ get_reco_from_sta <- function(stdata, variable_name) {
   
   return(country_recos)
 }
+
 
 
 get_rmse_var_table_at_each_h_diff_yoy <- function(data = cv_objects){
@@ -1351,6 +1358,490 @@ to_ts_q <- function(df_xts){
 }
 
 
+
+
+get_rmses_h_rakings_h <- function(data = cv_objects, h_max = 6){
+  cv_errors <- data[["cv_errors"]]
+  
+  all_rmses <- map(cv_errors, function(x) sqrt(colMeans( (reduce(x, rbind))^2))  )
+  all_rmses_tbl <- reduce(all_rmses, rbind)
+  rmse_names <- paste0("rmse_", 1:h_max)
+  colnames(all_rmses_tbl) <- rmse_names
+  row.names(all_rmses_tbl) <- NULL
+  
+  
+  for (r in seq_along(rmse_names)) {
+    this_rmse <- rmse_names[r]
+    rmse_vec <- all_rmses_tbl[, this_rmse]
+    this_rank <- rank(rmse_vec)
+    all_rmses_tbl <- cbind(all_rmses_tbl, this_rank)
+    
+  }
+  
+  ranking_names <- paste0("rank_", 1:h_max)
+  rmse_and_rank_names <- c(rmse_names, ranking_names)
+  colnames(all_rmses_tbl) <- rmse_and_rank_names
+  
+  rmse_each_h <- cbind(data, all_rmses_tbl)
+  
+  return(rmse_each_h)
+  
+}
+
+
+
+
+get_sets_of_variables <- function(df, this_size, all_variables, 
+                                  already_chosen, bt_factor,
+                                  maxlag_ccm = 12) {
+  
+  len_already_chosen <- length(already_chosen)
+  len_other_vbls <- this_size - len_already_chosen
+  
+  tiao_box_treshold <- 2 / sqrt(nrow(df))
+  tresh <- bt_factor * tiao_box_treshold
+  
+  p_and_ccm_mat <- ccm(df, output = FALSE, lags = maxlag_ccm)
+  
+  ccm_mat <- p_and_ccm_mat$ccm
+  ccm_mat_rgdp <- ccm_mat[1:ncol(df) ,]
+  geq_cor <- abs(ccm_mat_rgdp) >= tresh
+  geq_cor_row_sums <- rowSums(geq_cor) 
+  geq_cor_variables <- geq_cor_row_sums >= 1
+  
+  passing_variables <- all_variables[geq_cor_variables]
+  
+  passing_not_alr_chosen <- passing_variables[!passing_variables %in% already_chosen]
+  
+  n_passing_vbls <- length(passing_not_alr_chosen)
+  
+  print(paste("We have", n_passing_vbls, "variables, to fill", len_other_vbls,
+              "slots in the VAR.Total possible combinations :",
+              choose(n_passing_vbls, len_other_vbls)))
+  
+  combinations <- combn(passing_not_alr_chosen, len_other_vbls)
+  
+}
+
+
+my_diff <- function(series, lag = 1, differences = 1) {
+  if (differences == 0) {
+    x_diff <- series
+  } else {
+    x_diff <- diff(series, lag = lag, differences = differences)
+  }
+  return(x_diff)
+}
+
+
+
+
+make_recommendation <- function(seas, sta, sta_after_seas) {
+  
+  if (seas == 1 & sta_after_seas == 0) {
+    recommendation <- "yoy"
+  } 
+  
+  if (seas == 0 & sta_after_seas == 0) {
+    recommendation <- "level"
+  } 
+  if (seas == 1 & sta_after_seas == 1) {
+    recommendation <- "diff_yoy"
+  } 
+  if (seas == 0 & sta_after_seas == 1) {
+    recommendation <- "diff"
+  } 
+  if (seas == 0 & sta_after_seas == 2) {
+    recommendation <- "diff_diff"
+  } 
+  if (seas == 1 & sta_after_seas == 2) {
+    recommendation <- "diff_diff_yoy"
+  } 
+  
+  return(recommendation)
+  
+}
+
+
+
+
+make_test_dates_list <- function(ts_data, type = "tscv", n = 8, h_max = 6,
+                                 timetk_idx = TRUE, training_length = 20,
+                                 external_idx = NULL) {
+  
+  data_length <- nrow(ts_data)
+  
+  # if (timetk_idx) {
+  #   date_time_index <- tk_index(ts_data, timetk_idx = timetk_idx)
+  # } else {
+  #   date_time_index <- external_idx
+  # }
+  # 
+  date_time_index <- as.yearqtr(time(ts_data))
+  
+  list_of_positions <- list_along(seq(1:n))
+  list_of_dates <- list_along(seq(1:n))
+  list_of_year_quarter <- list_along(seq(1:n))
+  
+  if (type == "tscv") {
+    
+    for (i in seq.int(1:n)) {
+      
+      from_the_right <-  i - 1
+      
+      end_test_pos <- data_length - from_the_right 
+      start_test_pos <- end_test_pos - h_max + 1
+      end_training_pos <- start_test_pos - 1
+      start_training_pos <- end_training_pos - training_length + 1
+      
+      
+      end_test_date <- date_time_index[end_test_pos]
+      start_test_date <- date_time_index[start_test_pos] 
+      end_training_date <- date_time_index[end_training_pos]
+      start_training_date <- date_time_index[start_training_pos]
+      
+      end_test_year <- year(end_test_date)
+      start_test_year <- year(start_test_date) 
+      end_training_year <- year(end_training_date) 
+      start_training_year <- year(start_training_date)
+      
+      end_test_quarter <- quarter(end_test_date)
+      start_test_quarter <- quarter(start_test_date) 
+      end_training_quarter <- quarter(end_training_date) 
+      start_training_quarter <- quarter(start_training_date)
+      
+      this_pos <- list(
+        tra_s = start_training_pos, 
+        tra_e = end_training_pos,
+        tes_s = start_test_pos, 
+        tes_e = end_test_pos)
+      
+      this_date <- list(
+        tra_s = start_training_date, 
+        tra_e = end_training_date,
+        tes_s = start_test_date, 
+        tes_e = end_test_date)
+      
+      this_yq <- list(
+        tra_s = c(start_training_year, start_training_quarter),
+        tra_e = c(end_training_year, end_training_quarter),
+        tes_s = c(start_test_year, start_test_quarter),
+        tes_e = c(end_test_year, end_test_quarter)
+      )
+      
+      list_of_positions[[i]] <- this_pos
+      list_of_dates[[i]] <- this_date
+      list_of_year_quarter[[i]] <- this_yq
+      
+    }
+    
+    return(list(
+      list_of_year_quarter = list_of_year_quarter,
+      list_of_dates = list_of_dates,
+      list_of_positions = list_of_positions)
+    )
+    
+  }
+  
+  
+}
+
+
+
+make_tables_and_plots_vbls_lags_sizes <- function(models_and_accu) {
+  
+  models_and_accu <- models_and_accu %>% 
+    mutate(accu_lev = map(accu_lev, unlist),
+           accu_yoy = map(accu_yoy, unlist))
+  
+  models_and_accu <- models_and_accu %>%  
+    mutate(n_variables = map(variables, length))
+  
+  ma_diff_yoy <- models_and_accu %>% 
+    filter(diff_ranking <= 50)
+  
+  ma_yoy <- models_and_accu %>% 
+    filter(yoy_ranking <= 50)
+  
+  ma_level <- models_and_accu %>% 
+    filter(level_ranking <= 50)
+  
+  vbls_diff <- reduce(ma_diff_yoy$variables, c) 
+  count_vbls_diff <- vbls_diff %>% tibble(v = .) %>% 
+    group_by(v) %>% summarise(n_diff = n())
+  
+  vbls_yoy <- reduce(ma_yoy$variables, c)
+  count_vbls_yoy <- vbls_yoy %>% tibble(v = .) %>% 
+    group_by(v) %>% summarise(n_yoy = n())
+  
+  vbls_level <- reduce(ma_level$variables, c)
+  count_vbls_level <- vbls_level %>% tibble(v = .) %>% 
+    group_by(v) %>% summarise(n_level = n())
+  
+  n_endo_diff <- reduce(ma_diff_yoy$n_variables, c)
+  count_n_endo_diff <- n_endo_diff %>% tibble(size = .) %>% 
+    group_by(size) %>% summarise(size_diff = n())
+  
+  n_endo_yoy <- reduce(ma_yoy$n_variables, c)
+  count_n_endo_yoy <- n_endo_yoy %>% tibble(size = .) %>% 
+    group_by(size) %>% summarise(size_yoy = n())
+  
+  n_endo_level <- reduce(ma_level$n_variables, c)
+  count_n_endo_level <- n_endo_level %>% tibble(size = .) %>% 
+    group_by(size) %>% summarise(size_level = n())
+  
+  lags_diff <- reduce(ma_diff_yoy$lags, c)
+  count_lags_diff <- lags_diff %>% tibble(lag = .) %>% 
+    group_by(lag) %>% summarise(lag_diff = n())
+  
+  lags_yoy <- reduce(ma_yoy$lags, c)
+  count_lags_yoy <- lags_yoy %>% tibble(lag = .) %>% 
+    group_by(lag) %>% summarise(lag_yoy = n())
+  
+  lags_level <- reduce(ma_level$lags, c)
+  count_lags_level <- lags_level %>% tibble(lag = .) %>% 
+    group_by(lag) %>% summarise(lag_level = n())
+  
+  
+  vbls <- reduce(list(count_vbls_diff, count_vbls_yoy, count_vbls_level), 
+                 full_join, by = "v")  %>% 
+    gather(key = "group", value = "n", -v) %>%
+    mutate(group = factor(group, levels = c( "n_level" , "n_yoy", "n_diff"))) %>% 
+    arrange(group, desc(n)) %>% 
+    mutate(v_order = row_number())
+  
+  g_vbls_facets <- ggplot(vbls, aes(x = v_order, y = n, fill = group)) +
+    geom_bar(stat = "identity", show.legend = FALSE) + 
+    facet_wrap(~ group, scales = "free") + 
+    ylab("Number of appearances in selected VARs") +
+    xlab("variable") + 
+    scale_x_continuous(
+      breaks = vbls$v_order,
+      labels = vbls$v,
+      expand = c(0,0)
+    ) +
+    coord_flip()
+  
+  g_vbls_stacked <- ggplot(data = vbls, aes(x = fct_reorder2(v, group, n), 
+                                            weight = n, fill = group)) + 
+    geom_bar()  + coord_flip()
+  
+  
+  
+  endo <- reduce(list(count_n_endo_diff, count_n_endo_yoy, count_n_endo_level), 
+                 full_join, by = "size") %>% 
+    gather(key = "group", value = "freq", -size) %>%
+    mutate(group = factor(group, levels = c( "size_level" , "size_yoy", "size_diff"))) %>% 
+    arrange(group, desc(freq)) %>% 
+    mutate(size_order = row_number())
+  
+  g_endo_facets <- ggplot(endo, aes(x = size_order, y = freq, fill = group)) +
+    geom_bar(stat = "identity", show.legend = FALSE) + 
+    facet_wrap(~ group) + 
+    ylab("Number of appearances in selected VARs") +
+    xlab("size") + 
+    scale_x_continuous(
+      breaks = endo$size_order,
+      labels = endo$size
+    ) +
+    coord_flip()
+  
+  g_endo_stacked <- ggplot(data = endo, aes(x = size, weight = freq, fill = group)) + 
+    geom_bar(position = "dodge") 
+  
+  
+  n_lags <- reduce(list(count_lags_diff, count_lags_yoy, count_lags_level), 
+                   full_join, by = "lag") %>% 
+    gather(key = "group", value = "freq", -lag) %>%
+    mutate(group = factor(group, levels = c( "lag_level" , "lag_yoy", "lag_diff"))) %>% 
+    arrange(group, desc(freq)) %>% 
+    mutate(lag_order = row_number())
+  
+  g_lag_facets <- ggplot(n_lags, aes(x = lag_order, y = freq, fill = group)) +
+    geom_bar(stat = "identity", show.legend = FALSE) + 
+    facet_wrap(~ group, scales = "free_y") + 
+    ylab("Number of appearances in selected VARs") +
+    xlab("lags") + 
+    scale_x_continuous(
+      breaks = n_lags$lag_order,
+      labels = n_lags$lag
+    ) +
+    coord_flip()
+  
+  g_lag_stacked <- ggplot(data = n_lags, aes(x = lag, weight = freq, fill = group)) + 
+    geom_bar(position = "dodge") 
+  
+  
+  
+  
+  variables_table <- reduce(list(count_vbls_diff, count_vbls_yoy, count_vbls_level), 
+                            full_join, by = "v") %>% 
+    rename(variable = v,
+           fcs_diff_yoy = n_diff,
+           fcs_yoy = n_yoy,
+           fcs_level = n_level) %>% 
+    mutate(fcs_diff_yoy = ifelse(is.na(fcs_diff_yoy),  0, fcs_diff_yoy),
+           fcs_yoy = ifelse(is.na(fcs_yoy),  0, fcs_yoy),
+           fcs_level = ifelse(is.na(fcs_level),  0, fcs_level)
+    ) %>% 
+    arrange(desc(fcs_diff_yoy))
+  
+  lags_table <- reduce(list(count_lags_diff, count_lags_yoy, count_lags_level), 
+                       full_join, by = "lag") %>% 
+    rename(fcs_diff_yoy = lag_diff,
+           fcs_yoy = lag_yoy,
+           fcs_level = lag_level) %>% 
+    mutate(fcs_diff_yoy = ifelse(is.na(fcs_diff_yoy),  0, fcs_diff_yoy),
+           fcs_yoy = ifelse(is.na(fcs_yoy),  0, fcs_yoy),
+           fcs_level = ifelse(is.na(fcs_level),  0, fcs_level)
+    ) %>% 
+    arrange(desc(fcs_diff_yoy))
+  
+  sizes_table <- reduce(list(count_n_endo_diff, count_n_endo_yoy, count_n_endo_level), 
+                        full_join, by = "size") %>% 
+    rename(fcs_diff_yoy = size_diff,
+           fcs_yoy = size_yoy,
+           fcs_level = size_level) %>% 
+    mutate(fcs_diff_yoy = ifelse(is.na(fcs_diff_yoy),  0, fcs_diff_yoy),
+           fcs_yoy = ifelse(is.na(fcs_yoy),  0, fcs_yoy),
+           fcs_level = ifelse(is.na(fcs_level),  0, fcs_level)
+    ) %>% 
+    arrange(desc(fcs_diff_yoy))
+  
+  
+  
+  g_diff_vs_yoy_best_diffs <- ggplot(data =  models_and_accu %>% filter(diff_ranking <= 50),
+                                     aes(x = accu_diff_yoy, y = unlist(accu_yoy) )) + geom_point()
+  
+  g_diff_vs_lev_best_diffs <- ggplot(data =  models_and_accu %>% filter(diff_ranking <= 50),
+                                     aes(x = accu_diff_yoy, y = unlist(accu_lev) )) + geom_point()
+  
+  g_diff_vs_yoy_best_yoys <- ggplot(data =  models_and_accu %>% filter(yoy_ranking <= 50),
+                                    aes(x = unlist(accu_yoy), y = accu_diff_yoy)) + geom_point()
+  
+  g_lev_vs_yoy_best_lev <- ggplot(data =  models_and_accu %>% filter(level_ranking <= 50),
+                                  aes(x = unlist(accu_lev), y = accu_diff_yoy)) + geom_point()
+  
+  g_best_diff_accu <- ggplot(data =  models_and_accu %>% filter(diff_ranking <= 50),
+                             aes(x = accu_diff_yoy)) + geom_histogram(bins = 7)
+  
+  g_best_yoy_accu <- ggplot(data =  models_and_accu %>% filter(yoy_ranking <= 50),
+                            aes(x = unlist(accu_yoy) )) + geom_histogram(bins = 7)
+  
+  g_best_lev_accu <- ggplot(data =  models_and_accu %>% filter(level_ranking <= 50),
+                            aes(x = unlist(accu_lev) )) + geom_histogram(bins = 7)
+  
+  return(list(
+    variables_table = variables_table, lags_table = lags_table, sizes_table = sizes_table,
+    vbls_plot_facet = g_vbls_facets, lags_plot_facets = g_lag_facets, sizes_plot_facets = g_endo_facets, 
+    vbls_plot_stacked = g_vbls_stacked, lags_plot_stacked = g_lag_stacked, sizes_plot_stacked = g_endo_stacked,
+    accu_best_diffs_and_their_yoy = g_diff_vs_yoy_best_diffs, 
+    accu_best_diffs_and_their_level = g_diff_vs_lev_best_diffs
+  )
+  )
+  
+}
+
+make_yoy_xts <- function(df_xts) {
+  new_xts <- diff.xts(df_xts, lag = 4, na.pad = FALSE)/lag.xts(
+    df_xts, na.pad = FALSE, k = 4)
+}
+
+
+make_yoy_ts <- function(df_ts) {
+  new_ts <- base::diff(df_ts, lag = 4)/stats::lag(df_ts, k = -4)
+}
+
+
+read_gather_qm_data <- function(data_path = "./data/pre_r_data/", 
+                                country = NULL) {
+  
+  file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
+  file_names 
+  
+  file_paths <- paste0(data_path, file_names)
+  file_paths
+  
+  country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")
+  
+  names(file_paths) <- country_names
+  names(file_names) <- country_names
+  
+  if (!is.null(country)) {
+    file_paths <- file_paths[country]
+    file_names <- file_names[country]
+    country_names <- country
+  }
+  
+  
+  all_files_q <- list_along(country_names)
+  all_files_m <- list_along(country_names)
+  all_files_m_q <- list_along(country_names)
+  countries_merged_q_m <- list_along(country_names)
+  
+  
+  
+  for (i in seq_along(country_names)) {
+    
+    this_q <- read_excel(file_paths[i], sheet = "quarterly")
+    this_q <- as_tbl_time(this_q, index = date)
+    this_q <- dplyr::select(this_q, -c(year, hlookup))
+    
+    if(country_names[i] == "Uruguay") {
+      this_q[, "rm"] <- - this_q[, "rm"]
+    }
+    
+    
+    all_files_q[[i]] <- this_q
+    
+    this_m <- read_excel(file_paths[i], sheet = "monthly")
+    this_m <- as_tbl_time(this_m, index = date)
+    all_files_m[[i]] <- this_m
+    
+    this_m_q <- this_m  %>%
+      collapse_by(period = "quarterly") %>%
+      group_by(date) %>% transmute_all(mean) %>%
+      distinct(date, .keep_all = TRUE) %>% 
+      ungroup() 
+    
+    all_files_m_q[[i]] <- this_m_q
+    
+    countries_merged_q_m[[i]] <- left_join(this_q, this_m_q, by = "date")
+    
+  }
+  
+  names(all_files_q) <- country_names
+  names(all_files_m) <- country_names
+  names(all_files_m_q) <- country_names
+  names(countries_merged_q_m) <- country_names
+  
+  return(list(countries_q = all_files_q, 
+              countries_m = all_files_m, 
+              countries_q_former_m = all_files_m_q,
+              countries_merged_q_m = countries_merged_q_m))
+  
+}
+
+
+to_ts_q <- function(df_xts){
+  
+  yq_start <- first(index(df_xts))
+  yq_end <- last(index(df_xts))
+  
+  start_year <- year(yq_start)
+  start_quarter <- quarter(yq_start)
+  this_start = c(start_year, start_quarter)
+  
+  end_year <- year(yq_end)
+  end_quarter <- quarter(yq_end)
+  this_end = c(end_year, end_quarter)
+  
+  this_ts <- tk_ts(df_xts, start = this_start,
+                   frequency = 4, silent = TRUE)
+  return(this_ts)
+}
+
+
 try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_size = c(3,4,5), 
                                 vec_lags = c(1,2,3,4), pre_selected_v = "",
                                 is_cv = FALSE, h_max = 5, n_cv = 8,
@@ -1451,26 +1942,34 @@ try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_si
     
   }
   
-  # results_all_models <- flatten(flatten(results_all_models))
-  # column_names <- names(results_all_models[[1]])
-  # 
-  # # transitory names to allow conversion to tibble (columns must be names)
-  # names(results_all_models) <- seq_along(results_all_models)
-  # 
-  # # transpose tibble, ensure result is still a tibble
-  # results_all_models <- as_tibble(t(as_tibble(results_all_models)))
-  # names(results_all_models) <- column_names 
-  # 
-  # results_all_models <- results_all_models %>% 
+  results_all_models <- flatten(flatten(results_all_models))
+  column_names <- names(results_all_models[[1]])
+
+  # transitory names to allow conversion to tibble (columns must be names)
+  names(results_all_models) <- seq_along(results_all_models)
+
+  # transpose tibble, ensure result is still a tibble
+  results_all_models <- as_tibble(t(as_tibble(results_all_models)))
+  names(results_all_models) <- column_names
+  
+
+  results_all_models <- get_rmses_h_rakings_h(data = results_all_models,
+                                              h_max = 6)
+  
+  results_all_models <- results_all_models %>% 
+    filter_at( vars(starts_with("rank")), any_vars(. <= 30)  )
+  
+  
+  # results_all_models <- results_all_models %>%
   #   mutate(cv_vbl_names = map(cv_vbl_names, 1),
   #          cv_lag = map(cv_lag, 1),
   #          mean_cv_rmse = unlist(mean_cv_rmse)
-  #   ) %>% 
-  #   arrange(mean_cv_rmse) %>% 
-  #   mutate(ranking = 1:n()) %>% 
+  #   ) %>%
+  #   arrange(mean_cv_rmse) %>%
+  #   mutate(ranking = 1:n()) %>%
   #   mutate(accu_test_fcs_yoy = map(cv_fcs, from_diff_to_yoy_accu,
-  #                                  yoy_ts = yoy_data, diff_ts = var_data, 
-  #                                  level_ts = level_data, 
+  #                                  yoy_ts = yoy_data, diff_ts = var_data,
+  #                                  level_ts = level_data,
   #                                  training_length = train_span, n_cv = number_of_cv,
   #                                  h_max = fc_horizon, return_all_ts = TRUE),
   #          accu_yoy  = map(accu_test_fcs_yoy, "accu_yoy"),
@@ -1495,15 +1994,7 @@ try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_si
   #   filter((diff_ranking <= 50) | (yoy_ranking <= 50) |
   #            (level_ranking <= 50))
 
-  results_all_models <- results_all_models %>% 
-    mutate(cv_vbl_names = map(cv_vbl_names, 1),
-           cv_lag = map(cv_lag, 1),
-           mean_cv_rmse = unlist(mean_cv_rmse)
-    ) %>% 
-    arrange(mean_cv_rmse) %>% 
-    mutate(ranking = 1:n()) %>% 
-    filter(ranking <= 50)
-  
+
   
   print(paste("Tried", len_lag, "different choices of lags per each combination"))
   print(paste("Number of models analyzed:", model_number))
@@ -1515,7 +2006,8 @@ try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_si
     rename(variables = cv_vbl_names, lags = cv_lag)
   
   accu_rankings_models <- results_all_models %>% 
-    dplyr::select(cv_vbl_names, cv_lag, ranking) %>% 
+    dplyr::select(cv_vbl_names, cv_lag, 
+                  starts_with("rmse"), starts_with("rank")) %>% 
     rename(variables = cv_vbl_names, lags = cv_lag)
   
   
@@ -1526,7 +2018,6 @@ try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_si
     return(list(accu_rankings_models = accu_rankings_models))
     
   }
-  
   
 }
 
@@ -1710,7 +2201,11 @@ var_cv <- function(var_data, this_p, this_type = "const", n_cv = 8, h_max = 6,
     # print(test_rgdp)
     
     
+<<<<<<< HEAD
     this_var <- VAR(y = training_y, p = this_p, type = this_type) 
+=======
+    this_var <- vars::VAR(y = training_y, p = this_p, type = this_type) 
+>>>>>>> 4e5fcb0215559b573991e136c64b1c1dd6f50d84
     
     this_fc <- forecast(this_var, h = h_max)
     
