@@ -44,98 +44,23 @@ table_of_recommendations <- country_rec
 data_tbl_ts <- country_data
 country_transformed_data <- follow_rec(data_tbl_ts, table_of_recommendations)
 
-rgdp_na_index <- is.na(country_transformed_data[ , "rgdp"])
-country_transformed_data_balanced <- country_transformed_data[!rgdp_na_index, ]
-
-
-data_path <- "./data/excel/"
-fn_level_data_ts <- get_data(data_path = data_path, country_name = "Chile",
-                             data_transform = "level", apply_log = FALSE)
-
-
-
-
-co1 <- sort(colnames(country_transformed_data_balanced))
-co2 <- sort(colnames(fn_level_data_ts))
-
-chile_by_other_way <- get_raw_data_ts(country = "Chile")
-co3 <- sort(colnames(chile_by_other_way))
-
 country_transformed_data_naom <- na.omit(country_transformed_data)
 
-co3 %in% co1
+
+# 
+# # altertive way. Inneficiente bc even for a single country it always compute series for all countries
+# data_path <- "./data/excel/"
+# fn_level_data_ts <- get_data(data_path = data_path, country_name = "Chile",
+#                              data_transform = "level", apply_log = FALSE)
+# 
+# # way to go if we wont need data from other countries
+# chile_by_other_way <- get_raw_data_ts(country = "Chile")
 
 
 
 
 
 
-
-
-
-
-
-# stdata <- tests_of_stationarity_e 
-# stdata$country <- "Chile"
-
-# unanim <- stdata %>% 
-#   mutate(unanimity = min(recommendation) == max(recommendation),
-#          unanimity = ifelse(unanimity, recommendation, NA)) %>% 
-#   select(country, unanimity) %>% 
-#   unique()
-# 
-# unanim_deter_level <- stdata %>%
-#   filter(deter_part == "level" ) %>% 
-#   mutate(unan_level = min(recommendation) == max(recommendation),
-#          unan_level = ifelse(unan_level, recommendation, NA)) %>% 
-#   select(country, unan_level) %>% 
-#   unique()
-# 
-# unanim_05_deter_level <- stdata %>%
-#   filter(deter_part == "level", alpha == 0.05 ) %>% 
-#   mutate(unan_05_level = min(recommendation) == max(recommendation),
-#          unan_05_level = ifelse(unan_05_level, recommendation, NA)) %>% 
-#   select(country, unan_05_level) %>% 
-#   unique()
-# 
-# unanim_kpss <- stdata %>% 
-#   filter(test == "kpss") %>% 
-#   mutate(unan_kpss = min(recommendation) == max(recommendation),
-#          unan_kpss = ifelse(unan_kpss, recommendation, NA)) %>% 
-#   select(country, unan_kpss) %>% 
-#   unique()
-# 
-# unanim_kpss_level <- stdata %>% 
-#   filter(test == "kpss", deter_part == "level") %>% 
-#   mutate(unan_kpss_lev = min(recommendation) == max(recommendation),
-#          unan_kpss_lev = ifelse(unan_kpss_lev, recommendation, NA)) %>% 
-#   select(country, unan_kpss_lev) %>% 
-#   unique()
-# 
-# kpss_reco <- stdata %>% 
-#   filter(test == "kpss", deter_part == "level", alpha == 0.05) %>%
-#   select(country, recommendation) %>% 
-#   rename(kpss_05_level = recommendation)
-# 
-# country_recos <- left_join(unanim, unanim_deter_level, by = "country") %>% 
-#   left_join(unanim_05_deter_level, by = "country") %>% 
-#   left_join(unanim_kpss, by = "country") %>% 
-#   left_join(unanim_kpss_level, by = "country") %>% 
-#   left_join(kpss_reco, by = "country")
-# 
-# yoy_reco <- stdata %>% 
-#   filter(recommendation == "yoy")
-# 
-# diff_yoy_reco <- stdata %>% 
-#   filter(recommendation == "diff_yoy")
-# 
-# get_reco(country_name = country_name, variable_name = variable_name,
-#          data_transform = data_transform)
-# 
-# get_reco_from_sta(stdata, "rgdp")
-# 
-# 
-# names(stdata)
 # 
 
 # 
