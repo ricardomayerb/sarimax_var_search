@@ -514,7 +514,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
                                       "vta_auto", "exist"))
   # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
   # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
-  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
+  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "p_import", "imp_intermediate", "", "", "", "", "", "", ""), 
                              Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
                              Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
@@ -916,22 +916,22 @@ get_rmses_h_rakings_h <- function(data = cv_objects, h_max = 6){
 
 
 
-get_rmse_var_table_at_each_h_diff_yoy <- function(data = cv_objects, h_max = 6){
-  cv_errors <- data[["cv_errors"]]
-  
-  all_rmses <- map(cv_errors, function(x) sqrt(colMeans( (reduce(x, rbind))^2))  )
-  all_rmses_tbl <- reduce(all_rmses, rbind)
-  rmse_names <- paste0("rmse_", 1:h_max)
-  colnames(all_rmses_tbl) <- rmse_names
-  row.names(all_rmses_tbl) <- NULL
-  rmse_each_h <- cbind(data, all_rmses_tbl)
-  
-  # rmse_each_h <- rmse_each_h %>% 
-  #   select(-c(cv_errors))
-  
-  return(rmse_each_h)
-  
-}
+# get_rmse_var_table_at_each_h_diff_yoy <- function(data = cv_objects, h_max = 6){
+#   cv_errors <- data[["cv_errors"]]
+#   
+#   all_rmses <- map(cv_errors, function(x) sqrt(colMeans( (reduce(x, rbind))^2))  )
+#   all_rmses_tbl <- reduce(all_rmses, rbind)
+#   rmse_names <- paste0("rmse_", 1:h_max)
+#   colnames(all_rmses_tbl) <- rmse_names
+#   row.names(all_rmses_tbl) <- NULL
+#   rmse_each_h <- cbind(data, all_rmses_tbl)
+#   
+#   # rmse_each_h <- rmse_each_h %>% 
+#   #   select(-c(cv_errors))
+#   
+#   return(rmse_each_h)
+#   
+# }
 
 get_sets_of_variables <- function(df, this_size, all_variables, 
                                   already_chosen, bt_factor,
@@ -1384,11 +1384,59 @@ to_ts_q <- function(df_xts){
 }
 
 
-try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_size = c(3,4,5), 
+transform_cv <- function(list_series, series_name, current_form,
+                         auxiliary_ts) {
+  
+  current_form <- current_form
+  
+  series_name <- series_name
+  
+  if (current_form == "diff_yoy") {
+    len_initial_cond <- 1
+  }
+  
+  new_series_list <- list_along(1:number_of_cv)
+  
+  
+  for (td in seq_along(1:number_of_cv)) {
+    
+    this_test_data <- list_series[[td]]
+    test_time <- time(this_test_data)
+    start_test <- min(test_time)
+    end_initial_cond <- start_test - 0.25
+    start_initial_cond <- start_test - 0.25*len_initial_cond
+    end_initial_cond_y_q <- c(year(as.yearqtr(end_initial_cond)),
+                              quarter(as.yearqtr(end_initial_cond))
+    )
+    start_initial_cond_y_q <- c(year(as.yearqtr(start_initial_cond)),
+                                quarter(as.yearqtr(start_initial_cond))
+    )
+    initial_cond_ts <- window(auxiliary_ts, start = start_initial_cond_y_q,
+                              end = end_initial_cond_y_q)
+    
+    if (current_form == "diff_yoy") {
+      new_test_data <- un_diff_ts(initial_cond_ts, this_test_data)
+    }
+    
+    
+    new_series_list[[td]] <- new_test_data
+    
+  }
+  
+  return(new_series_list)
+  
+}
+
+
+
+
+try_sizes_vbls_lags <- function(var_data, rgdp_yoy_ts, rgdp_level_ts, target_v, vec_size = c(3,4,5), 
                                 vec_lags = c(1,2,3,4), pre_selected_v = "",
                                 is_cv = FALSE, h_max = 5, n_cv = 8,
                                 training_length = 16, maxlag_ccm = 8,
-                                bt_factor = 1.4, return_cv = TRUE) {
+                                bt_factor = 1.4, return_cv = TRUE,
+                                max_rank = 30,
+                                rgdp_current_form = "yoy") {
   
   # print("in try_sizes_vbls_lags, has_timetk_idx(var_data)")
   # print(has_timetk_idx(var_data))
@@ -1494,50 +1542,52 @@ try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_si
   results_all_models <- as_tibble(t(as_tibble(results_all_models)))
   names(results_all_models) <- column_names
   
+  
+  if (rgdp_current_form != "yoy") {
+    if (rgdp_current_form == "diff_yoy") {
+      
+      auxiliary_ts <-  rgdp_yoy_ts
+      results_all_models <- results_all_models %>% 
+        rename(cv_test_data_diff_yoy = cv_test_data,
+               cv_fcs_diff_yoy = cv_fcs)
+      
+      # print(cv_objects[["cv_test_data_diff_yoy"]])
+      
+      results_all_models <- results_all_models %>% 
+        mutate(cv_test_data = map(
+          cv_test_data_diff_yoy, ~ transform_cv(list_series  = ., 
+                                                series_name = "cv_test_data",
+                                                current_form = rgdp_rec,
+                                                auxiliary_ts = auxiliary_ts) ),
+          cv_fcs = map(
+            cv_fcs_diff_yoy,  ~ transform_cv(list_series  = .,
+                                             series_name = "cv_fcs",
+                                             current_form = rgdp_rec,
+                                             auxiliary_ts = auxiliary_ts) ),
+          cv_errors = map2(cv_test_data, cv_fcs, ~ map2(.x, .y, ~ .x - .y) )
+        )
+    }
+    
+    if (rgdp_current_form == "diff") {
+      auxiliary_ts <-  rgdp_level_ts
+    }
+    
+    
+    
+  }
+  
+  
+  
 
   results_all_models <- get_rmses_h_rakings_h(data = results_all_models,
-                                              h_max = 6)
+                                              h_max = h_max)
   
   results_all_models <- results_all_models %>% 
-    filter_at( vars(starts_with("rank")), any_vars(. <= 30)  )
+    filter_at( vars(starts_with("rank")), any_vars(. <= max_rank)) %>% 
+    mutate(cv_vbl_names = map(cv_vbl_names, 1),
+           cv_lag = map(cv_lag, 1))
   
-  
-  # results_all_models <- results_all_models %>%
-  #   mutate(cv_vbl_names = map(cv_vbl_names, 1),
-  #          cv_lag = map(cv_lag, 1),
-  #          mean_cv_rmse = unlist(mean_cv_rmse)
-  #   ) %>%
-  #   arrange(mean_cv_rmse) %>%
-  #   mutate(ranking = 1:n()) %>%
-  #   mutate(accu_test_fcs_yoy = map(cv_fcs, from_diff_to_yoy_accu,
-  #                                  yoy_ts = yoy_data, diff_ts = var_data,
-  #                                  level_ts = level_data,
-  #                                  training_length = train_span, n_cv = number_of_cv,
-  #                                  h_max = fc_horizon, return_all_ts = TRUE),
-  #          accu_yoy  = map(accu_test_fcs_yoy, "accu_yoy"),
-  #          cv_test_data_yoy = map(accu_test_fcs_yoy, "cv_test_sets_yoy"),
-  #          cv_fcs_yoy = map(accu_test_fcs_yoy, "cv_fc_yoy"),
-  #          accu_test_fcs_lev = map(cv_fcs, from_diff_to_lev_accu,
-  #                                  yoy_ts = yoy_data, diff_ts = var_data,
-  #                                  level_ts = level_data,
-  #                                  training_length = train_span, n_cv = number_of_cv,
-  #                                  h_max = fc_horizon, return_all_ts = TRUE),
-  #          accu_lev  = map(accu_test_fcs_lev, "accu_lev"),
-  #          cv_test_data_lev = map(accu_test_fcs_lev, "cv_test_sets_lev"),
-  #          cv_fcs_lev = map(accu_test_fcs_lev, "cv_fc_lev")
-  #   ) %>%
-  #   arrange(mean_cv_rmse) %>%
-  #   mutate(diff_ranking = 1:n()) %>%
-  #   arrange(unlist(accu_yoy)) %>%
-  #   mutate(yoy_ranking = 1:n()) %>%
-  #   arrange(unlist(accu_lev)) %>%
-  #   mutate(level_ranking = 1:n()) %>%
-  #   rename(accu_diff_yoy = mean_cv_rmse) %>%
-  #   filter((diff_ranking <= 50) | (yoy_ranking <= 50) |
-  #            (level_ranking <= 50))
 
-
-  
   print(paste("Tried", len_lag, "different choices of lags per each combination"))
   print(paste("Number of models analyzed:", model_number))
   print(paste("CV repetitions:", number_of_cv))
@@ -1547,6 +1597,7 @@ try_sizes_vbls_lags <- function(var_data, yoy_data, level_data, target_v, vec_si
                                                      cv_fcs) %>% 
     rename(variables = cv_vbl_names, lags = cv_lag)
   
+
   accu_rankings_models <- results_all_models %>% 
     dplyr::select(cv_vbl_names, cv_lag, 
                   starts_with("rmse"), starts_with("rank")) %>% 

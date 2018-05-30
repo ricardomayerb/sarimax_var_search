@@ -1,12 +1,9 @@
 source("./R/utils_av.R")
 
 tictoc::tic()
-country_name <- "Chile"
+country_name <- "Ecuador"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
-
-# # this cuts the time of data testing in 40%
-# country_data_level_ts <- na.omit(country_data_level_ts)
 
 names_of_variables <- colnames(country_data_level_ts)
 
@@ -17,6 +14,7 @@ stationarity_list <- list_along(names_of_variables)
 for (j in seq_along(names_of_variables)) {
   this_variable <- names_of_variables[j]
   this_variable_ts <- country_data_level_ts[ , this_variable]
+  this_variable_ts <- na.omit(this_variable_ts)
   tests_of_stationarity <- suppressWarnings(comb_ndiffs(this_variable_ts))
   tests_of_stationarity$country <- country_name
   tests_of_stationarity$variable <- this_variable

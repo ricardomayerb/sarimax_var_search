@@ -1,56 +1,6 @@
-# source('./R/var_functions.R')
-# source('./R/utils_vars.R')
-# 
-# data_path <- "./data/pre_r_data/"
-# 
-# file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
-# file_paths <- paste0(data_path, file_names)
-# country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")
-# 
-# general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
-#                                     "month", "conf_emp", "conf_ibre", "ip_ine", 
-#                                     "vta_auto", "exist"))
-# # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
-# # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
-# extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
-#                            Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
-#                            Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
-#                            Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Peru = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
-# 
-# variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
-# 
-# data_qm_xts_log <- get_gdp_shaped_data(data_path = data_path, 
-#                                        list_variables_to_drop = variables_to_drop,
-#                                        only_complete_cases = TRUE,
-#                                        apply_log = TRUE)
-# 
-# data_qm_mts_log <- map(data_qm_xts_log, to_ts_q)
-# 
-# data_qm_xts_log_yoy <- map(data_qm_xts_log, make_yoy_xts)
-# data_qm_mts_log_yoy <- map(data_qm_xts_log_yoy, to_ts_q)
-# 
-# data_qm_xts_log_yoy_diff <- map(data_qm_xts_log_yoy, diff.xts, na.pad = FALSE)
-# data_qm_mts_log_yoy_diff <- map(data_qm_xts_log_yoy_diff, to_ts_q)
-
-# OK countries: bol, bra, chl, col, par, per, ury
-# Singular CCM problems: arg, ecu, mex
-
-# # this_country_name <- "Uruguay"  
-# this_country_name <- "Chile"  
-# this_country <- this_country_name
-# level_data_ts <- data_qm_mts_log[[this_country]]
-# yoy_data_ts <- data_qm_mts_log_yoy[[this_country]]
-# diff_yoy_data_ts <- data_qm_mts_log_yoy_diff[[this_country]]
-
 source('./R/utils_av.R')
 
-country_name <- "Chile"
+country_name <- "Argentina"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
 
@@ -90,15 +40,6 @@ VAR_data_for_estimation  <- na.omit(country_transformed_data)
 
 rgdp_rec <- reco_all_variables[reco_all_variables$variable == "rgdp", ][["kpss_05_level"]]
 
-
-
-# excluded <- c("ri")
-# position_exluded <- colnames(level_data_ts) %in% excluded
-# level_data_ts  <- level_data_ts[, ! position_exluded]
-# diff_yoy_data_ts  <- diff_yoy_data_ts[, ! position_exluded]
-# yoy_data_ts  <- yoy_data_ts[, ! position_exluded]
-
-# colnames(diff_yoy_data_ts)
 
 variable_names <- colnames(VAR_data_for_estimation)
 ncolumns <- ncol(VAR_data_for_estimation)
@@ -161,30 +102,6 @@ variables_in_best_h1 <- models_ranking %>%
   unlist()
 print(table(variables_in_best_h1))
 
-variables_in_best_h2 <- models_ranking %>% 
-  filter(rank_2 <= 30) %>% 
-  select(variables) %>% 
-  unlist()
-print(table(variables_in_best_h2))
-
-variables_in_best_h3 <- models_ranking %>% 
-  filter(rank_3 <= 30) %>% 
-  select(variables) %>% 
-  unlist()
-print(table(variables_in_best_h3))
-
-variables_in_best_h4 <- models_ranking %>% 
-  filter(rank_4 <= 30) %>% 
-  select(variables) %>% 
-  unlist()
-print(table(variables_in_best_h4))
-
-variables_in_best_h5 <- models_ranking %>% 
-  filter(rank_5 <= 30) %>% 
-  select(variables) %>% 
-  unlist()
-print(table(variables_in_best_h5))
-
 
 
 
@@ -192,11 +109,6 @@ cv_one_model <- cv[1, ]
 cv_one_model$cv_test_data
 cv_one_model$cv_fcs
 
-
-
-
-# with_rmses <- get_rmse_var_table_at_each_h_diff_yoy(data = cv) %>% 
-  # mutate(model_type = "VAR")
 
 
 
