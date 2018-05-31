@@ -9,7 +9,6 @@ library(lubridate)
 library(forecast)
 library(gridExtra)
 library(grid)
-
 library(haven)
 
 
@@ -514,7 +513,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
                                       "vta_auto", "exist"))
   # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
   # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
-  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "p_import", "imp_intermediate", "", "", "", "", "", "", ""), 
+  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "p_import", "imp", "cred", "", "", "", "", "", ""), 
                              Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
                              Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
@@ -523,7 +522,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
                              Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
                              Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
-                             Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
+                             Uruguay = c("cred", "imp_nonpetro", "", "", "", "", "", "", "", ""))
   
   variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
   
@@ -533,7 +532,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
     country_names <- country
   }
   
-  if(length(country == 1)) {
+  if (length(country == 1)) {
     is_single_country <- TRUE
   } else {
     is_single_country <- FALSE

@@ -1,58 +1,10 @@
-# source('./R/var_functions.R')
-# source('./R/utils_vars.R')
-# 
-# data_path <- "./data/pre_r_data/"
-# 
-# file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
-# file_paths <- paste0(data_path, file_names)
-# country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")
-# 
-# general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
-#                                     "month", "conf_emp", "conf_ibre", "ip_ine", 
-#                                     "vta_auto", "exist"))
-# # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
-# # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
-# extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
-#                            Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
-#                            Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
-#                            Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Peru = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-#                            Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
-# 
-# variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
-# 
-# data_qm_xts_log <- get_gdp_shaped_data(data_path = data_path, 
-#                                        list_variables_to_drop = variables_to_drop,
-#                                        only_complete_cases = TRUE,
-#                                        apply_log = TRUE)
-# 
-# data_qm_mts_log <- map(data_qm_xts_log, to_ts_q)
-# 
-# data_qm_xts_log_yoy <- map(data_qm_xts_log, make_yoy_xts)
-# data_qm_mts_log_yoy <- map(data_qm_xts_log_yoy, to_ts_q)
-# 
-# data_qm_xts_log_yoy_diff <- map(data_qm_xts_log_yoy, diff.xts, na.pad = FALSE)
-# data_qm_mts_log_yoy_diff <- map(data_qm_xts_log_yoy_diff, to_ts_q)
-
-# OK countries: bol, bra, chl, col, par, per, ury
-# Singular CCM problems: arg, ecu, mex
-
-# # this_country_name <- "Uruguay"  
-# this_country_name <- "Chile"  
-# this_country <- this_country_name
-# level_data_ts <- data_qm_mts_log[[this_country]]
-# yoy_data_ts <- data_qm_mts_log_yoy[[this_country]]
-# diff_yoy_data_ts <- data_qm_mts_log_yoy_diff[[this_country]]
-
 source('./R/utils_av.R')
 
 country_name <- "Chile"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
+rgdp_level_ts <- country_data_level_ts[,"rgdp"]
+rgdp_yoy_ts <- make_yoy_ts(rgdp_level_ts)
 
 # # this cuts the time of data testing in 40%
 # country_data_level_ts <- na.omit(country_data_level_ts)
@@ -134,8 +86,9 @@ ret_cv = TRUE
 tictoc::tic()
 var_res_1 <- try_sizes_vbls_lags(vec_size = 2, 
                                  vec_lags = c(1,2,3,4,5),
-                                 var_data = VAR_data_for_estimation, yoy_data = VAR_data_for_estimation,
-                                 level_data = country_data_level_ts, 
+                                 var_data = VAR_data_for_estimation, 
+                                 rgdp_yoy_ts = rgdp_yoy_ts,
+                                 rgdp_level_ts = rgdp_level_ts, 
                                  target_v = target_rgdp,
                                  pre_selected_v = c(""), 
                                  is_cv = TRUE,
@@ -191,15 +144,6 @@ print(table(variables_in_best_h5))
 cv_one_model <- cv[1, ]
 cv_one_model$cv_test_data
 cv_one_model$cv_fcs
-
-
-
-
-# with_rmses <- get_rmse_var_table_at_each_h_diff_yoy(data = cv) %>% 
-  # mutate(model_type = "VAR")
-
-
-
 
 
 

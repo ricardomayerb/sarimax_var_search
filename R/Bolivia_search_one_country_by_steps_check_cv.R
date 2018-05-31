@@ -1,6 +1,6 @@
 source('./R/utils_av.R')
 
-country_name <- "Bolivia"
+country_name <- "Uruguay"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
 rgdp_level_ts <- country_data_level_ts[,"rgdp"]
@@ -99,7 +99,7 @@ models_ranking <- var_res_1$accu_rankings_models
 # test <- cv[["cv_test_data"]]
 # fc <- cv[["cv_fcs"]]
 
-map2(test, fc, ~ map2(.x, .y, ~ .x - .y) )
+# map2(test, fc, ~ map2(.x, .y, ~ .x - .y) )
 
 all_variables_all_h <- models_ranking %>% select(variables) %>% unlist() %>% 
   unique()
