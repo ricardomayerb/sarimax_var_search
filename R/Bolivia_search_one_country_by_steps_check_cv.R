@@ -1,6 +1,6 @@
 source('./R/utils_av.R')
 
-country_name <- "Argentina"
+country_name <- "Colombia"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
 rgdp_level_ts <- country_data_level_ts[,"rgdp"]
@@ -48,6 +48,10 @@ country_transformed_data <- follow_rec(country_data_level_ts,
                                        reco_all_variables)
 
 VAR_data_for_estimation  <- na.omit(country_transformed_data)
+
+saveRDS(VAR_data_for_estimation, 
+        file = paste0("./data/VAR_data_", country_name, ".rds"))
+
 
 rgdp_rec <- reco_all_variables[reco_all_variables$variable == "rgdp", ][["kpss_05_level"]]
 
