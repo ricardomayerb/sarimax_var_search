@@ -1,6 +1,6 @@
 source('./R/utils_av.R')
 
-country_name <- "Uruguay"
+country_name <- "Argentina"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
 rgdp_level_ts <- country_data_level_ts[,"rgdp"]
