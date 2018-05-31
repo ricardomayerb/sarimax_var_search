@@ -6,10 +6,19 @@ country_data_level_ts <- get_raw_data_ts(country = country_name)
 rgdp_level_ts <- country_data_level_ts[,"rgdp"]
 rgdp_yoy_ts <- make_yoy_ts(rgdp_level_ts)
 
+
+# # Argentina only
+# emae_level_ts <-  country_data_level_ts[,"emae"]
+# emae_yoy_ts <- make_yoy_ts(emae_level_ts)
+
+
 # # this cuts the time of data testing in 40%
 # country_data_level_ts <- na.omit(country_data_level_ts)
 
 names_of_variables <- colnames(country_data_level_ts)
+
+
+
 
 sta_reco_list <- list_along(names_of_variables)
 stationarity_list <- list_along(names_of_variables)

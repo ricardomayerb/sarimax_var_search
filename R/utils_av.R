@@ -513,7 +513,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
                                       "vta_auto", "exist"))
   # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
   # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
-  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "p_import", "imp", "cred", "recaud_iva", "ing_gob", "imp", "", "", ""), 
+  extra_vars_to_drop <- list(Argentina = c("emae", "", "", "", "", "", "", "", "", "", ""), 
                              Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
                              Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 

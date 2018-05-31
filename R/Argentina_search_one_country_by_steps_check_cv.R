@@ -3,11 +3,22 @@ source('./R/utils_av.R')
 country_name <- "Argentina"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
+rgdp_level_ts <- country_data_level_ts[,"rgdp"]
+rgdp_yoy_ts <- make_yoy_ts(rgdp_level_ts)
+
+
+# # Argentina only
+# emae_level_ts <-  country_data_level_ts[,"emae"]
+# emae_yoy_ts <- make_yoy_ts(emae_level_ts)
+# er <- ts.union(rgdp_yoy_ts, emae_yoy_ts)
 
 # # this cuts the time of data testing in 40%
 # country_data_level_ts <- na.omit(country_data_level_ts)
 
 names_of_variables <- colnames(country_data_level_ts)
+
+
+# return(names_of_variables)
 
 sta_reco_list <- list_along(names_of_variables)
 stationarity_list <- list_along(names_of_variables)
@@ -75,8 +86,9 @@ ret_cv = TRUE
 tictoc::tic()
 var_res_1 <- try_sizes_vbls_lags(vec_size = 2, 
                                  vec_lags = c(1,2,3,4,5),
-                                 var_data = VAR_data_for_estimation, yoy_data = VAR_data_for_estimation,
-                                 level_data = country_data_level_ts, 
+                                 var_data = VAR_data_for_estimation, 
+                                 rgdp_yoy_ts = rgdp_yoy_ts,
+                                 rgdp_level_ts = rgdp_level_ts, 
                                  target_v = target_rgdp,
                                  pre_selected_v = c(""), 
                                  is_cv = TRUE,
@@ -92,6 +104,12 @@ tictoc::toc()
 cv <- var_res_1$cv_objects
 models_ranking <- var_res_1$accu_rankings_models 
 
+
+# test <- cv[["cv_test_data"]]
+# fc <- cv[["cv_fcs"]]
+
+# map2(test, fc, ~ map2(.x, .y, ~ .x - .y) )
+
 all_variables_all_h <- models_ranking %>% select(variables) %>% unlist() %>% 
   unique()
 all_variables_all_h
@@ -105,47 +123,119 @@ print(table(variables_in_best_h1))
 
 
 
+# bolivia rgdp is in diff yoy format
+# we need to un_diff test data and fcs
 cv_one_model <- cv[1, ]
 cv_one_model$cv_test_data
 cv_one_model$cv_fcs
 
+length((cv_one_model$cv_test_data)[[1]])
 
+# cv_one_model[["cv_test_data"]]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# # all VARs size 2, 0.32 minutes
-# tictoc::tic()
-# var_res_1 <- try_sizes_vbls_lags(vec_size = 2, 
-#                                  vec_lags = c(1,2,3,4,5),
-#                                  var_data = VAR_data_for_estimation, yoy_data = VAR_data_for_estimation,
-#                                  level_data = country_data_level_ts, 
-#                                  target_v = target_rgdp,
-#                                  pre_selected_v = c(""), 
-#                                  is_cv = TRUE,
-#                                  training_length = train_span,
-#                                  h_max = fc_horizon, n_cv = number_of_cv,
-#                                  bt_factor = 0, maxlag_ccm = 8,
-#                                  return_cv = ret_cv)
 # 
-# tictoc::toc()
-
-
+# 
+# 
+# current_form <- rgdp_rec
+# 
+# series_name <- "cv_test_data"
+# 
+# 
+# foo <- transform_cv(one_model_cv = cv_one_model, series_name = "cv_test_data",
+#                     current_form = rgdp_rec, auxiliary_ts = rgdp_yoy_ts ) 
+# 
+# 
+# rgdp_current_form <- rgdp_rec
+# 
+# if (rgdp_current_form == "diff_yoy") {
+#   auxiliary_ts <-  rgdp_yoy_ts
+# }
+# 
+# if (rgdp_current_form == "diff") {
+#   auxiliary_ts <-  rgdp_level_ts
+# }
+# 
+# 
+# 
+# 
+# moo <- cv %>% 
+#   mutate(cv_test_data_yoy = map(cv_test_data,
+#                                 ~ transform_cv(one_model_cv = ., 
+#                                                series_name = "cv_test_data",
+#                                                current_form = rgdp_rec,
+#                                                auxiliary_ts = auxiliary_ts) ),
+#          cv_fcs_yoy = map(cv_fcs,
+#                           ~ transform_cv(one_model_cv = .,
+#                                          series_name = "cv_fcs",
+#                                          current_form = rgdp_rec,
+#                                          auxiliary_ts = auxiliary_ts) ))
+# 
+# 
+# # if (current_form == "diff_yoy") {
+# #   len_initial_cond <- 1
+# #   auxiliary_ts <- rgdp_yoy_ts
+# # }
+# # 
+# # for (td in seq_along(1:number_of_cv)) {
+# #   
+# #   print(td)
+# #   this_test_data <- cv_one_model[[series_name]][[1]][[td]]
+# #   print(this_test_data)
+# #   test_time <- time(this_test_data)
+# #   start_test <- min(test_time)
+# #   end_initial_cond <- start_test - 0.25
+# #   start_initial_cond <- start_test - 0.25*len_initial_cond
+# #   end_initial_cond_y_q <- c(year(as.yearqtr(end_initial_cond)),
+# #                             quarter(as.yearqtr(end_initial_cond))
+# #                             )
+# #   start_initial_cond_y_q <- c(year(as.yearqtr(start_initial_cond)),
+# #                             quarter(as.yearqtr(start_initial_cond))
+# #                             )
+# #   initial_cond_ts <- window(auxiliary_ts, start = start_initial_cond_y_q,
+# #                             end = end_initial_cond_y_q)
+# # 
+# #   if (current_form == "diff_yoy") {
+# #     new_test_data <- un_diff_ts(initial_cond_ts, this_test_data)
+# #   }
+# #    
+# #   print(new_test_data)
+# #   print(initial_cond_ts)
+# # 
+# # }
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# # # all VARs size 2, 0.32 minutes
+# # tictoc::tic()
+# # var_res_1 <- try_sizes_vbls_lags(vec_size = 2, 
+# #                                  vec_lags = c(1,2,3,4,5),
+# #                                  var_data = VAR_data_for_estimation, yoy_data = VAR_data_for_estimation,
+# #                                  level_data = country_data_level_ts, 
+# #                                  target_v = target_rgdp,
+# #                                  pre_selected_v = c(""), 
+# #                                  is_cv = TRUE,
+# #                                  training_length = train_span,
+# #                                  h_max = fc_horizon, n_cv = number_of_cv,
+# #                                  bt_factor = 0, maxlag_ccm = 8,
+# #                                  return_cv = ret_cv)
+# # 
+# # tictoc::toc()
+# 
+# 
