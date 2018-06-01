@@ -376,7 +376,8 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
               yoy_growth_expo_final_rgdp_and_yoyw_fc = yoy_growth_expo_final_rgdp_and_yoyw_fc,
               var_lag_order_season = var_lag_order_season,
               mdata_ext_ts = mdata_ext_ts,
-              rgdp_ts_in_arima = rgdp_ts ))
+              rgdp_ts_in_arima = rgdp_ts,
+              all_raw_fcs = all_fcs))
   
 }
 
