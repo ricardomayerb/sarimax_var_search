@@ -106,18 +106,50 @@ fit_VAR_Arima <- function(model_function, variables, lags, order, seasonal) {
 
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit) {
-  
-  
+ 
   if (model_function == "VAR") {
     fc <- forecast(fit, h = h_max)
   } 
   
   if (model_function == "Arima") {
-    fit <- forecast_one_xreg(arimax_fit = fit, xreg_lags = lags, h = h_max,
+    fc <- forecast_one_xreg(arimax_fit = fit, xreg_lags = lags, h = h_max,
                              x_name = variables, xreg_data = extended_x_data_ts)
   } 
-  return(fit)
+  return(fc)
 }
+
+fc_log2yoy <- function(model, rgdp_log_ts, fc_ts) {
+  
+  if (model == "VAR") {
+    fc_yoy = fc_ts
+  }
+  
+  if (model == "Arima") {
+    fc_log_ts <- fc_ts
+    data_fc_log <-  ts(c(rgdp_log_ts, fc_log_ts), frequency = 4,
+                       start = stats::start(rgdp_log_ts))
+    
+    data_fc <- exp(data_fc_log)
+    data_fc_yoy <- make_yoy_ts(data_fc)
+    fc_yoy <- window(data_fc_yoy, start = stats::start(fc_log_ts))
+  }
+  
+  return(fc_yoy)
+  
+}
+
+fc_mean_var_arima <- function(model, fc_obj) {
+  if(model == "VAR") {
+    fc_mean <- fc_obj[["forecast"]][["rgdp"]][["mean"]]
+  }
+  
+  if(model == "Arima") {
+    fc_mean <- fc_obj[["mean"]]
+  }
+  
+  return(fc_mean)
+}
+
 
 
 foo <- models_rmse_at_each_h  %>%  
@@ -129,17 +161,16 @@ foo <- models_rmse_at_each_h  %>%
          fit = pmap(list(model_function, variables, lags, arima_order, arima_seasonal),
                     ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
                                     lags = ..3, order = ..4, seasonal = ..5)),
-         fc_from_fit = pmap(list(model_function, variables, lags, fit),
+         fc_obj = pmap(list(model_function, variables, lags, fit),
                             ~ forecast_VAR_Arima(model_function = ..1, 
                                                  variables = ..2, lags = ..3,
                                                  fit = ..4)
-                            )
+                            ),
+         fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+         fc_yoy = map2(model_function, fc_mean, 
+                       ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
+                                    fc_ts = .y))
+                        
   ) 
 
 
-moo <- foo %>% 
-  mutate(
-    fc_from_fit = pmap(list(model_function, variables, lags, fit),
-                       ~ forecast_VAR_Arima(model_function = ..1, variables = ..2,
-                                            lags = ..3, fit = ..4))
-  )
