@@ -150,6 +150,16 @@ fc_mean_var_arima <- function(model, fc_obj) {
   return(fc_mean)
 }
 
+logyoy <- function(logfc_ts) {
+  full_log_ts <- ts(c(rgdp_ts_in_arima, logfc_ts), frequency = 4,
+                    start = stats::start(rgdp_ts_in_arima))
+  
+  diff_full_log_ts <- diff(full_log_ts, lag = 4)
+  
+  diff_log_fc <- window(diff_full_log_ts, start = stats::start(logfc_ts))
+  
+  return(diff_log_fc)
+}
 
 
 foo <- models_rmse_at_each_h  %>%  
@@ -174,6 +184,126 @@ foo <- models_rmse_at_each_h  %>%
                      ~ subset(..1 * ..2, start = ..3, end = ..3)
                      )
                         
-  ) 
+  ) %>% 
+  ungroup()
+
+moo <- foo %>% 
+  group_by(horizon) %>% 
+  summarise(sum_one_h = reduce(w_fc, sum))
+
+
+
+foo
+
+
+
+
+
+foo3 <- models_rmse_at_each_h  %>%  
+  filter(rank_h <= 3) %>% 
+  group_by(rmse_h) %>% 
+  mutate(sum_invmse_h = sum(inv_mse),
+         model_weight_h = inv_mse/sum_invmse_h,
+         horizon = as.numeric(substr(rmse_h, 6, 6)),
+         fit = pmap(list(model_function, variables, lags, arima_order, arima_seasonal),
+                    ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                    lags = ..3, order = ..4, seasonal = ..5)),
+         fc_obj = pmap(list(model_function, variables, lags, fit),
+                       ~ forecast_VAR_Arima(model_function = ..1, 
+                                            variables = ..2, lags = ..3,
+                                            fit = ..4)
+         ),
+         fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+         diff_fc_mean = map(fc_mean, ~ logyoy(.)),
+         fc_yoy = map2(model_function, fc_mean, 
+                       ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
+                                    fc_ts = .y)),
+         w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                     ~ subset(..1 * ..2, start = ..3, end = ..3)
+         )
+         
+  ) %>% 
+  ungroup()
+
+moo3 <- foo3 %>% 
+  group_by(horizon) %>% 
+  summarise(sum_one_h = reduce(w_fc, sum))
+
+loo3 <- foo3$diff_fc_mean
+boo3 <- foo3$fc_yoy
+
+loo3[[1]]
+boo3[[1]]
+
+
+
+foo10 <- models_rmse_at_each_h  %>%  
+  filter(rank_h <= 10) %>% 
+  group_by(rmse_h) %>% 
+  mutate(sum_invmse_h = sum(inv_mse),
+         model_weight_h = inv_mse/sum_invmse_h,
+         horizon = as.numeric(substr(rmse_h, 6, 6)),
+         fit = pmap(list(model_function, variables, lags, arima_order, arima_seasonal),
+                    ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                    lags = ..3, order = ..4, seasonal = ..5)),
+         fc_obj = pmap(list(model_function, variables, lags, fit),
+                       ~ forecast_VAR_Arima(model_function = ..1, 
+                                            variables = ..2, lags = ..3,
+                                            fit = ..4)
+         ),
+         fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+         diff_fc_mean = map(fc_mean, ~ logyoy(.)),
+         fc_yoy = map2(model_function, fc_mean, 
+                       ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
+                                    fc_ts = .y)),
+         w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                     ~ subset(..1 * ..2, start = ..3, end = ..3)
+         )
+         
+  ) %>% 
+  ungroup()
+
+moo10 <- foo10 %>% 
+  group_by(horizon) %>% 
+  summarise(sum_one_h = reduce(w_fc, sum))
+
+
+
+
+vars10 <- as_tibble(each_h_just_model_and_ave_rmse_var) %>% 
+  arrange(rmse_1) %>% mutate(index = 1:n()) %>% 
+  gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+  mutate(inv_mse = 1/rmse^2) %>% 
+  group_by(rmse_h) %>% 
+  mutate(rank_h = rank(rmse)) %>% 
+  ungroup() %>%  
+  filter(rank_h <= 10) %>% 
+  group_by(rmse_h) %>% 
+  mutate(sum_invmse_h = sum(inv_mse),
+         model_weight_h = inv_mse/sum_invmse_h,
+         horizon = as.numeric(substr(rmse_h, 6, 6)),
+         fit = pmap(list(model_function, variables, lags, arima_order, arima_seasonal),
+                    ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                    lags = ..3, order = ..4, seasonal = ..5)),
+         fc_obj = pmap(list(model_function, variables, lags, fit),
+                       ~ forecast_VAR_Arima(model_function = ..1, 
+                                            variables = ..2, lags = ..3,
+                                            fit = ..4)
+         ),
+         fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+         diff_fc_mean = map(fc_mean, ~ logyoy(.)),
+         fc_yoy = map2(model_function, fc_mean, 
+                       ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
+                                    fc_ts = .y)),
+         w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                     ~ subset(..1 * ..2, start = ..3, end = ..3)
+         )
+         
+  ) %>% 
+  ungroup()
+
+summary10 <- vars10 %>% 
+  group_by(horizon) %>% 
+  summarise(sum_one_h = reduce(w_fc, sum))
 
 
