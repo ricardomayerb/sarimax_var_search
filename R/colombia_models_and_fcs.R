@@ -66,7 +66,7 @@ each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
          rmse_5 = yoy_rmse_5, rmse_6 = yoy_rmse_6, lags = lag)
 
 models_rmse_at_each_h <- as_tibble(rbind(each_h_just_model_and_ave_rmse_var, 
-                                   each_h_just_model_and_ave_rmse_sarimax)) %>% 
+                                         each_h_just_model_and_ave_rmse_sarimax)) %>% 
   arrange(rmse_1) %>% mutate(index = 1:n()) %>% 
   gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
   mutate(inv_mse = 1/rmse^2) %>% 
@@ -92,7 +92,8 @@ VAR_data <- readRDS("./data/VAR_data_Colombia.rds")
 
 fit_VAR_Arima <- function(model_function, variables, lags, order, seasonal) {
   if (model_function == "VAR") {
-    fit <- VAR(y = VAR_data[, variables], p = lags)
+    
+    fit <- vars::VAR(y = VAR_data[, variables], p = lags)
   } 
   
   if (model_function == "Arima") {
@@ -105,6 +106,8 @@ fit_VAR_Arima <- function(model_function, variables, lags, order, seasonal) {
 
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit) {
+  
+  
   if (model_function == "VAR") {
     fc <- forecast(fit, h = h_max)
   } 
@@ -117,7 +120,7 @@ forecast_VAR_Arima <- function(model_function, variables, lags, fit) {
 }
 
 
-foo <- models_rmse_at_each_h  %>% 
+foo <- models_rmse_at_each_h  %>%  
   filter(rank_h <= limit_per_h) %>% 
   group_by(rmse_h) %>% 
   mutate(sum_invmse_h = sum(inv_mse),
@@ -125,7 +128,12 @@ foo <- models_rmse_at_each_h  %>%
          horizon = as.numeric(substr(rmse_h, 6, 6)),
          fit = pmap(list(model_function, variables, lags, arima_order, arima_seasonal),
                     ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
-                                    lags = ..3, order = ..4, seasonal = ..5))
+                                    lags = ..3, order = ..4, seasonal = ..5)),
+         fc_from_fit = pmap(list(model_function, variables, lags, fit),
+                            ~ forecast_VAR_Arima(model_function = ..1, 
+                                                 variables = ..2, lags = ..3,
+                                                 fit = ..4)
+                            )
   ) 
 
 
@@ -135,34 +143,3 @@ moo <- foo %>%
                        ~ forecast_VAR_Arima(model_function = ..1, variables = ..2,
                                             lags = ..3, fit = ..4))
   )
-
-# 
-# 
-# foo <- models_rmse_at_each_h  %>% 
-#   filter(rank_h <= limit_per_h) %>% 
-#   group_by(rmse_h) %>% 
-#   mutate(sum_invmse_h = sum(inv_mse),
-#          model_weight_h = inv_mse/sum_invmse_h,
-#          horizon = as.numeric(substr(rmse_h, 6, 6)),
-#          fit = map2(variables, lags,
-#                     ~ ifVAR(y = VAR_data[,.x], p = .y))
-#          )  
-
-  
-
-
-indiv_rmse_fit_fcs_var <- as_tibble(each_h_just_model_and_ave_rmse_var) %>% 
-  mutate(fit = map2(variables, lags, ~ VAR(y = VAR_data[,.x], p = .y)),
-         indiv_fc = map(fit, ~ forecast(., h = h_max)))
-
-
-
-
-# 
-# 
-# moo <- as_tibble(each_h_just_model_and_ave_rmse_sarimax) %>%
-#   mutate(fit = ifelse(model_type == "VAR",
-#                       map2(variables, lags, ~ VAR(y = VAR_data[,.x], p = .y)),
-#                       666))
-
-

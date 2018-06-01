@@ -1145,18 +1145,27 @@ forecast_one_xreg  <- function(arimax_fit, xreg_data, h,
   this_arimax <- arimax_fit
   this_series <-  xreg_data[ , x_name]
   n_obs <- length(this_series)
-  
   max_xreg_lag <- max(xreg_lags)
-  xlagmat <- c()
   
-  for (thislag in 0:max_xreg_lag) {
-    xlagmat <- cbind(xlagmat, lag.xts(this_series, k = thislag))
+  if (max_xreg_lag > 0) {
+    
+    xlagmat <- c()
+    
+    for (thislag in 0:max_xreg_lag) {
+      xlagmat <- cbind(xlagmat, lag.xts(this_series, k = thislag))
+    }
+    
+    colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
+    this_series <- xlagmat
   }
   
-  # colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
-  this_series <- xlagmat
-  series_for_fc <- this_series[(n_obs - h + 1):n_obs]
   
+  if (is.null(ncol(this_series))) {
+    series_for_fc <- this_series[(n_obs - h + 1):n_obs]
+  } else {
+    series_for_fc <- this_series[(n_obs - h + 1):n_obs, ]
+  }
+
   this_fc <- forecast(this_arimax, h = h, xreg = series_for_fc)
   
   return(this_fc)
