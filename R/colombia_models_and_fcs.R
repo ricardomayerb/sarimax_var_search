@@ -169,7 +169,10 @@ foo <- models_rmse_at_each_h  %>%
          fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
          fc_yoy = map2(model_function, fc_mean, 
                        ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
-                                    fc_ts = .y))
+                                    fc_ts = .y)),
+         w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                     ~ subset(..1 * ..2, start = ..3, end = ..3)
+                     )
                         
   ) 
 
