@@ -87,7 +87,7 @@ just_arima5_a <- models_rmse_at_each_h %>%
   )
 
 just_arima5_a <- models_rmse_at_each_h %>% 
-  filter(model_function == "Arima", rmse_h == "rmse_1") %>% 
+  filter(model_function == "Arima", rmse_h == "rmse_1", rank_h <= 5) %>% 
   group_by(rmse_h) %>% 
   mutate(sum_invmse_h = sum(inv_mse),
          model_weight_h = inv_mse/sum_invmse_h,
@@ -204,14 +204,14 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
 
 
 
-aoo5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
-                           h = h_max, extended_x_data_ts = extended_x_data_ts,
-                           rgdp_ts_in_arima = rgdp_ts_in_arima, max_rank_h = 5,
-                           model_type = "Arima")
-
-saoo5 <- aoo5 %>% 
-  group_by(horizon) %>% 
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
+# aoo5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
+#                            h = h_max, extended_x_data_ts = extended_x_data_ts,
+#                            rgdp_ts_in_arima = rgdp_ts_in_arima, max_rank_h = 5,
+#                            model_type = "Arima")
+# 
+# saoo5 <- aoo5 %>% 
+#   group_by(horizon) %>% 
+#   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
 
 
@@ -225,14 +225,14 @@ saoo5 <- aoo5 %>%
 # isefc[[1]][["model"]]
 
 
-aoo370 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
-                           h = h_max, extended_x_data_ts = extended_x_data_ts,
-                           rgdp_ts_in_arima = rgdp_ts_in_arima, 
-                           model_type = "Arima", max_rank_h = 370)
-
-saoo370 <- aoo370 %>% 
-  group_by(horizon) %>% 
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
+# aoo370 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
+#                            h = h_max, extended_x_data_ts = extended_x_data_ts,
+#                            rgdp_ts_in_arima = rgdp_ts_in_arima, 
+#                            model_type = "Arima", max_rank_h = 30)
+# 
+# saoo370 <- aoo370 %>% 
+#   group_by(horizon) %>% 
+#   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
 ffall <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
                            h = h_max, extended_x_data_ts = extended_x_data_ts,
