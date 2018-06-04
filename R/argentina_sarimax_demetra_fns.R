@@ -10,7 +10,7 @@ train_span = 16
 country_name <- "Colombia"
 data_path <- paste0("./data/excel/", country_name,".xlsx")
 m_analysis_path <- paste0("data/", country_name,"_m_analysis_rgdp.xlsx")
-rds_file_name = paste0("sarimax_objects_", country_name,".rds")
+rds_file_name = paste0("data/sarimax_objects_", country_name,".rds")
   
 tic()
 myres <- bsarimax_as_function(data_path = data_path, number_of_cv = number_of_cv,
@@ -59,7 +59,9 @@ compare_rmse <- rbind(cv_rmse_level_rgdp, cv_rmse_level_rgdp_conditional_on_x) %
 compare_rmse_yoy <- rbind(cv_rmse_yoy_rgdp, 
                           cv_rmse_yoy_rgdp_conditional_on_x)
 
+rgdp_ts_in_arima <- myres$rgdp_ts_in_arima
 all_raw_fcs <- myres$all_raw_fcs
+mdata_ext_ts <- myres$mdata_ext_ts
 
 country_objects <- list(
   var_lag_order_season = var_lag_order_season,
@@ -69,7 +71,9 @@ country_objects <- list(
   yoy_fc_using_accu_yoy_weights = yoy_fc_using_accu_yoy_weights,
   level_fc_using_accu_level_weights = level_fc_using_accu_level_weights,
   level_fc_using_accu_yoy_weights = level_fc_using_accu_yoy_weights,
-  all_raw_fcs = all_raw_fcs)
+  rgdp_ts_in_arima = rgdp_ts_in_arima,
+  all_raw_fcs = all_raw_fcs,
+  extended_x_data_ts = mdata_ext_ts)
 
 
 saveRDS(country_objects, file = rds_file_name)

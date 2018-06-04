@@ -243,6 +243,17 @@ all_fcs_2 <- forecast_xreg(all_arimax_2, mdata_ext_ts, h = h_max,
 
 toc()
 
+
+all_arimax <- tibble(arimax_0 = all_arimax_0, arimax_1 = all_arimax_1, 
+                     arimax_2 = all_arimax_2,  id_fc = monthly_names) %>%
+  gather(key = "type_arimax", value = "arimax", -id_fc) %>% 
+  mutate(lag = as.integer(str_remove(type_arimax, "arimax_")), 
+         armapar = map(arimax, c("arma")),
+         arima_order = map(armapar, function(x) x[c(1, 6, 2)]),
+         arima_seasonal = map(armapar, function(x) x[c(3, 7, 4)])  
+  )
+
+
 all_fcs <- tibble(fc_0 = all_fcs_0, fc_1 = all_fcs_1, fc_2 = all_fcs_2, 
                     id_fc = monthly_names) %>%
   gather(key = "type_fc", value = "fc", -id_fc) %>% 
