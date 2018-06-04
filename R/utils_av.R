@@ -320,6 +320,16 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
            arima_seasonal = map(armapar, function(x) x[c(3, 7, 4)])  
     )
   
+  all_arimax <- tibble(arimax_0 = all_arimax_0, arimax_1 = all_arimax_1, 
+                       arimax_2 = all_arimax_2,  id_fc = monthly_names) %>%
+    gather(key = "type_arimax", value = "arimax", -id_fc) %>% 
+    mutate(lag = as.integer(str_remove(type_arimax, "arimax_")), 
+           armapar = map(arimax, c("arma")),
+           arima_order = map(armapar, function(x) x[c(1, 6, 2)]),
+           arima_seasonal = map(armapar, function(x) x[c(3, 7, 4)])  
+    )
+  
+  
   var_lag_order_season <- all_fcs %>% 
     dplyr::select(id_fc, lag, arima_order, arima_seasonal) %>% 
     rename(variable = id_fc, lag = lag)
@@ -377,7 +387,8 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
               var_lag_order_season = var_lag_order_season,
               mdata_ext_ts = mdata_ext_ts,
               rgdp_ts_in_arima = rgdp_ts,
-              all_raw_fcs = all_fcs))
+              all_raw_fcs = all_fcs,
+              all_arimax = all_arimax))
   
 }
 
@@ -1166,6 +1177,9 @@ forecast_one_xreg  <- function(arimax_fit, xreg_data, h,
   } else {
     series_for_fc <- this_series[(n_obs - h + 1):n_obs, ]
   }
+  
+  # print(series_for_fc)
+  # print(this_arimax)
 
   this_fc <- forecast(this_arimax, h = h, xreg = series_for_fc)
   
@@ -2197,6 +2211,9 @@ my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
   
   y_ts <- na.omit(y_ts)
   x_series <-  xreg_data[ , x_name]
+  
+  # print(x_name)
+  # print(x_series)
 
   # n <- length(y_ts)
   
