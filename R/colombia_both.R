@@ -79,7 +79,15 @@ models_rmse_at_each_h <- as_tibble(rbind(each_h_just_model_and_ave_rmse_var,
 h_max
 
 just_arima5_a <- models_rmse_at_each_h %>% 
-  filter(rank_h <= 5, model_function == "Arima", rmse_h == "rmse_1") %>% 
+  filter(model_function == "Arima", rmse_h == "rmse_1") %>% 
+  group_by(rmse_h) %>% 
+  mutate(sum_invmse_h = sum(inv_mse),
+         model_weight_h = inv_mse/sum_invmse_h,
+         horizon = as.numeric(substr(rmse_h, 6, 6))
+  )
+
+just_arima5_a <- models_rmse_at_each_h %>% 
+  filter(model_function == "Arima", rmse_h == "rmse_1") %>% 
   group_by(rmse_h) %>% 
   mutate(sum_invmse_h = sum(inv_mse),
          model_weight_h = inv_mse/sum_invmse_h,
@@ -91,6 +99,8 @@ just_arima5_a <- models_rmse_at_each_h %>%
                                     extended_x_data_ts = extended_x_data_ts,
                                     arima_rgdp_ts = rgdp_ts_in_arima))
   )
+
+
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
                                mat_x_ext, h) {
@@ -142,7 +152,7 @@ just_arima5_b <- just_arima5_a %>%
 h_max <-  6
 
 indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
-                               rgdp_ts_in_arima, max_rank_h = 20,
+                               rgdp_ts_in_arima, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL) {
   
   if (!is.null(model_type)) {
@@ -155,9 +165,13 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
       filter(rmse_h == chosen_rmse_h)
   }
   
+  if (!is.null(max_rank_h)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(rank_h <= max_rank_h)
+  }
+  
   
   tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
-    filter(rank_h <= max_rank_h) %>% 
     group_by(rmse_h) %>% 
     mutate(sum_invmse_h = sum(inv_mse),
            model_weight_h = inv_mse/sum_invmse_h,
@@ -213,11 +227,19 @@ saoo5 <- aoo5 %>%
 
 aoo370 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
                            h = h_max, extended_x_data_ts = extended_x_data_ts,
-                           rgdp_ts_in_arima = rgdp_ts_in_arima, max_rank_h = 370)
+                           rgdp_ts_in_arima = rgdp_ts_in_arima, 
+                           model_type = "Arima", max_rank_h = 370)
 
 saoo370 <- aoo370 %>% 
   group_by(horizon) %>% 
   summarise(sum_one_h = reduce(one_model_w_fc, sum))
+
+
+# ff_all_arima <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
+#                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
+#                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
+#                                    model_type = "Arima")
+
 
 # aoo470 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
 #                              h = h_max, extended_x_data_ts = extended_x_data_ts,
