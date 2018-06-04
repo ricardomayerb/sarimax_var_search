@@ -307,3 +307,6 @@ summary10 <- vars10 %>%
   summarise(sum_one_h = reduce(w_fc, sum))
 
 
+bart <- cv_objects$cv_errors
+reduce(bart[[1]], rbind)
+b2 <- map(bart, ~ reduce(., rbind))

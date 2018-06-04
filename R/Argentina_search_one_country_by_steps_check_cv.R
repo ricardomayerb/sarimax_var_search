@@ -49,6 +49,8 @@ country_transformed_data <- follow_rec(country_data_level_ts,
 
 VAR_data_for_estimation  <- na.omit(country_transformed_data)
 
+
+
 rgdp_rec <- reco_all_variables[reco_all_variables$variable == "rgdp", ][["kpss_05_level"]]
 
 
