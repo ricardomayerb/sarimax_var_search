@@ -234,6 +234,16 @@ saoo370 <- aoo370 %>%
   group_by(horizon) %>% 
   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
+ffall <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
+                           h = h_max, extended_x_data_ts = extended_x_data_ts,
+                           rgdp_ts_in_arima = rgdp_ts_in_arima,
+                           max_rank_h = 30)
+
+
+ffall_VAR <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
+                           h = h_max, extended_x_data_ts = extended_x_data_ts,
+                           rgdp_ts_in_arima = rgdp_ts_in_arima,
+                           model_type = "VAR", max_rank_h = 30)
 
 # ff_all_arima <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
 #                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
