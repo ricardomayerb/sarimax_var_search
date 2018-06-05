@@ -1242,6 +1242,42 @@ fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables,
 }
 
 
+forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
+                               mat_x_ext, h) {
+  
+  if (model_function == "VAR") {
+    fc <- forecast(fit, h = h)
+  } 
+  
+  if (model_function == "Arima") {
+    if (variables == "rgdp") {
+      fc <- forecast(object = fit, h = h)
+    } else {
+      fc <- forecast_from_arimax_obj(arimax_obj = fit, x_variable = variables, 
+                                     mat_x_ext = mat_x_ext, lags = lags, h = h)
+    }
+  } 
+  return(fc)
+}
+
+
+forecast_from_arimax_obj <- function(arimax_obj, x_variable, mat_x_ext, lags, h) {
+  
+  # arimax_model <- (arimax_obj$arimax)[[1]] 
+  arimax_model <- arimax_obj 
+  rgdp_in_arimax <-  arimax_model$x
+  end_arimax <- stats::end(rgdp_in_arimax)
+  maxtime_arimax <- max(time(rgdp_in_arimax))
+  start_forecast <- c(year(as.yearqtr(0.25 + maxtime_arimax)),
+                      quarter(as.yearqtr(0.25 + maxtime_arimax)))
+  xreg_for_fc <- make_xreg_fc(variable_name = x_variable, mx_ext = mat_x_ext,
+                              lags = lags,  start_fc = start_forecast, h = h)
+  fc <- forecast(object = arimax_model, h = h, xreg = xreg_for_fc)
+  return(fc)
+  
+}
+
+
 
 
 forecast_one_xreg  <- function(arimax_fit, xreg_data, h, 
@@ -1976,6 +2012,56 @@ logyoy <- function(logfc_ts, log_data_ts) {
   return(diff_log_fc)
 }
 
+indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
+                               rgdp_ts_in_arima, max_rank_h = NULL,
+                               model_type = NULL, chosen_rmse_h = NULL) {
+  
+  if (!is.null(model_type)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(model_function == model_type)
+  }
+  
+  if (!is.null(chosen_rmse_h)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(rmse_h == chosen_rmse_h)
+  }
+  
+  if (!is.null(max_rank_h)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(rank_h <= max_rank_h)
+  }
+  
+  
+  tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
+    group_by(rmse_h) %>% 
+    mutate(sum_invmse_h = sum(inv_mse),
+           model_weight_h = inv_mse/sum_invmse_h,
+           horizon = as.numeric(substr(rmse_h, 6, 6)),
+           fit = pmap(list(model_function, variables, lags, arima_order, 
+                           arima_seasonal),
+                      ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                      lags = ..3, order = ..4, seasonal = ..5,
+                                      extended_x_data_ts = extended_x_data_ts,
+                                      arima_rgdp_ts = rgdp_ts_in_arima)),
+           fc_obj = pmap(list(model_function, variables, lags, fit),
+                         ~ forecast_VAR_Arima(model_function = ..1, 
+                                              variables = ..2, lags = ..3,
+                                              fit = ..4, h = h_max, 
+                                              mat_x_ext = extended_x_data_ts)
+           ),
+           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+           fc_yoy = map2(model_function, fc_mean, 
+                         ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
+                                      fc_ts = .y)),
+           one_model_w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                                 ~ subset(..1 * ..2, start = ..3, end = ..3)
+           )
+    ) %>% 
+    ungroup()
+  
+  return(tibble_fit_and_fcs)
+}
+
 
 make_xreg_fc <- function(variable_name, mx_ext, lags, start_fc, h) {
   this_x <- mx_ext[ , variable_name]
@@ -2330,13 +2416,16 @@ make_yoy_ts <- function(df_ts) {
 
 my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
                            xreg_data = NULL) {
-  
+
   y_ts <- na.omit(y_ts)
+
+  if (x_name == "rgdp") {
+    this_arimax <- Arima(y = y_ts, order = y_order, 
+                         seasonal = y_seasonal)
+    return(this_arimax)
+  }
   x_series <-  xreg_data[ , x_name]
   
-  # print(x_name)
-  # print(x_series)
-
   # n <- length(y_ts)
   
   y_time <- time(y_ts)

@@ -71,147 +71,16 @@ models_rmse_at_each_h <- as_tibble(rbind(each_h_just_model_and_ave_rmse_var,
   mutate(rank_h = rank(rmse)) %>% 
   ungroup()
 
-# fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables, 
-#                           lags, order, seasonal, extended_x_data_ts)
-
-
-
-h_max
-
-just_arima5_a <- models_rmse_at_each_h %>% 
-  filter(model_function == "Arima", rmse_h == "rmse_1") %>% 
+models_rmse_at_each_h_arima <- as_tibble(each_h_just_model_and_ave_rmse_sarimax) %>% 
+  arrange(rmse_1) %>% mutate(index = 1:n()) %>% 
+  gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+  mutate(inv_mse = 1/rmse^2) %>% 
   group_by(rmse_h) %>% 
-  mutate(sum_invmse_h = sum(inv_mse),
-         model_weight_h = inv_mse/sum_invmse_h,
-         horizon = as.numeric(substr(rmse_h, 6, 6))
-  )
-
-just_arima5_a <- models_rmse_at_each_h %>% 
-  filter(model_function == "Arima", rmse_h == "rmse_1", rank_h <= 5) %>% 
-  group_by(rmse_h) %>% 
-  mutate(sum_invmse_h = sum(inv_mse),
-         model_weight_h = inv_mse/sum_invmse_h,
-         horizon = as.numeric(substr(rmse_h, 6, 6)),
-         fit = pmap(list(model_function, variables, lags, arima_order, 
-                         arima_seasonal),
-                    ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
-                                    lags = ..3, order = ..4, seasonal = ..5,
-                                    extended_x_data_ts = extended_x_data_ts,
-                                    arima_rgdp_ts = rgdp_ts_in_arima))
-  )
+  mutate(rank_h = rank(rmse)) %>% 
+  ungroup()
 
 
 
-forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
-                               mat_x_ext, h) {
-  
-  if (model_function == "VAR") {
-    fc <- forecast(fit, h = h)
-  } 
-  
-  if (model_function == "Arima") {
-    fc <- forecast_from_arimax_obj(arimax_obj = fit, x_variable = variables, 
-                                   mat_x_ext = mat_x_ext, lags = lags, h = h)
-    
-  } 
-  return(fc)
-}
-
-
-forecast_from_arimax_obj <- function(arimax_obj, x_variable, mat_x_ext, lags, h) {
-  
-  # arimax_model <- (arimax_obj$arimax)[[1]] 
-  arimax_model <- arimax_obj 
-  rgdp_in_arimax <-  arimax_model$x
-  end_arimax <- stats::end(rgdp_in_arimax)
-  maxtime_arimax <- max(time(rgdp_in_arimax))
-  start_forecast <- c(year(as.yearqtr(0.25 + maxtime_arimax)),
-                      quarter(as.yearqtr(0.25 + maxtime_arimax)))
-  xreg_for_fc <- make_xreg_fc(variable_name = x_variable, mx_ext = mat_x_ext,
-                              lags = lags,  start_fc = start_forecast, h = h)
-  fc <- forecast(object = arimax_model, h = h, xreg = xreg_for_fc)
-  return(fc)
-  
-}
-
-
-
-just_arima5_b <- just_arima5_a %>% 
-  mutate(
-    fc_obj = pmap(list(model_function, variables, lags, fit),
-                  ~ forecast_VAR_Arima(model_function = ..1, 
-                                       variables = ..2, lags = ..3,
-                                       fit = ..4, h = h_max, 
-                                       mat_x_ext = extended_x_data_ts)
-    )
-  )
-
-# forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
-#                                mat_x_ext, h)
-
-h_max <-  6
-
-indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
-                               rgdp_ts_in_arima, max_rank_h = NULL,
-                               model_type = NULL, chosen_rmse_h = NULL) {
-  
-  if (!is.null(model_type)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(model_function == model_type)
-  }
-  
-  if (!is.null(chosen_rmse_h)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(rmse_h == chosen_rmse_h)
-  }
-  
-  if (!is.null(max_rank_h)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(rank_h <= max_rank_h)
-  }
-  
-  
-  tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
-    group_by(rmse_h) %>% 
-    mutate(sum_invmse_h = sum(inv_mse),
-           model_weight_h = inv_mse/sum_invmse_h,
-           horizon = as.numeric(substr(rmse_h, 6, 6)),
-           fit = pmap(list(model_function, variables, lags, arima_order, 
-                           arima_seasonal),
-                      ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
-                                      lags = ..3, order = ..4, seasonal = ..5,
-                                      extended_x_data_ts = extended_x_data_ts,
-                                      arima_rgdp_ts = rgdp_ts_in_arima)),
-           fc_obj = pmap(list(model_function, variables, lags, fit),
-                         ~ forecast_VAR_Arima(model_function = ..1, 
-                                              variables = ..2, lags = ..3,
-                                              fit = ..4, h = h_max, 
-                                              mat_x_ext = extended_x_data_ts)
-           ),
-           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
-           fc_yoy = map2(model_function, fc_mean, 
-                         ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
-                                      fc_ts = .y)),
-           one_model_w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
-                                 ~ subset(..1 * ..2, start = ..3, end = ..3)
-           )
-    ) %>% 
-    ungroup()
-  
-  return(tibble_fit_and_fcs)
-}
-
-
-
-
-# aoo5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
-#                            h = h_max, extended_x_data_ts = extended_x_data_ts,
-#                            rgdp_ts_in_arima = rgdp_ts_in_arima, max_rank_h = 5,
-#                            model_type = "Arima")
-# 
-# saoo5 <- aoo5 %>% 
-#   group_by(horizon) %>% 
-#   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
 
 
@@ -239,11 +108,65 @@ ffall <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
                            rgdp_ts_in_arima = rgdp_ts_in_arima,
                            max_rank_h = 30)
 
+summ_all <- ffall %>% 
+    group_by(horizon) %>%
+    summarise(sum_one_h = reduce(one_model_w_fc, sum))
+
 
 ffall_VAR <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
                            h = h_max, extended_x_data_ts = extended_x_data_ts,
                            rgdp_ts_in_arima = rgdp_ts_in_arima,
                            model_type = "VAR", max_rank_h = 30)
+
+summ_all_VAR <- ffall_VAR %>% 
+  group_by(horizon) %>%
+  summarise(sum_one_h = reduce(one_model_w_fc, sum))
+
+
+just_arima_a <- models_rmse_at_each_h_arima %>% 
+  filter(rank_h <= 24, model_function == "Arima") %>% 
+  group_by(rmse_h) %>% 
+  mutate(sum_invmse_h = sum(inv_mse),
+         model_weight_h = inv_mse/sum_invmse_h,
+         horizon = as.numeric(substr(rmse_h, 6, 6)),
+         fit = pmap(list(model_function, variables, lags, arima_order, arima_seasonal),
+                    ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                    arima_rgdp_ts = rgdp_ts_in_arima, 
+                                    extended_x_data_ts = extended_x_data_ts,
+                                    lags = ..3, order = ..4, seasonal = ..5))
+         )
+
+
+just_arima_b <- just_arima_a %>% 
+  mutate(fc_obj = pmap(list(model_function, variables, lags, fit),
+                       ~ forecast_VAR_Arima(model_function = ..1, h = h_max,
+                                            mat_x_ext = extended_x_data_ts, 
+                                            variables = ..2, lags = ..3,
+                                            fit = ..4)
+         ),
+         fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+         fc_yoy = map2(model_function, fc_mean, 
+                       ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
+                                    fc_ts = .y)),
+         one_model_w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                               ~ subset(..1 * ..2, start = ..3, end = ..3)
+         )
+  ) %>% 
+  ungroup()
+
+summ_just_arima <- just_arima_b %>% 
+  group_by(horizon) %>%
+  summarise(sum_one_h = reduce(one_model_w_fc, sum))
+
+
+ffall_arima <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h_arima,
+                                h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                rgdp_ts_in_arima = rgdp_ts_in_arima,
+                                model_type = "Arima")
+
+summ_all_arima <- ffall_arima %>% 
+  group_by(horizon) %>%
+  summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
 # ff_all_arima <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_rmse_at_each_h,
 #                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
