@@ -1440,6 +1440,7 @@ get_arima_results <- function(country_name, read_results = FALSE,
     rds_file_name = paste0(arima_rds_path, country_name,".rds")
     arima_res <- readRDS(file = rds_file_name)
     return(arima_res)
+    
   } else {
     print("Estimating a new set of arima results")
     final_forecast_horizon <- final_ext_horizon
@@ -1449,6 +1450,9 @@ get_arima_results <- function(country_name, read_results = FALSE,
     arima_res <- bsarimax_as_function(data_path = data_path, number_of_cv = number_of_cv,
                                       train_span = train_span, h_max = h_max,
                                       final_forecast_horizon = final_forecast_horizon)
+    
+    rds_file_name = paste0(arima_rds_path, country_name,".rds")
+    saveRDS(object = arima_res, file = rds_file_name)
     
     return(arima_res)
   }
