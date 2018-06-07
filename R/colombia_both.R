@@ -62,6 +62,8 @@ each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
          rmse_3 = yoy_rmse_3, rmse_4 = yoy_rmse_4, rmse_5 = yoy_rmse_5, 
          rmse_6 = yoy_rmse_6, lags = lag)
 
+
+
 models_rmse_at_each_h_arima <- as_tibble(each_h_just_model_and_ave_rmse_sarimax) %>% 
   gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
   arrange(variables) %>% 
@@ -76,6 +78,9 @@ models_rmse_at_each_h_arima <- as_tibble(each_h_just_model_and_ave_rmse_sarimax)
   ungroup() %>% 
   select(-rgdp_rmse) %>% 
   arrange(rmse_h, rmse)
+
+
+
 
 # # if lags specificarion are chosen based on average(rmse_1, rmse_2 ...etc)
 # models_rmse_at_each_h_arima_stataway <- as_tibble(each_h_just_model_and_ave_rmse_sarimax) %>% 
