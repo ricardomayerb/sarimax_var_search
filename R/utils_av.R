@@ -10,6 +10,7 @@ library(forecast)
 library(gridExtra)
 library(grid)
 library(haven)
+library(tictoc)
 
 
 add_average_fcs <- function(var_fc_tbl, n_ave = c(1, 3, 5)) {
@@ -122,9 +123,10 @@ add_column_cv_yoy_errors <- function(data = cv_objects){
 bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
                                  number_of_cv = 8, 
                                  final_forecast_horizon = c(2019, 12),
-                                 outer_cv_round = 0, s4xreg = TRUE) {
+                                 outer_cv_round = 0, s4xreg = FALSE) {
   
   
+  m_analysis_path <- paste0("data/", country_name,"_m_analysis_rgdp.xlsx")
   gdp_and_dates <- get_rgdp_and_dates(data_path)
   
   monthly_data <- get_monthly_variables(data_path = data_path)
@@ -136,39 +138,39 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
                 start = gdp_and_dates[["gdp_start"]], frequency = 4)
   rgdp_ts <- log(rgdp_ts)
   
-  if(outer_cv_round > 0) {
-    total_obs <- length(rgdp_ts)
-    print(total_obs)
-    
-    print("rgdp_ts")
-    print(rgdp_ts)
-    
-    outer_obs <- total_obs - outer_cv_round  + 1
-    print(outer_obs)
-    
-    cv_rgdp_ts <- ts(data = rgdp_ts[1:outer_obs], 
-                     start = gdp_and_dates[["gdp_start"]], frequency = 4)
-    
-    print("cv_rgdp_ts")
-    print(cv_rgdp_ts)
-    
-    traininig_set_rgdp <- subset(cv_rgdp_ts, 
-                                 start = outer_obs - h_max - train_span + 1,
-                                 end = outer_obs - h_max)
-    
-    print("traininig_set_rgdp")
-    print(traininig_set_rgdp)
-    
-    test_set_rgdp <- subset(cv_rgdp_ts, 
-                            start = outer_obs - h_max + 1,
-                            end = outer_obs)
-    
-    print("test_set_rgdp")
-    print(test_set_rgdp)
-    
-    rgdp_ts <- traininig_set_rgdp
-    
-  }
+  # if(outer_cv_round > 0) {
+  #   total_obs <- length(rgdp_ts)
+  #   print(total_obs)
+  #   
+  #   print("rgdp_ts")
+  #   print(rgdp_ts)
+  #   
+  #   outer_obs <- total_obs - outer_cv_round  + 1
+  #   print(outer_obs)
+  #   
+  #   cv_rgdp_ts <- ts(data = rgdp_ts[1:outer_obs], 
+  #                    start = gdp_and_dates[["gdp_start"]], frequency = 4)
+  #   
+  #   print("cv_rgdp_ts")
+  #   print(cv_rgdp_ts)
+  #   
+  #   traininig_set_rgdp <- subset(cv_rgdp_ts, 
+  #                                start = outer_obs - h_max - train_span + 1,
+  #                                end = outer_obs - h_max)
+  #   
+  #   print("traininig_set_rgdp")
+  #   print(traininig_set_rgdp)
+  #   
+  #   test_set_rgdp <- subset(cv_rgdp_ts, 
+  #                           start = outer_obs - h_max + 1,
+  #                           end = outer_obs)
+  #   
+  #   print("test_set_rgdp")
+  #   print(test_set_rgdp)
+  #   
+  #   rgdp_ts <- traininig_set_rgdp
+  #   
+  # }
   
   demetra_output <- get_demetra_params(data_path)
   
@@ -1423,6 +1425,34 @@ from_diff_to_lev_accu <- function(yoy_ts, diff_ts, level_ts, training_length,
   } else{
     return(accu_yoy)
   }
+  
+}
+
+get_arima_results <- function(country_name, read_results = FALSE, 
+                              data_folder = "./data/excel/",
+                              arima_rds_path = "data/sarimax_objects_",
+                              h_max = 8, final_ext_horizon = c(2020, 12),
+                              train_span = 16, number_of_cv = 8) {
+  
+  if(read_results) {
+    print("Reading previously estimated arima results")
+    # rds_file_name = paste0("data/sarimax_objects_", country_name,".rds")
+    rds_file_name = paste0(arima_rds_path, country_name,".rds")
+    arima_res <- readRDS(file = rds_file_name)
+    return(arima_res)
+  } else {
+    print("Estimating a new set of arima results")
+    final_forecast_horizon <- final_ext_horizon
+    # data_path <- paste0("./data/excel/", country_name,".xlsx")
+    data_path <- paste0(data_folder, country_name,".xlsx")
+    
+    arima_res <- bsarimax_as_function(data_path = data_path, number_of_cv = number_of_cv,
+                                      train_span = train_span, h_max = h_max,
+                                      final_forecast_horizon = final_forecast_horizon)
+    
+    return(arima_res)
+  }
+  
   
 }
 
