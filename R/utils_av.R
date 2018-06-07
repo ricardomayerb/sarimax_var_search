@@ -1457,6 +1457,106 @@ get_arima_results <- function(country_name, read_results = FALSE,
 }
 
 
+
+get_demetra_params <- function(data_path) {
+  
+  optimal_demetra <- read_excel(data_path, sheet = "optimal")
+  optimal_demetra <- optimal_demetra %>% 
+    separate(data = ., col = 1, into = c("freq_type", "id"), sep = " - ")
+  
+  optimal_demetra <- optimal_demetra %>% 
+    rename(p_dm = P, q_dm = Q, d_dm = D, P_dm = BP, Q_dm = BQ, D_dm = BD)
+  
+  rgdp_demetra <- optimal_demetra %>% 
+    filter(id == "rgdp") %>% select(- freq_type)
+  
+  rgdp_demetra_pdqPDQ <- rgdp_demetra %>% 
+    select(p_dm, d_dm, q_dm, P_dm, D_dm, Q_dm)
+  
+  monthly_demetra <- optimal_demetra %>% 
+    filter(id != "rgdp") %>% select(- freq_type)
+  
+  monthly_demetra$id <- as.factor(monthly_demetra$id) 
+  
+  monthly_demetra_pdqPDQ <- monthly_demetra %>% 
+    select(id, p_dm, d_dm, q_dm, P_dm, D_dm, Q_dm)
+  
+  monthly_names <- monthly_demetra$id
+  
+  rgdp_order <- c(rgdp_demetra$p_dm, rgdp_demetra$d_dm, rgdp_demetra$q_dm)
+  rgdp_seasonal <- c(rgdp_demetra$P_dm, rgdp_demetra$D_dm, rgdp_demetra$Q_dm)
+  rgdp_inc_mean <- ifelse(rgdp_demetra$Mean == 1, TRUE, FALSE)
+  
+  this_instruction <- list(order = rgdp_order, seasonal = rgdp_seasonal,
+                           mean_logical = rgdp_inc_mean)
+  
+  rgdp_order_list <- list()
+  
+  rgdp_order_list[[1]] <- this_instruction 
+  
+  monthly_demetra_order_list <- list_along(monthly_names)
+  
+  for (i in seq_along(monthly_names)) {
+    
+    this_order <- c(monthly_demetra$p_dm[i], monthly_demetra$d_dm[i],
+                    monthly_demetra$q_dm[i])
+    
+    this_seasonal <- c(monthly_demetra$P_dm[i], monthly_demetra$D_dm[i],
+                       monthly_demetra$Q_dm[i])
+    
+    inc_mean <- ifelse(monthly_demetra$Mean[i] == 1, TRUE, FALSE)
+    
+    this_instruction <- list(order = this_order, seasonal = this_seasonal,
+                             mean_logical = inc_mean)
+    
+    monthly_demetra_order_list[[i]] <- this_instruction
+  }
+  
+  names(monthly_demetra_order_list) <- monthly_names
+  
+  return(list(monthly_order_list = monthly_demetra_order_list,
+              monthly_info_tbl = monthly_demetra,
+              monthly_pdqPDQ = monthly_demetra_pdqPDQ,
+              rgdp_order_list = rgdp_order_list,
+              rgdp_info_tbl = rgdp_demetra,
+              rgdp_pqdPDQ = rgdp_demetra_pdqPDQ) 
+  )
+}
+
+
+
+get_order_from_arima <- function(arima_obj, suffix = NULL, 
+                                 this_arima_names = NULL) {
+  
+  len_obj <- length(arima_obj)
+  
+  order_names <- c("p", "q", "P", "Q", "freq", "d", "D")
+  
+  if (!is.null(suffix)) {
+    order_names <- paste(order_names, suffix, sep = "_")
+  }
+  
+  order_par_list <- list_along(seq.int(1, len_obj))
+  
+  for (i in seq.int(1, len_obj)) {
+    
+    this_arima <- arima_obj[[i]]
+    arma_par <- this_arima[["arma"]]
+    names(arma_par) <- order_names
+    
+    order_par_list[[i]] <- arma_par
+    
+  }
+  
+  
+  names(order_par_list) <- this_arima_names
+  
+  return(order_par_list)
+  
+}
+
+
+
 get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
   
   file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
@@ -2093,26 +2193,82 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
 }
 
 
-make_xreg_fc <- function(variable_name, mx_ext, lags, start_fc, h) {
-  this_x <- mx_ext[ , variable_name]
-  x_lagmat <- c()
-  x_lagmat <- this_x
+make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
+                            ave_rmse_sel = FALSE) {
   
-  if(lags > 0) {
-    for (i in 1:lags) {
-      this_lag <- i
-      x_lag <- lag.xts(this_x, k = this_lag)
-      x_lagmat <- ts.union(x_lagmat, x_lag)
-    }
+  rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
+  rmse_level_sarimax <- arima_res$compare_rmse
+  v_lags_order_season <- arima_res$var_lag_order_season 
+  extended_x_data_ts <- arima_res$mdata_ext_ts
+  rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
+  
+  
+  rmse_yoy_sarimax <- rmse_yoy_sarimax %>% 
+    left_join(v_lags_order_season, by = c("variable", "lag"))
+  
+  
+  each_h_just_model_and_ave_rmse_var <- models_and_accu %>% 
+    mutate(arima_order = NA, arima_seasonal = NA, model_function = "VAR") %>% 
+    dplyr::select(-c(rank_1, rank_2, rank_3, rank_4, rank_5, rank_6))
+  
+  each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
+    mutate(model_function = "Arima") %>% 
+    dplyr::select(variable, lag, yoy_rmse_1, yoy_rmse_2, yoy_rmse_3, yoy_rmse_4, 
+                  yoy_rmse_5, yoy_rmse_6, arima_order, arima_seasonal, 
+                  model_function) %>% 
+    rename(variables = variable, rmse_1 = yoy_rmse_1, rmse_2 = yoy_rmse_2, 
+           rmse_3 = yoy_rmse_3, rmse_4 = yoy_rmse_4, rmse_5 = yoy_rmse_5, 
+           rmse_6 = yoy_rmse_6, lags = lag)
+  
+  if (ave_rmse_sel) {
+    models_rmse_at_each_h_arima  <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      mutate(ave_rmse = rowMeans(select(., starts_with("rmse")))) %>% 
+      group_by(variables) %>%
+      mutate(min_ave_per_variable = min(ave_rmse)) %>% 
+      filter(ave_rmse == min_ave_per_variable) %>% 
+      ungroup() %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-c(ave_rmse, rgdp_rmse, min_ave_per_variable)) %>% 
+      arrange(rmse_h, variables)
+    
+  } else {
+    models_rmse_at_each_h_arima <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      arrange(variables) %>% 
+      group_by(rmse_h, variables) %>% 
+      mutate(min_per_variable_and_h = min(rmse)) %>% 
+      filter(rmse == min_per_variable_and_h) %>% 
+      select(-min_per_variable_and_h ) %>%  
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-rgdp_rmse) %>% 
+      arrange(rmse_h, rmse)
   }
   
-  x_lagmat_rest <- window(x_lagmat, start = start_fc)
-  x_lagmat_for_fc <- subset(x_lagmat_rest, end = h)
+  models_rmse_at_each_h_var <- as_tibble(each_h_just_model_and_ave_rmse_var) %>% 
+    gather(key = "rmse_h", value = "rmse", starts_with("rmse"))
   
-  return(x_lagmat_for_fc)
+  models_rmse_at_each_h <- rbind(models_rmse_at_each_h_var, 
+                                 models_rmse_at_each_h_arima) %>% 
+    mutate(inv_mse = 1/rmse^2) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse)) %>% 
+    arrange(rmse_h, rank_h)
+  
+  return(models_rmse_at_each_h)
+  
+  
 }
-
-
 make_monthly_ts <- function(data, 
                             names_to_exclude = c("date", "year", "month")) {
   
@@ -2158,86 +2314,7 @@ make_recommendation <- function(seas, sta, sta_after_seas) {
 }
 
 
-make_test_dates_list <- function(ts_data, type = "tscv", n = 8, h_max = 6,
-                                 timetk_idx = TRUE, training_length = 20,
-                                 external_idx = NULL) {
-  
-  data_length <- nrow(ts_data)
-  
-  # if (timetk_idx) {
-  #   date_time_index <- tk_index(ts_data, timetk_idx = timetk_idx)
-  # } else {
-  #   date_time_index <- external_idx
-  # }
-  # 
-  date_time_index <- as.yearqtr(time(ts_data))
-  
-  list_of_positions <- list_along(seq(1:n))
-  list_of_dates <- list_along(seq(1:n))
-  list_of_year_quarter <- list_along(seq(1:n))
-  
-  if (type == "tscv") {
-    
-    for (i in seq.int(1:n)) {
-      
-      from_the_right <-  i - 1
-      
-      end_test_pos <- data_length - from_the_right 
-      start_test_pos <- end_test_pos - h_max + 1
-      end_training_pos <- start_test_pos - 1
-      start_training_pos <- end_training_pos - training_length + 1
-      
-      
-      end_test_date <- date_time_index[end_test_pos]
-      start_test_date <- date_time_index[start_test_pos] 
-      end_training_date <- date_time_index[end_training_pos]
-      start_training_date <- date_time_index[start_training_pos]
-      
-      end_test_year <- year(end_test_date)
-      start_test_year <- year(start_test_date) 
-      end_training_year <- year(end_training_date) 
-      start_training_year <- year(start_training_date)
-      
-      end_test_quarter <- quarter(end_test_date)
-      start_test_quarter <- quarter(start_test_date) 
-      end_training_quarter <- quarter(end_training_date) 
-      start_training_quarter <- quarter(start_training_date)
-      
-      this_pos <- list(
-        tra_s = start_training_pos, 
-        tra_e = end_training_pos,
-        tes_s = start_test_pos, 
-        tes_e = end_test_pos)
-      
-      this_date <- list(
-        tra_s = start_training_date, 
-        tra_e = end_training_date,
-        tes_s = start_test_date, 
-        tes_e = end_test_date)
-      
-      this_yq <- list(
-        tra_s = c(start_training_year, start_training_quarter),
-        tra_e = c(end_training_year, end_training_quarter),
-        tes_s = c(start_test_year, start_test_quarter),
-        tes_e = c(end_test_year, end_test_quarter)
-      )
-      
-      list_of_positions[[i]] <- this_pos
-      list_of_dates[[i]] <- this_date
-      list_of_year_quarter[[i]] <- this_yq
-      
-    }
-    
-    return(list(
-      list_of_year_quarter = list_of_year_quarter,
-      list_of_dates = list_of_dates,
-      list_of_positions = list_of_positions)
-    )
-    
-  }
-  
-  
-}
+
 
 
 make_tables_and_plots_vbls_lags_sizes <- function(models_and_accu) {
@@ -2432,6 +2509,106 @@ make_tables_and_plots_vbls_lags_sizes <- function(models_and_accu) {
   )
   )
   
+}
+
+make_test_dates_list <- function(ts_data, type = "tscv", n = 8, h_max = 6,
+                                 timetk_idx = TRUE, training_length = 20,
+                                 external_idx = NULL) {
+  
+  data_length <- nrow(ts_data)
+  
+  # if (timetk_idx) {
+  #   date_time_index <- tk_index(ts_data, timetk_idx = timetk_idx)
+  # } else {
+  #   date_time_index <- external_idx
+  # }
+  # 
+  date_time_index <- as.yearqtr(time(ts_data))
+  
+  list_of_positions <- list_along(seq(1:n))
+  list_of_dates <- list_along(seq(1:n))
+  list_of_year_quarter <- list_along(seq(1:n))
+  
+  if (type == "tscv") {
+    
+    for (i in seq.int(1:n)) {
+      
+      from_the_right <-  i - 1
+      
+      end_test_pos <- data_length - from_the_right 
+      start_test_pos <- end_test_pos - h_max + 1
+      end_training_pos <- start_test_pos - 1
+      start_training_pos <- end_training_pos - training_length + 1
+      
+      
+      end_test_date <- date_time_index[end_test_pos]
+      start_test_date <- date_time_index[start_test_pos] 
+      end_training_date <- date_time_index[end_training_pos]
+      start_training_date <- date_time_index[start_training_pos]
+      
+      end_test_year <- year(end_test_date)
+      start_test_year <- year(start_test_date) 
+      end_training_year <- year(end_training_date) 
+      start_training_year <- year(start_training_date)
+      
+      end_test_quarter <- quarter(end_test_date)
+      start_test_quarter <- quarter(start_test_date) 
+      end_training_quarter <- quarter(end_training_date) 
+      start_training_quarter <- quarter(start_training_date)
+      
+      this_pos <- list(
+        tra_s = start_training_pos, 
+        tra_e = end_training_pos,
+        tes_s = start_test_pos, 
+        tes_e = end_test_pos)
+      
+      this_date <- list(
+        tra_s = start_training_date, 
+        tra_e = end_training_date,
+        tes_s = start_test_date, 
+        tes_e = end_test_date)
+      
+      this_yq <- list(
+        tra_s = c(start_training_year, start_training_quarter),
+        tra_e = c(end_training_year, end_training_quarter),
+        tes_s = c(start_test_year, start_test_quarter),
+        tes_e = c(end_test_year, end_test_quarter)
+      )
+      
+      list_of_positions[[i]] <- this_pos
+      list_of_dates[[i]] <- this_date
+      list_of_year_quarter[[i]] <- this_yq
+      
+    }
+    
+    return(list(
+      list_of_year_quarter = list_of_year_quarter,
+      list_of_dates = list_of_dates,
+      list_of_positions = list_of_positions)
+    )
+    
+  }
+
+}
+
+
+make_xreg_fc <- function(variable_name, mx_ext, lags, start_fc, h) {
+  this_x <- mx_ext[ , variable_name]
+  x_lagmat <- c()
+  x_lagmat <- this_x
+  
+  if(lags > 0) {
+    for (i in 1:lags) {
+      this_lag <- i
+      x_lag <- lag.xts(this_x, k = this_lag)
+      x_lagmat <- ts.union(x_lagmat, x_lag)
+    }
+  }
+  
+  x_lagmat_rest <- window(x_lagmat, start = start_fc)
+  x_lagmat_for_fc <- subset(x_lagmat_rest, end = h)
+  
+  return(x_lagmat_for_fc)
 }
 
 make_yoy_xts <- function(df_xts) {
@@ -3134,105 +3311,6 @@ var_cv <- function(var_data, this_p, this_type = "const", n_cv = 8, h_max = 6,
               mean_cv_rmse = mean_cv_rmse,
               cv_vbl_names = cv_vbl_names,
               cv_lag = cv_lag))
-}
-
-
-
-get_demetra_params <- function(data_path) {
-  
-  optimal_demetra <- read_excel(data_path, sheet = "optimal")
-  optimal_demetra <- optimal_demetra %>% 
-    separate(data = ., col = 1, into = c("freq_type", "id"), sep = " - ")
-  
-  optimal_demetra <- optimal_demetra %>% 
-    rename(p_dm = P, q_dm = Q, d_dm = D, P_dm = BP, Q_dm = BQ, D_dm = BD)
-  
-  rgdp_demetra <- optimal_demetra %>% 
-    filter(id == "rgdp") %>% select(- freq_type)
-  
-  rgdp_demetra_pdqPDQ <- rgdp_demetra %>% 
-    select(p_dm, d_dm, q_dm, P_dm, D_dm, Q_dm)
-  
-  monthly_demetra <- optimal_demetra %>% 
-    filter(id != "rgdp") %>% select(- freq_type)
-  
-  monthly_demetra$id <- as.factor(monthly_demetra$id) 
-  
-  monthly_demetra_pdqPDQ <- monthly_demetra %>% 
-    select(id, p_dm, d_dm, q_dm, P_dm, D_dm, Q_dm)
-  
-  monthly_names <- monthly_demetra$id
-  
-  rgdp_order <- c(rgdp_demetra$p_dm, rgdp_demetra$d_dm, rgdp_demetra$q_dm)
-  rgdp_seasonal <- c(rgdp_demetra$P_dm, rgdp_demetra$D_dm, rgdp_demetra$Q_dm)
-  rgdp_inc_mean <- ifelse(rgdp_demetra$Mean == 1, TRUE, FALSE)
-  
-  this_instruction <- list(order = rgdp_order, seasonal = rgdp_seasonal,
-                           mean_logical = rgdp_inc_mean)
-  
-  rgdp_order_list <- list()
-  
-  rgdp_order_list[[1]] <- this_instruction 
-  
-  monthly_demetra_order_list <- list_along(monthly_names)
-  
-  for (i in seq_along(monthly_names)) {
-    
-    this_order <- c(monthly_demetra$p_dm[i], monthly_demetra$d_dm[i],
-                    monthly_demetra$q_dm[i])
-    
-    this_seasonal <- c(monthly_demetra$P_dm[i], monthly_demetra$D_dm[i],
-                       monthly_demetra$Q_dm[i])
-    
-    inc_mean <- ifelse(monthly_demetra$Mean[i] == 1, TRUE, FALSE)
-    
-    this_instruction <- list(order = this_order, seasonal = this_seasonal,
-                             mean_logical = inc_mean)
-    
-    monthly_demetra_order_list[[i]] <- this_instruction
-  }
-  
-  names(monthly_demetra_order_list) <- monthly_names
-  
-  return(list(monthly_order_list = monthly_demetra_order_list,
-              monthly_info_tbl = monthly_demetra,
-              monthly_pdqPDQ = monthly_demetra_pdqPDQ,
-              rgdp_order_list = rgdp_order_list,
-              rgdp_info_tbl = rgdp_demetra,
-              rgdp_pqdPDQ = rgdp_demetra_pdqPDQ) 
-  )
-}
-
-
-
-get_order_from_arima <- function(arima_obj, suffix = NULL, 
-                                 this_arima_names = NULL) {
-  
-  len_obj <- length(arima_obj)
-  
-  order_names <- c("p", "q", "P", "Q", "freq", "d", "D")
-  
-  if (!is.null(suffix)) {
-    order_names <- paste(order_names, suffix, sep = "_")
-  }
-  
-  order_par_list <- list_along(seq.int(1, len_obj))
-  
-  for (i in seq.int(1, len_obj)) {
-    
-    this_arima <- arima_obj[[i]]
-    arma_par <- this_arima[["arma"]]
-    names(arma_par) <- order_names
-    
-    order_par_list[[i]] <- arma_par
-    
-  }
-  
-  
-  names(order_par_list) <- this_arima_names
-  
-  return(order_par_list)
-  
 }
 
 
