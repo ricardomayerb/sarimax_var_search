@@ -18,7 +18,7 @@ arima_res <- get_arima_results(country_name = country_name, read_results = TRUE)
 extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
 
-
+vlos <- arima_res[["var_lag_order_season"]]
 #### VAR and sarimax together -------------- 
 
 
@@ -86,6 +86,69 @@ ffall_arima <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
 summ_all_arima <- ffall_arima %>% 
   group_by(horizon) %>%
   summarise(sum_one_h = reduce(one_model_w_fc, sum))
+
+
+aricred <- ffall_arima %>% filter(variables == "cred") %>% select(variables, lags, fit)
+aricred0 <- aricred$fit[[1]] 
+aricred0$x
+aricred0$xreg
+
+cred_for_fc <-  window(extended_x_data_ts[, "cred"], start = c(2018, 1))
+cred_in_ari <- window(extended_x_data_ts[, "cred"], start = c(2000, 1), end = c(2017,4))
+cred_long <- window(extended_x_data_ts[, "cred"], start = c(2000, 1), end = c(2019,4))
+cred_in_ari_adj <- window(extended_x_data_ts[, "cred"], start = c(2001, 4), end = c(2017,4))
+cred_in_ari_miss <- ts(c(NA,NA,NA,NA,NA,NA,NA,cred_in_ari_adj), frequency = 4, start = c(2000, 1)) 
+cred_in_ari_miss_long <- ts(c(cred_in_ari_miss, cred_for_fc), frequency = 4, start = c(2000, 1))
+
+aricred0_miss <- Arima(y = rgdp_ts_in_arima, order = c(0,1,0), seasonal = c(0,1,2), xreg = cred_in_ari_miss)
+aricred0_nan <- Arima(y = rgdp_ts_in_arima, order = c(0,1,0), seasonal = c(0,1,2), xreg = cred_in_ari)
+
+fccred0_miss <- forecast(aricred0_miss, xreg = cred_for_fc, h = 8)
+ext_rgdp_miss <- ts(c(rgdp_ts_in_arima, fccred0_miss$mean), frequency = 4, 
+               start = stats::start(rgdp_ts_in_arima))
+logdiff_aricred0_miss <- diff(ext_rgdp_miss, lag = 4)
+logdiff_aricred0_miss
+
+fccred0 <- forecast(aricred0, xreg = cred_for_fc, h = 8)
+ext_rgdp <- ts(c(rgdp_ts_in_arima, fccred0$mean), frequency = 4, 
+               start = stats::start(rgdp_ts_in_arima))
+logdiff_aricred0 <- diff(ext_rgdp, lag = 4)
+logdiff_aricred0
+# from stata 2.858734131	2.899551392	3.041744232	3.258323669	2.708339691	2.666759491	2.62556076	2.58436203
+
+mygdpari <- Arima(y = rgdp_ts_in_arima, order = c(0,1,0), seasonal = c(0,1,1))
+mygdpari_ml <- Arima(y = rgdp_ts_in_arima, order = c(0,1,0), seasonal = c(0,1,1), method = "ML")
+
+mygdpari_stats <- arima(x = rgdp_ts_in_arima, order = c(0,1,0), seasonal = list(order = c(0,1,1), period = 4))
+mygdpari_stats_nomean <- arima(x = rgdp_ts_in_arima, order = c(0,1,0), seasonal = list(order = c(0,1,1), period = 4), include.mean = FALSE)
+
+mygdpari_constant <- Arima(y = rgdp_ts_in_arima, order = c(0,1,0), seasonal = c(0,1,1), include.constant = TRUE)
+mygdpari_mean <- Arima(y = rgdp_ts_in_arima, order = c(0,1,0), seasonal = c(0,1,1), include.mean = TRUE)
+
+mygdpari
+mygdpari_constant
+mygdpari_mean
+mygdpari_stats
+mygdpari_stats_nomean
+
+
+
+fc_rgdp_simple <- forecast(mygdpari, h = 8)
+fc_rgdp_simple$mean
+ext_gdp_simple <- ts(c(rgdp_ts_in_arima, fc_rgdp_simple$mean), frequency = 4, start = c(2000, 1))
+logdiff_ext_gdp_simple <- diff(ext_gdp_simple, lag = 4)
+logdiff_ext_gdp_simple
+# 2.858734131	3.093719482	3.314876556	3.748607635	3.42092514	3.417682648	3.414344788	3.411102295
+
+# stata:  11.782642 vs 11.78291 in R
+
+gdp_and_cred <- ts.union(rgdp_ts_in_arima, cred_in_ari_miss, cred_in_ari_miss_long)
+gdp_and_cred_tbl <- tk_tbl(gdp_and_cred)
+
+# library(openxlsx)
+# write.xlsx(gdp_and_cred_tbl, "./data/exported_rgdp_cred.xlsx")
+# library(haven)
+# write_dta(gdp_and_cred_tbl, "./data/exported_rgdp_cred.dta")
 
 
 ffall_arima_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
