@@ -1,5 +1,5 @@
 /*use "C:\Users\RMAYER\Documents\sarimax_var_search\data\exported_rgdp_cred.dta"*/
-import excel "C:\Users\RMAYER\Documents\sarimax_var_search\data\exported_rgdp_cred.xlsx", sheet("Sheet 1")  firstrow clear
+import excel "./data/exported_rgdp_cred.xlsx", sheet("Sheet 1")  firstrow clear
 
 gen year = substr(index, 1, 4)
 gen quarter = substr(index, 7, 1)
