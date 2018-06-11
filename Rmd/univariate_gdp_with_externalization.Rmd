@@ -2,7 +2,9 @@
 title: "gdp univariate models"
 author: "ricardo mayer"
 date: "June 9, 2018"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -17,28 +19,12 @@ library(printr)
 knitr::read_chunk(here::here("R/univariate_models_gdp.R"))
 ```
 
-foo 
 
 
-```{r load_libs_sources, message=FALSE, warning=FALSE, cache=FALSE}
-
+```{r libs_and_source, message=FALSE, warning=FALSE, cache=FALSE}
+<<load_libs_sources>>
 ```
 
-moo
-
-```{r get_data, echo=TRUE}
-
-```
-
-doo
-
-```{r obs and dates, include=FALSE}
-
-```
-
-```{r}
-print(dates_rgdp_all)
-```
 
 
 ## Real gross domestic product data
@@ -46,11 +32,29 @@ print(dates_rgdp_all)
 Our data consist, for now, of GDP quarterly series for 10 latin american countries: 
 Argentina, Bolivia, Brasil, Chile, Colombia, Ecuador, Mexico, Paraguay, Peru and Uruguay. 
 Most of the time we will demonstrate our analysis using only one country, Chile, some 
-other times we will also use Ecuador and Colombia for reasons that will be clear later. Some summaries will present information for all ten countries, like table 1 presented below
+other times we will also use Ecuador and Colombia for reasons that will be clear later.
+
+
+```{r a}
+<<get_data>>
+```
+
+
+Some summaries will present information for all ten countries, like table 1 presented below
 
 ### Panoramic view
 The function get_data_raw_ts by default read economic data for all countries from the excel workbooks present in ./data/excel and returns a list with one mts object per country. 
 This mts object will be examined in detail when we talk about multivariate methods for forecasting GDP, for now it enough to know that contains quarterly series of class ts, including real gross domestic product under the name of rgdp.
+
+
+
+```{r echo=FALSE}
+<<obs_and_dates>>
+  
+knitr::kable(dates_rgdp_all)  
+```
+
+
 
 
 

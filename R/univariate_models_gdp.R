@@ -12,7 +12,7 @@ colnames(all_rgdp_level_ts) <- names(country_data_level_ts)
 
 chl_rgdp_level_ts <- all_rgdp_level_ts[, "Chile"]
 
-##---- obs and dates ----
+##---- obs_and_dates ----
 
 dates_and_obs_vbl <- function(data_list, variable = "rgdp") {
   
@@ -35,7 +35,13 @@ dates_and_obs_vbl <- function(data_list, variable = "rgdp") {
   return(dates_obs_rgdp)
 }
 
-
-
 dates_rgdp_all <- dates_and_obs_vbl(country_data_level_ts)
+
+##---- rgdp_mts_as_tbl ----
+chl_rgdp_log_ts <- log(chl_rgdp_level_ts)
+
+##---- rgdp_data_plots ----
+
+
+
 
