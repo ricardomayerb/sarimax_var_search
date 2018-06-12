@@ -145,11 +145,10 @@ In a single plot, ignoring log-based series:
 
 To be explained later, but it includes the features found in seasonal adjustment softwares X-12, X-13 and TRAMO-SEATS. The output of its assesment for this particular GDP series (level, quarterly) is given by
 
-```{r}
+```{r arima_fitting}
 data_path <- "./data/excel/Chile.xlsx"
 demetra_output <- get_demetra_params(data_path)
 order_seasonal_rgdp <-  demetra_output[["rgdp_pqdPDQ"]]
-print(order_seasonal_rgdp)
 order_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["order"]]
 seasonal_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["seasonal"]]
 
@@ -164,12 +163,39 @@ arima_log_fit_constant <- Arima(y = chl_logrgdp_ts, order = order_rgdp,
 
 arima_log_fit_auto <- auto.arima(y = chl_logrgdp_ts)
 
+arima_log_fit_auto_slow <- auto.arima(y = chl_logrgdp_ts, stepwise = FALSE, 
+                                      approximation = FALSE)
+
 library(openxlsx)
 write.xlsx(x = chl_rgdp_tbl[, c("index", "chl_logrgdp_ts")], 
            file = './stata/chl_log_rgdp.xlsx')
 
+```
+
+
+```{r fit_results}
+sweep::sw_tidy(arima_log_fit_auto_slow)
+sweep::sw_tidy(arima_log_fit_auto)
+sweep::sw_tidy(arima_log_fit_drift)
+sweep::sw_tidy(arima_log_fit)
+
+gla_as <- sweep::sw_glance(arima_log_fit_auto_slow)
+gla_a <- sweep::sw_glance(arima_log_fit_auto)
+gla_d <- sweep::sw_glance(arima_log_fit_drift)
+gla <- sweep::sw_glance(arima_log_fit)
+models <-  tibble(models = c("auto_s", "auto", "dm_drift", "dm_nodrift"))
+
+gla_4 <- rbind(gla_as, gla_a, gla_d, gla)
+gla_4_sel <- gla_4[, c(3, 4, 5, 7, 11,12)]
+gla_4_sel <- cbind(models, gla_4_sel)
+
+knitr::kable(gla_4_sel, digits = c(1, 1, 1, 1, 3, 2, 2))
 
 ```
 
 
+
+```{r arima_based_forecasts}
+
+```
 
