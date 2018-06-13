@@ -166,6 +166,33 @@ arima_log_fit_auto <- auto.arima(y = chl_logrgdp_ts)
 arima_log_fit_auto_slow <- auto.arima(y = chl_logrgdp_ts, stepwise = FALSE, 
                                       approximation = FALSE)
 
+
+
+
+models_list <- list(
+  auto.arima = list(
+    y = chl_logrgdp_ts, stepwise = FALSE, approximation = FALSE),
+    Arima = list(y = chl_logrgdp_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = TRUE)
+        )
+
+models_tbl <- enframe(models_list, name = "f", value = "params")
+# models_tbl$name <- c("auto_slow", "dm_drift")
+
+models_tbl_fit <- models_tbl %>%
+  mutate(fit = invoke_map(f, params))
+models_tbl_fit
+
+models_estimates <- models_tbl_fit %>%
+  mutate(tidy = map(fit, sw_tidy)) %>%
+  unnest(tidy) %>%
+  spread(key = f, value = estimate)
+
+models_perf <- models_tbl_fit %>%
+  mutate(glance = map(fit, sw_glance)) %>%
+  unnest(glance, .drop = TRUE)
+
+
 library(openxlsx)
 write.xlsx(x = chl_rgdp_tbl[, c("index", "chl_logrgdp_ts")], 
            file = './stata/chl_log_rgdp.xlsx')
@@ -191,11 +218,47 @@ gla_4_sel <- cbind(models, gla_4_sel)
 
 knitr::kable(gla_4_sel, digits = c(1, 1, 1, 1, 3, 2, 2))
 
+library(tidyquant)
+
+models_tbl_fit %>%
+  mutate(augment = map(fit, sw_augment, rename_index = "date")) %>%
+  unnest(augment) %>%
+  ggplot(aes(x = date, y = .resid, group = f)) +
+  geom_line(color = palette_light()[[2]]) +
+  geom_point(color = palette_light()[[1]]) +
+  geom_smooth(method = "loess") +
+  facet_wrap(~ f, nrow = 3) +
+  labs(title = "Residuals Plot") +
+  theme_tq()
+
 ```
 
 
 
 ```{r arima_based_forecasts}
+models_tbl_fcast <- models_tbl_fit %>%
+  mutate(fcast = map(fit, forecast, h = 8))
+
+
+models_tbl_fcast_tidy <- models_tbl_fcast %>%
+  mutate(sweep = map(fcast, sw_sweep, fitted = FALSE, timetk_idx = TRUE, rename_index = "date"))
+
+gug <- models_tbl_fcast_tidy %>%
+  unnest(sweep) %>%
+  ggplot(aes(x = date, y = price, color = key, group = f)) +
+  geom_ribbon(aes(ymin = lo.95, ymax = hi.95), 
+              fill = "#D5DBFF", color = NA, size = 0) +
+  geom_ribbon(aes(ymin = lo.80, ymax = hi.80, fill = key), 
+              fill = "#596DD5", color = NA, size = 0, alpha = 0.8) +
+  geom_line(size = 1) +
+  facet_wrap(~f, nrow = 3) +
+  labs(title = "Gasoline Price Forecasts",
+       subtitle = "Forecasting multiple models with sweep: ARIMA, BATS, ETS",
+       x = "", y = "Price") +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_x_date(date_breaks = "5 years", date_labels = "%Y") +
+  theme_tq() +
+  scale_color_tq()
 
 ```
 

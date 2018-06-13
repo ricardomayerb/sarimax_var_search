@@ -11,6 +11,7 @@ library(gridExtra)
 library(grid)
 library(haven)
 library(tictoc)
+library(sweep)
 
 
 add_average_fcs <- function(var_fc_tbl, n_ave = c(1, 3, 5)) {
