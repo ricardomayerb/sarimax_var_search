@@ -1,7 +1,5 @@
-/*use "C:\Users\RMAYER\Documents\sarimax_var_search\data\exported_rgdp_cred.dta"*/
-/*import excel "C:\Users\RMAYER\Documents\sarimax_var_search\data\exported_rgdp_cred.xlsx", sheet("Sheet 1")  firstrow clear*/
-/*import excel "C:\Users\RMAYER\Documents\sarimax_var_search\stata\chl_log_rgdp.xlsx", sheet("Sheet 1")  firstrow clear*/
-import excel "C:\Users\ricar\Documents\GitHub\sarimax_var_search\stata\chl_log_rgdp.xlsx", sheet("Sheet 1")  firstrow clear
+import excel "C:\Users\RMAYER\Documents\sarimax_var_search\stata\chl_log_rgdp.xlsx", sheet("Sheet 1")  firstrow clear
+/*import excel "C:\Users\ricar\Documents\GitHub\sarimax_var_search\stata\chl_log_rgdp.xlsx", sheet("Sheet 1")  firstrow clear*/
 
 gen year = substr(index, 1, 4)
 gen quarter = substr(index, 7, 1)
@@ -13,11 +11,24 @@ gen q = qofd(dofm(time))
 format q %tq
 tsset q
 
+tsappend, add(8)
+
+
 arima chl_logrgdp_ts , arima(2,0,0) sarima(0,1,0, 4)
 estat ic
+predict fc_uncond, y dynamic(tq(`e(tmaxs)')+1)
+replace fc_uncond = chl_logrgdp_ts if q <= tq(`e(tmaxs)')
+gen fc_unc_yoy = S4.fc_uncond
 
-arima chl_logrgdp_ts , arima(2,0,0) sarima(0,1,0, 4) robust iter(30)
+
+
+
+arima chl_logrgdp_ts, arima(2,0,0) sarima(0,1,0, 4) robust iterate(30)
 estat ic
+predict fc_uncond_robi30, y dynamic(tq(`e(tmaxs)')+1)
+replace fc_uncond_robi30 = chl_logrgdp_ts if q <= tq(`e(tmaxs)')
+
+
 
 /* from R
 Series: chl_logrgdp_ts 
