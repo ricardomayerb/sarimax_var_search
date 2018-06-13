@@ -121,11 +121,11 @@ autoplot(chl_rgdp_level_ts) +
   ggtitle("Real GDP, quarterly series", subtitle = "Chile")
 
 autoplot(chl_rgdp_yoy_ts, series = "YoY growth") + 
-  autolayer(chl_logrgdp_diff_ts, series = "log_diffs") + 
+  autolayer(chl_logrgdp_diff_ts, series = "YoY log_diffs") + 
   ylab("") + theme(legend.position="bottom")
 
 autoplot(chl_rgdp_diffyoy_ts, series = "diff of YoY growth") + 
-  autolayer(chl_logrgdp_diffdiff_ts, series = "diff of log_diffs") + 
+  autolayer(chl_logrgdp_diffdiff_ts, series = "diff of YoY log_diffs") + 
   ylab("") + theme(legend.position="bottom")
 
 ```
@@ -141,18 +141,18 @@ In a single plot, ignoring log-based series:
 
 ## Univariate models forecasts
 
-### Demetra output
+### Demetra and auto.arima output
 
-To be explained later, but it includes the features found in seasonal adjustment softwares X-12, X-13 and TRAMO-SEATS. The output of its assesment for this particular GDP series (level, quarterly) is given by
+To be explained later, but DEMETRA+ includes the features found in seasonal adjustment softwares X-12, X-13 and TRAMO-SEATS. It generates an output that indicates any transformation such as log, the chosen arima parameters of the automatic estimation carried by it: p,q,d,P,D,Q and whether included a constant in the regression or not. At the same time we use the auto.arima function to obtain an alternative arima specification. Both specification include a drift parameter, only seasonal differencing (i.e. D=1 but d=0) and two autoregressive parameters. They differ in that the auto.arima includes a seasonal moving average term and in the value of the drift parameter. Information regarding the arima specification can be found at this table
 
-```{r arima_fitting}
+```{r arima_fitting, echo=FALSE}
 data_path <- "./data/excel/Chile.xlsx"
 demetra_output <- get_demetra_params(data_path)
 order_seasonal_rgdp <-  demetra_output[["rgdp_pqdPDQ"]]
 order_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["order"]]
 seasonal_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["seasonal"]]
 
-print(order_seasonal_rgdp)
+
 
 arima_log_fit <- Arima(y = chl_logrgdp_ts, order = order_rgdp, 
                    seasonal = seasonal_rgdp)
@@ -197,26 +197,128 @@ library(openxlsx)
 write.xlsx(x = chl_rgdp_tbl[, c("index", "chl_logrgdp_ts")], 
            file = './stata/chl_log_rgdp.xlsx')
 
+dm_orders <- order_seasonal_rgdp
+names(dm_orders) <- c("p","d","q","P","D","Q")
+
+# order_names <- c("p", "q", "P", "Q", "freq", "d", "D")
+
+ord_auto_s <-  (arima_log_fit_auto_slow$arma)[c(1, 6, 2, 3, 7, 4)]
+names(ord_auto_s) <- c("p","d","q","P","D","Q")
+
+o_dm <- as_tibble(cbind(model = "dm_drift", dm_orders))
+o_as <- as_tibble(cbind(model = "auto_s", t(ord_auto_s)))
+
+all_orders <- rbind(o_dm, o_as)
+
+
+knitr::kable(all_orders)
+
 ```
 
 
-```{r fit_results}
-sweep::sw_tidy(arima_log_fit_auto_slow)
-sweep::sw_tidy(arima_log_fit_auto)
-sweep::sw_tidy(arima_log_fit_drift)
-sweep::sw_tidy(arima_log_fit)
+### Demetra and auto.arima estimated models
+
+
+```{r fit_results, echo=FALSE}
+aco_as <- cbind(model = "auto_s", sweep::sw_tidy(arima_log_fit_auto_slow))
+aco_a <- cbind(model = "auto", sweep::sw_tidy(arima_log_fit_auto))
+aco_d <- cbind(model = "dm_drift", sweep::sw_tidy(arima_log_fit_drift))
+aco <- cbind(model = "dm_nodrift", sweep::sw_tidy(arima_log_fit))
+arima_coeff_sw <- rbind(aco_as, aco_a, aco_d, aco) 
+# arima_coeff_sw %>% filter(model %in% c("auto_s", "dm_drift"))
 
 gla_as <- sweep::sw_glance(arima_log_fit_auto_slow)
 gla_a <- sweep::sw_glance(arima_log_fit_auto)
 gla_d <- sweep::sw_glance(arima_log_fit_drift)
 gla <- sweep::sw_glance(arima_log_fit)
-models <-  tibble(models = c("auto_s", "auto", "dm_drift", "dm_nodrift"))
+models <-  tibble(model = c("auto_s", "auto", "dm_drift", "dm_nodrift")) 
 
 gla_4 <- rbind(gla_as, gla_a, gla_d, gla)
 gla_4_sel <- gla_4[, c(3, 4, 5, 7, 11,12)]
 gla_4_sel <- cbind(models, gla_4_sel)
 
-knitr::kable(gla_4_sel, digits = c(1, 1, 1, 1, 3, 2, 2))
+# knitr::kable(gla_4_sel, digits = c(1, 1, 1, 1, 3, 2, 2))
+
+
+stata_drift <- 0.037775
+stata_ar1 <- 1.288286
+stata_ar2 <- -0.5428544
+stata_loglik <- 248.0334
+stata_AIC <- -488.0668
+stata_BIC <- -478.3435
+stata_sigma <- 0.0124885
+
+manual_stata_swtd <- tibble(model = "stata_dm_drift", 
+                            term = c("drift", "ar1", "ar2"),
+                            estimate = c(stata_drift, stata_ar1, stata_ar2))
+
+manual_stata_gla_sel <- tibble(model = "stata_dm_drift",
+                               logLik = stata_loglik,
+                               AIC = stata_AIC,
+                               BIC = stata_BIC,
+                               RMSE = NA, MASE = NA, ACF1 = NA)
+
+gla_4_sel_stata <- rbind(gla_4_sel, manual_stata_gla_sel)
+arima_coeff_sw_stata <- rbind(arima_coeff_sw, manual_stata_swtd)
+
+# knitr::kable(gla_4_sel_stata, digits = c(1, 1, 1, 1, 3, 2, 2))
+# knitr::kable(arima_coeff_sw_stata)
+
+
+three_m_aic <- gla_4_sel_stata %>% 
+  filter(model %in% c("auto_s", "dm_drift", "stata_dm_drift"))
+
+three_m_par <- arima_coeff_sw_stata %>% 
+  filter(model %in% c("auto_s", "dm_drift", "stata_dm_drift"))
+
+
+
+
+# . arima chl_logrgdp_ts , arima(2,0,0) sarima(0,1,0, 4) robust iter(30)
+# 
+# ARIMA regression
+# 
+# Sample:  1997q1 - 2017q4                        Number of obs     =         84
+#                                                 Wald chi2(2)      =     283.57
+# Log pseudolikelihood =  248.0334                Prob > chi2       =     0.0000
+# 
+# --------------------------------------------------------------------------------
+# S4.            |             Semirobust
+# chl_logrgdp_ts |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+# ---------------+----------------------------------------------------------------
+# chl_logrgdp_ts |
+#          _cons |    .037775   .0052903     7.14   0.000     .0274062    .0481438
+# ---------------+----------------------------------------------------------------
+# ARMA           |
+#             ar |
+#            L1. |   1.288286   .1049547    12.27   0.000     1.082578    1.493993
+#            L2. |  -.5428544   .1199319    -4.53   0.000    -.7779167   -.3077921
+# ---------------+----------------------------------------------------------------
+#         /sigma |   .0124885   .0011339    11.01   0.000     .0102662    .0147108
+# --------------------------------------------------------------------------------
+# Note: The test of the variance against zero is one sided, and the two-sided
+#       confidence interval is truncated at zero.
+# 
+# 	  
+#  estat ic
+# 
+# Akaike's information criterion and Bayesian information criterion
+# 
+# -----------------------------------------------------------------------------
+#        Model |        Obs  ll(null)  ll(model)      df         AIC        BIC
+# -------------+---------------------------------------------------------------
+#            . |         84         .   248.0334       4   -488.0668  -478.3435
+# -----------------------------------------------------------------------------
+#                Note: N=Obs used in calculating BIC; see [R] BIC note.
+
+
+
+```
+
+Information about estimated parameters is summarized below:
+
+```{r k_show_parameter_estimates, echo=FALSE}
+knitr::kable(three_m_par)
 
 library(tidyquant)
 
@@ -233,9 +335,17 @@ models_tbl_fit %>%
 
 ```
 
+A few model performance statistics can be seen in this table. It shows two things. The first is that the auto.arima model have better in-sample statistics: higher logLik, lower AIC and BIC (not shown here but also lower AICc than dm_drift, while AICc for stata_dm_drift if not available, but it should be fairly similar to dm_drift). The second is that despite the notorious difference in the drift parameter value, dm_drift and stata_dm_drift have very similar performance measures.
+
+```{r k_show_AIC_loglik, echo=FALSE}
+knitr::kable(three_m_aic, digits = c(1, 1, 1, 1, 3, 2, 2))
+```
 
 
-```{r arima_based_forecasts}
+### Demetra and auto.arima forecasts
+
+```{r arima_based_forecasts, echo=FALSE}
+
 models_tbl_fcast <- models_tbl_fit %>%
   mutate(fcast = map(fit, forecast, h = 8))
 
@@ -259,6 +369,10 @@ gug <- models_tbl_fcast_tidy %>%
   scale_x_date(date_breaks = "5 years", date_labels = "%Y") +
   theme_tq() +
   scale_color_tq()
+
+fc_auto <- forecast(arima_log_fit_auto, h = 8)
+fc_auto_s <- forecast(arima_log_fit_auto_slow, h = 8)
+fc_dm_drift <- forecast(arima_log_fit_drift, h = 8)
 
 ```
 
