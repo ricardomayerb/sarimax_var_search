@@ -1,0 +1,363 @@
+---
+title: "Report of GDP forecasting"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+  word_document: default
+params:
+  
+  country: "Chile"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = TRUE, cache = FALSE)
+library(here)
+# here::here()
+knitr::opts_knit$set(root.dir = here::here())
+```
+
+```{r load_libs_sources, message=FALSE, warning=FALSE, cache=FALSE, echo=FALSE}
+source('./R/utils_av.R')
+```
+
+## Real GDP data
+
+Our data consist, for now, of GDP quarterly series for 10 latin american countries: 
+Argentina, Bolivia, Brasil, Chile, Colombia, Ecuador, Mexico, Paraguay, Peru and Uruguay. 
+Most of the time we will demonstrate our analysis using only one country, Chile, some 
+other times we will also use Ecuador and Colombia for reasons that will be clear later.
+
+
+```{r get_data, echo=FALSE, cache=FALSE}
+country_data_level_ts <- get_raw_data_ts()
+all_rgdp_level_ts <- country_data_level_ts %>% 
+  map(~ .[, "rgdp"]) %>% reduce(ts.union)
+colnames(all_rgdp_level_ts) <- names(country_data_level_ts)
+
+chl_rgdp_level_ts <- all_rgdp_level_ts[, params$country]
+chl_rgdp_level_ts <- na.omit(chl_rgdp_level_ts)
+```
+
+
+Some summaries will present information for all ten countries, like table 1 presented below
+
+### Panoramic view
+The function get_data_raw_ts by default read economic data for all countries from the excel workbooks present in ./data/excel and returns a list with one mts object per country. 
+This mts object will be examined in detail when we talk about multivariate methods for forecasting GDP, for now it enough to know that contains quarterly series of class ts, including real gross domestic product under the name of rgdp.
+
+
+
+```{r obs_and_dates, echo=FALSE}
+dates_and_obs_vbl <- function(data_list, variable = "rgdp") {
+  
+  datesobs_col <- function(rgdp_ts) {
+    start_date <- as.yearqtr(min(time(na.omit(rgdp_ts))))
+    end_date <- as.yearqtr(max(time(na.omit(rgdp_ts))))
+    n_obs <- length(na.omit(rgdp_ts))
+    d_vec <- c(as.character(start_date), as.character(end_date), as.character(n_obs))
+    return(d_vec)
+  }
+  
+  dates_obs_rgdp <- country_data_level_ts %>% 
+    map(~ .[, variable]) %>% 
+    map(datesobs_col) %>% 
+    reduce(cbind) %>% t() %>% 
+    as_data_frame() 
+  
+  dates_obs_rgdp <- as_tibble(cbind(names(country_data_level_ts), dates_obs_rgdp))
+  names(dates_obs_rgdp) <-   c("country", "start", "end", "obs")
+  return(dates_obs_rgdp)
+}
+
+dates_rgdp_all <- dates_and_obs_vbl(country_data_level_ts)
+```
+
+The time span of real GDP data varies considerably across countries, the oldest series (Bolivia) starts at 1990 while the newest (Peru) does it at 2007, resulting in 111 and 44 observations. 
+
+```{r k_show_dates, echo=FALSE}
+knitr::kable(dates_rgdp_all, caption = "Quarterly GDP data span")  
+```
+
+### Zoom to one country
+
+#### Levels, year-on-year and diff YoY
+
+Two transformations of real GDP are going to be of interest: proportional change in a given quarter compared with the same quarter in the previous , ("YoY growth change") and the $t$ vs $(t-1)$ difference of such series ("diff of YoY growth change")
+
+```{r rgdp_mts_as_tbl, echo=FALSE}
+
+chl_rgdp_yoy_ts <- make_yoy_ts(chl_rgdp_level_ts)
+
+chl_logrgdp_ts <- log(chl_rgdp_level_ts)
+chl_logrgdp_diff_ts <- diff(chl_logrgdp_ts, lag = 4)
+
+chl_rgdp_diffyoy_ts <- diff(chl_rgdp_yoy_ts)
+chl_logrgdp_diffdiff_ts <- diff(chl_logrgdp_diff_ts)
+
+
+chl_rgdp_mts <- ts.union(chl_rgdp_level_ts, chl_rgdp_yoy_ts, 
+                         chl_logrgdp_ts, chl_logrgdp_diff_ts,
+                         chl_rgdp_diffyoy_ts, chl_logrgdp_diffdiff_ts)
+
+chl_rgdp_tbl <- tk_tbl(chl_rgdp_mts)
+
+# head(chl_rgdp_tbl)\
+
+knitr::kable(head(chl_rgdp_tbl[, 1:5], n = 8), caption = "Real GDP and transformation, Chile (first obs)", col.names = c("Date", "rgdp", "YoY", "log(rgdp)", "diff(log(rgdp))"), digits = 3)
+
+```
+
+A quick visual exploration reveals that real GDP is both trending and highly seasonal. 
+Next we turn to plotting YoY changes and its difference, where seasonality seems to have faded as with overarching trends, but we will apply to (non) stationarity test to asses them properly. Also, it seems clear that when modelling YoY you should leave room for non-zero constants. Finally 
+we can see that as far as YoY and diff-of-YoY are concerned, taking logs make only small differences to their level and none to their temporal pattern.
+
+
+```{r rgdp_data_plots, echo=FALSE}
+g_rgdp <- autoplot(chl_rgdp_level_ts) + 
+  ylab("GDP") + 
+  ggtitle("Real GDP, quarterly series", subtitle = "Chile")
+
+g_rgdp_yoy <-  autoplot(chl_rgdp_yoy_ts, series = "YoY growth") + 
+  autolayer(chl_logrgdp_diff_ts, series = "YoY log_diffs") + 
+  ylab("") + theme(legend.position="bottom")
+
+g_rgdp_diffofyoy <- autoplot(chl_rgdp_diffyoy_ts, series = "diff of YoY growth") + 
+  autolayer(chl_logrgdp_diffdiff_ts, series = "diff of YoY log_diffs") + 
+  ylab("") + theme(legend.position="bottom")
+
+g3 <- grid.arrange(g_rgdp, g_rgdp_yoy, g_rgdp_diffofyoy)
+
+
+```
+
+### Arima model for GDP 
+We will take the Demetra's output as the given model for all univariate arimas: gdp and monthly indicators.
+For Chile's GDP it suggest to fit the model in logs and use the following seasonally integrated model with drift: 
+(2,0,0)x(0,1,0) with drift.
+
+```{r demetra_arima, echo=FALSE, cache=TRUE}
+data_path <- "./data/excel/Chile.xlsx"
+demetra_output <- get_demetra_params(data_path)
+order_seasonal_rgdp <-  demetra_output[["rgdp_pqdPDQ"]]
+order_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["order"]]
+seasonal_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["seasonal"]]
+
+has_drift <- TRUE
+take_logs <- TRUE
+
+arima_log_fit_drift <- Arima(y = chl_logrgdp_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = has_drift)
+
+# arima_stat_log_fit_drift <- arima(x = chl_logrgdp_ts, order = order_rgdp, 
+#                                   seasonal = list(order = seasonal_rgdp, period = 4), include.mean = has_drift)
+
+dm_orders <- order_seasonal_rgdp
+
+names(dm_orders) <- c("p","d","q","P","D","Q")
+
+o_dm <- as_tibble(cbind(model = "demetra", take_logs, 
+                        drift = has_drift, dm_orders))
+
+
+print(arima_log_fit_drift)
+
+
+```
+
+```{r show_order_and_coeff}
+knitr::kable(o_dm)
+
+library(pander)
+panderOptions("digits", 2)
+pander(arima_log_fit_drift)
+
+```
+
+```{r show_residuals}
+checkresiduals(arima_log_fit_drift)
+```
+
+
+
+### Arima forecast
+
+```{r arima_based_forecasts, message=FALSE, warning=FALSE, echo=FALSE}
+logdiff_fcs_ts <- function(fobj) {
+  x <- fobj$x
+  fc <- fobj$mean
+  xfc <- ts(c(x, fc), frequency = 4, start = stats::start(x) )
+  xfc_logdiff <- diff(xfc, lag = 4)
+  return(xfc_logdiff)
+}
+
+
+
+plot_fcs_models <- function(fobj_list,  series_names = NULL, 
+                            add_yoy_plot = FALSE, is_log = TRUE, 
+                            add_logdiff_series = FALSE){
+  
+  if(is.null(series_names)){
+    series_names = paste0("model_", seq(1, length(fobj_list)))
+  }
+  
+  y_data <- fobj_list[[1]]$x
+  base_plot <- autoplot(y_data)
+  
+  for (i in  seq(1, length(fobj_list))) {
+    this_model <- fobj_list[[i]]
+    this_fc <- this_model$mean
+    this_name <- series_names[i]
+    base_plot <- base_plot + 
+    autolayer(this_fc, series = this_name)
+  }
+  
+  if(add_yoy_plot) {
+    if(is_log) {
+      y_data <- exp(y_data)
+    }
+    yoy_data <- make_yoy_ts(y_data)
+    base_yoy_plot <- autoplot(yoy_data)
+   
+    for (i in  seq(1, length(fobj_list))) {
+      this_model <- fobj_list[[i]]
+      this_fc <- this_model$mean
+      this_xfc <- ts(c(this_model$x, this_model$mean), frequency = 4,
+                     start = stats::start(this_model$x))
+      if(is_log) {
+        this_xfc <- exp(this_xfc)
+      }
+      
+      this_xfc_yoy <- make_yoy_ts(this_xfc)
+      this_fc_yoy <- window(this_xfc_yoy, start = stats::start(this_fc))
+                    
+      this_name <- series_names[i]
+      base_yoy_plot <- base_yoy_plot + 
+      autolayer(this_fc_yoy, series = this_name)
+      }
+    
+  }
+  
+  
+  if(add_yoy_plot) {
+    return(list(base = base_plot, yoy_base = base_yoy_plot))
+  } else {
+    return(base_plot)
+  }
+  
+}
+
+
+
+fc_dm_drift <- forecast(arima_log_fit_drift, h = 8)
+
+fc_dm_drift_logdiff_ts <- logdiff_fcs_ts(fc_dm_drift)
+
+
+baseplot <- plot_fcs_models(list(fc_dm_drift),
+                            series_names = c("auto_slow", "demetra"))
+
+# print(baseplot)
+
+base_and_yoy_plot <- plot_fcs_models(list(fc_dm_drift),
+                            series_names = c("auto_slow", "demetra"),
+                             add_yoy_plot = TRUE, is_log = TRUE)
+
+base_p <- base_and_yoy_plot[[1]]
+base_p_yoy <- base_and_yoy_plot[[2]]  
+
+improved_p <- base_p +  theme(legend.position="bottom") +
+  coord_cartesian(xlim = c(2007, 2019), ylim = c(10, 10.75)) 
+  
+
+improved_p_yoy <- base_p_yoy  + theme(legend.position="bottom") + 
+  coord_cartesian(xlim = c(2007, 2019))
+
+models_list <- list(
+   Arima = list(y = chl_logrgdp_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = TRUE)
+        )
+
+models_tbl <- enframe(models_list, name = "f", value = "params")
+# models_tbl$name <- c("auto_slow", "dm_drift")
+
+models_tbl_fit <- models_tbl %>%
+  mutate(fit = invoke_map(f, params))
+models_tbl_fit
+
+models_tbl_fcast <- models_tbl_fit %>%
+  mutate(fcast = map(fit, forecast, h = 8))
+
+
+models_tbl_fcast_tidy <- models_tbl_fcast %>%
+  mutate(sweep = map(fcast, sw_sweep, fitted = FALSE, timetk_idx = TRUE,
+                     rename_index = "date")) 
+
+fcast_sweep <- models_tbl_fcast_tidy %>%
+  unnest(sweep) %>% 
+  mutate(yq = as.yearqtr(date),
+         date = lubridate::as_date(yq))
+
+
+```
+
+
+```{r show_forecast_plots}
+grid.arrange(improved_p , improved_p_yoy)
+
+```
+
+
+#### From quarterly to yearly growth
+
+From quarterly year-on-year growth rates is easy to obtain yearly ones.
+
+
+
+```{r quarterly_and_yearly_fc, message=FALSE, warning=FALSE}
+fcast_quarterly <- fcast_sweep %>% 
+  select(f, date, key, value, yq) %>% 
+  mutate(level = exp(value)) %>% 
+  rename(model = f, type = key) %>% 
+  as_tsibble(key = id(model), index = date) %>% 
+  group_by(model) %>% 
+  mutate(yoy = difference(level, lag = 4)/lag(level, n = 4))
+
+fcast_q_tsb <- as_tsibble(fcast_quarterly, key = id(model), index = date) %>% 
+  group_by(model) %>% 
+  mutate(yoy = difference(level, lag = 4)/lag(level, n = 4))
+
+fcast_q_tsb_y <- fcast_q_tsb %>% 
+  group_by(model) %>% 
+  index_by(year = year(date)) %>% 
+  summarise(growth_yr = mean(yoy, na.rm = TRUE))
+
+just_fcast_q_tbl <- fcast_q_tsb %>% 
+  filter(year(date) >= 2018) %>% as_tibble() %>% 
+  select(model, yq,  yoy) %>% 
+  mutate(yoy = 100*yoy) %>% 
+  tidyr::spread(key = model, value = yoy)
+  
+just_fcast_y_tbl <- fcast_q_tsb_y %>% 
+  filter(year >= 2018) %>% as_tibble() %>% 
+  mutate(growth_yr = 100*growth_yr) %>% 
+  tidyr::spread(key = model, value = growth_yr)
+
+
+```
+
+Quarterly:
+
+```{r show_quarterly_growth}
+knitr::kable(just_fcast_q_tbl, digits = 2)
+```
+
+and annual growth
+```{r show_yearly_growth}
+knitr::kable(just_fcast_y_tbl, digits = 2)
+```
+
+
+
+

@@ -132,7 +132,79 @@ Akaike's information criterion and Bayesian information criterion
                Note: N=Obs used in calculating BIC; see [R] BIC note.
 
 	  
-	  
+
+	  arima chl_logrgdp_ts , arima(2,0,0) sarima(0,1,0, 4) technique(bfgs)
+
+Iteration 0:   log likelihood =  248.03026  
+Iteration 1:   log likelihood =  248.03186  (backed up)
+Iteration 2:   log likelihood =  248.03186  (backed up)
+Iteration 3:   log likelihood =   248.0325  (backed up)
+Iteration 4:   log likelihood =  248.03323  (backed up)
+Iteration 5:   log likelihood =  248.03339  
+Iteration 6:   log likelihood =  248.03339  
+
+ARIMA regression
+
+Sample:  1997q1 - 2017q4                        Number of obs     =         84
+                                                Wald chi2(2)      =     323.58
+Log likelihood =  248.0334                      Prob > chi2       =     0.0000
+
+------------------------------------------------------------------------------
+S4.          |                 OIM
+chl_logrgd~s |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+chl_logrgd~s |
+       _cons |   .0377787   .0053045     7.12   0.000     .0273821    .0481754
+-------------+----------------------------------------------------------------
+ARMA         |
+          ar |
+         L1. |   1.288127   .0899274    14.32   0.000     1.111872    1.464381
+         L2. |  -.5426158   .0900686    -6.02   0.000    -.7191469   -.3660847
+-------------+----------------------------------------------------------------
+      /sigma |   .0124881   .0009638    12.96   0.000     .0105991    .0143771
+------------------------------------------------------------------------------
+Note: The test of the variance against zero is one sided, and the two-sided
+      confidence interval is truncated at zero.
+
+	   estat ic
+
+Akaike's information criterion and Bayesian information criterion
+
+-----------------------------------------------------------------------------
+       Model |        Obs  ll(null)  ll(model)      df         AIC        BIC
+-------------+---------------------------------------------------------------
+           . |         84         .   248.0334       4   -488.0668  -478.3435
+-----------------------------------------------------------------------------
+               Note: N=Obs used in calculating BIC; see [R] BIC note.
+
+			   
+			   arima chl_logrgdp_ts , arima(2,0,0) sarima(0,1,0, 4) technique(bfgs) from(0.
+> 001 1.28 -0.54 0.01, copy)
+
+
+ARIMA regression
+
+Sample:  1997q1 - 2017q4                        Number of obs     =         84
+                                                Wald chi2(2)      =     323.56
+Log likelihood =  248.0334                      Prob > chi2       =     0.0000
+
+------------------------------------------------------------------------------
+S4.          |                 OIM
+chl_logrgd~s |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+-------------+----------------------------------------------------------------
+chl_logrgd~s |
+       _cons |     .03778   .0053048     7.12   0.000     .0273827    .0481773
+-------------+----------------------------------------------------------------
+ARMA         |
+          ar |
+         L1. |   1.288111   .0899298    14.32   0.000     1.111852     1.46437
+         L2. |  -.5425904   .0900711    -6.02   0.000    -.7191264   -.3660543
+-------------+----------------------------------------------------------------
+      /sigma |   .0124884   .0009638    12.96   0.000     .0105993    .0143775
+------------------------------------------------------------------------------
+Note: The test of the variance against zero is one sided, and the two-sided
+      confidence interval is truncated at zero.
+
 	  
 */
 

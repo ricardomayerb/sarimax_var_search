@@ -311,9 +311,15 @@ three_m_par <- arima_coeff_sw_stata %>%
 # -----------------------------------------------------------------------------
 #                Note: N=Obs used in calculating BIC; see [R] BIC note.
 
-
-
 ```
+
+
+
+<!-- ```{r} -->
+
+<!-- ``` -->
+
+
 
 Information about estimated parameters is summarized below:
 
@@ -341,6 +347,16 @@ A few model performance statistics can be seen in this table. It shows two thing
 
 ```{r k_show_AIC_loglik, echo=FALSE}
 knitr::kable(three_m_aic, digits = c(1, 1, 1, 1, 3, 2, 2))
+```
+
+
+
+```{r show_residuals_auto_s}
+checkresiduals(arima_log_fit_auto_slow)
+```
+
+```{r show_residuals_dm_drift}
+checkresiduals(arima_log_fit_drift)
 ```
 
 
@@ -442,8 +458,6 @@ improved_p_yoy <- base_p_yoy  + theme(legend.position="bottom") +
   coord_cartesian(xlim = c(2007, 2019))
 
 
-
-
 models_tbl_fcast <- models_tbl_fit %>%
   mutate(fcast = map(fit, forecast, h = 8))
 
@@ -490,7 +504,6 @@ fcast_q_tsb_y <- fcast_q_tsb %>%
   group_by(model) %>% 
   index_by(year = year(date)) %>% 
   summarise(growth_yr = mean(yoy, na.rm = TRUE))
-
 
 just_fcast_q_tbl <- fcast_q_tsb %>% 
   filter(year(date) >= 2018) %>% as_tibble() %>% 
@@ -580,15 +593,19 @@ rmse70_auto <- sqrt(colMeans(e3_arima_w70^2 , na.rm = TRUE))
 
 rmse_auto <- rbind(rmse20_auto, rmse30_auto, rmse40_auto, rmse50_auto, rmse60_auto, rmse70_auto)
 rmse_auto_tbl <- as_tibble(cbind(model = "auto", w = c("w_20","w_30","w_40","w_50","w_60", "w_70"), rmse_auto))
+names(rmse_auto_tbl) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
 
 rmse_dm <- rbind(rmse20_dm, rmse30_dm, rmse40_dm, rmse50_dm, rmse60_dm, rmse70_dm)
 rmse_dm_tbl <- as_tibble(cbind(model = "dm", w = c("w_20","w_30","w_40","w_50","w_60", "w_70"), rmse_dm))
+names(rmse_dm_tbl) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
 
-relative_auto2_dm <- rmse_auto/rmse_dm
-percent_auto2_dm <- 100*(relative_auto2_dm - 1)
+relative_auto_dm <- rmse_auto/rmse_dm
+percent_auto_dm <- 100*(relative_auto_dm - 1)
+
+# names(rmse_auto_dm) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
 
 rmse_auto_dm <- rbind(rmse_auto_tbl, rmse_dm_tbl)
-names(rmse_auto_dm) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
+
 rmse_auto_dm_long <- rmse_auto_dm %>% 
   gather(key = horizon, value = rmse, -c(type, w)) %>% 
   group_by(type, w) %>% 
@@ -599,7 +616,12 @@ cv_rmse_plot <- ggplot(rmse_auto_dm_long, aes(x = h, y = rmse, col = type)) +
   geom_point() + 
   facet_wrap(~ w)
 
+
+print(knitr::kable(cbind( rmse_auto_tbl[,2], as_tibble(percent_auto_dm)), digits = 1, caption = "Excess RMSE of auto vs demetra models (in %)"))
+
 print(cv_rmse_plot)
+
+
 
 
 # library(forecast)
