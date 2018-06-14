@@ -523,14 +523,20 @@ knitr::kable(just_fcast_y_tbl, digits = 2)
 We use tsCV in this case, in order to apraise forecast performance in multiple subsamples
 
 ```{r tscv_arimas}
-fautoarima <- function(x, h) {
-  forecast(auto.arima(x, approximation = FALSE, stepwise = FALSE, 
-                      include.drift = TRUE), h=h)
+
+
+farima2 <- function(x, h) {
+  forecast(Arima(x, order = order_rgdp, seasonal = seasonal_rgdp, 
+                 include.drift = TRUE), h = h)
 }
 
-farima <- function(x, h) {
-  forecast(auto.arima(x, stepwise = FALSE, allowdrift = TRUE, approximation = FALSE), h=h)
+ # (arima_log_fit_auto_slow$arma)[c(1, 6, 2, 3, 7, 4)]
+farima3 <- function(x, h) {
+  forecast(Arima(x, order = (arima_log_fit_auto_slow$arma)[c(1, 6, 2)],
+                 seasonal = (arima_log_fit_auto_slow$arma)[c(3, 7, 4)], 
+                 include.drift = TRUE), h = h)
 }
+
 
 e_autoarima <- tsCV(chl_logrgdp_ts, fautoarima, h=8, window = 20)
 e_arima_w20 <- tsCV(chl_logrgdp_ts, farima, h=8, window = 20)
@@ -539,6 +545,61 @@ e_arimafoo <- tsCV(chl_logrgdp_ts, farima, h=8)
 e_arimafoo20 <- tsCV(chl_logrgdp_ts, farima, h=8, window = 20)
 
 
+# e_arima_w20 <- tsCV(chl_logrgdp_ts, farima, h = 8, window = 20)
+e2_arima_w20 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 20)
+e2_arima_w30 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 30)
+e2_arima_w40 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 40)
+e2_arima_w50 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 50)
+e2_arima_w60 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 60)
+e2_arima_w70 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 70)
+e2_arima <- tsCV(chl_logrgdp_ts, farima2, h = 8)
+
+
+e3_arima_w20 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 20)
+e3_arima_w30 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 30)
+e3_arima_w40 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 40)
+e3_arima_w50 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 50)
+e3_arima_w60 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 60)
+e3_arima_w70 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 70)
+e3_arima <- tsCV(chl_logrgdp_ts, farima3, h = 8)
+
+
+rmse20_dm <- sqrt(colMeans(e2_arima_w20^2 , na.rm = TRUE))
+rmse30_dm <- sqrt(colMeans(e2_arima_w30^2 , na.rm = TRUE))
+rmse40_dm <- sqrt(colMeans(e2_arima_w40^2 , na.rm = TRUE))
+rmse50_dm <- sqrt(colMeans(e2_arima_w50^2 , na.rm = TRUE))
+rmse60_dm <- sqrt(colMeans(e2_arima_w60^2 , na.rm = TRUE))
+rmse70_dm <- sqrt(colMeans(e2_arima_w70^2 , na.rm = TRUE))
+
+rmse20_auto <- sqrt(colMeans(e3_arima_w20^2 , na.rm = TRUE))
+rmse30_auto <- sqrt(colMeans(e3_arima_w20^2 , na.rm = TRUE))
+rmse40_auto <- sqrt(colMeans(e3_arima_w40^2 , na.rm = TRUE))
+rmse50_auto <- sqrt(colMeans(e3_arima_w50^2 , na.rm = TRUE))
+rmse60_auto <- sqrt(colMeans(e3_arima_w60^2 , na.rm = TRUE))
+rmse70_auto <- sqrt(colMeans(e3_arima_w70^2 , na.rm = TRUE))
+
+rmse_auto <- rbind(rmse20_auto, rmse30_auto, rmse40_auto, rmse50_auto, rmse60_auto, rmse70_auto)
+rmse_auto_tbl <- as_tibble(cbind(model = "auto", w = c("w_20","w_30","w_40","w_50","w_60", "w_70"), rmse_auto))
+
+rmse_dm <- rbind(rmse20_dm, rmse30_dm, rmse40_dm, rmse50_dm, rmse60_dm, rmse70_dm)
+rmse_dm_tbl <- as_tibble(cbind(model = "dm", w = c("w_20","w_30","w_40","w_50","w_60", "w_70"), rmse_dm))
+
+relative_auto2_dm <- rmse_auto/rmse_dm
+percent_auto2_dm <- 100*(relative_auto2_dm - 1)
+
+rmse_auto_dm <- rbind(rmse_auto_tbl, rmse_dm_tbl)
+names(rmse_auto_dm) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
+rmse_auto_dm_long <- rmse_auto_dm %>% 
+  gather(key = horizon, value = rmse, -c(type, w)) %>% 
+  group_by(type, w) %>% 
+  arrange(horizon) %>% 
+  mutate(h = 1:n())
+
+cv_rmse_plot <- ggplot(rmse_auto_dm_long, aes(x = h, y = rmse, col = type)) + 
+  geom_point() + 
+  facet_wrap(~ w)
+
+print(cv_rmse_plot)
 
 
 # library(forecast)
