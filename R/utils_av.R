@@ -137,6 +137,15 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
   monthly_ts  <- log(monthly_ts)
   monthly_names <- colnames(monthly_ts)
   
+  external_data_path <- "./data/external/external.xlsx"
+  external_monthly_data <- get_monthly_variables(data_path = external_data_path)
+  external_monthly_ts <- make_monthly_ts(external_monthly_data)
+  external_monthly_ts  <- log(external_monthly_ts)
+  external_monthly_names <- colnames(external_monthly_ts)
+  demetra_output_external <- get_demetra_params(external_data_path)
+  
+  
+  
   rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
                 start = gdp_and_dates[["gdp_start"]], frequency = 4)
   rgdp_ts <- log(rgdp_ts)
@@ -193,6 +202,10 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
     this_arima_names = monthly_names)
   toc()
   
+  fit_arima_external_monthly_list_dem <- fit_arimas(
+    y_ts = external_monthly_ts, order_list = demetra_output_external[["monthly_order_list"]],
+    this_arima_names = external_monthly_names)
+  
   
   gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
   
@@ -206,14 +219,35 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
                               fitted_arima_list = fit_arima_monthly_list_dem,
                               start_date_gdp = gdp_and_dates[["gdp_start"]])
   
-  # doox <- mdata_ext[["series_xts"]]
-  mdata_ext_ts <- mdata_ext[["series_ts"]]
-  yoy_mdata_ext_ts <- diff(mdata_ext_ts, lag = 4)
+  external_mdata_ext <- extend_and_qtr(data_mts = external_monthly_ts, 
+                                       final_horizon_date = final_forecast_horizon , 
+                                       vec_of_names = external_monthly_names, 
+                                       fitted_arima_list = fit_arima_external_monthly_list_dem,
+                                       start_date_gdp = gdp_and_dates[["gdp_start"]])
   
+  # doox <- mdata_ext[["series_xts"]]
+  internal_mdata_ext_ts <- mdata_ext[["series_ts"]]
+  internal_yoy_mdata_ext_ts <- diff(internal_mdata_ext_ts, lag = 4)
+  internal_monthly_names <- monthly_names
+  
+  external_mdata_ext_ts <- external_mdata_ext[["series_ts"]]
+  external_yoy_mdata_ext_ts <- diff(external_mdata_ext_ts, lag = 4)
+  
+  
+  # # doox <- mdata_ext[["series_xts"]]
+  # mdata_ext_ts <- mdata_ext[["series_ts"]]
+  # yoy_mdata_ext_ts <- diff(mdata_ext_ts, lag = 4)
+  # 
   # my_emae <- mdata_ext_ts[, "emae"]
   
   rgdp_order <-  gdp_order[c("p", "d", "q")]
   rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
+  
+  
+  mdata_ext_ts <- ts.union(internal_mdata_ext_ts, external_mdata_ext_ts)
+  monthly_names <- c(internal_monthly_names, external_monthly_names)
+  colnames(mdata_ext_ts) <- monthly_names
+  
   
   
   # my_emaeip <- mdata_ext_ts[, c("emae", "ip")]
@@ -221,22 +255,59 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
   
   tic()
   # using contemporary xregs (k = 0)
-  cv0_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
-                     training_length = train_span,  y_order = rgdp_order, 
-                     y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
-                     method = "ML", s4xreg = s4xreg)
+  cv0_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
+                       training_length = train_span,  y_order = rgdp_order, 
+                       y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
+                       method = "ML", s4xreg = FALSE)
+  
+  cv0_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts, 
+                       h_max =  h_max, n_cv = number_of_cv,
+                       training_length = train_span,  y_order = rgdp_order, 
+                       y_seasonal = rgdp_seasonal, 
+                       vec_of_names = external_monthly_names,
+                       method = "ML", s4xreg = FALSE)
+  
+  cv0_e <- list(cv_errors_all_pairs_yx = c(cv0_e_i$cv_errors_all_pairs_yx,
+                                           cv0_e_e$cv_errors_all_pairs_yx),
+                cv_yoy_errors_all_pairs_yx = c(cv0_e_i$cv_yoy_errors_all_pairs_yx,
+                                               cv0_e_e$cv_yoy_errors_all_pairs_yx)
+  )
+  
+  
   
   # using one-lag xregs (k = 1)
-  cv1_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max = h_max,
-                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
-                     y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
-                     method = "ML", s4xreg = s4xreg, xreg_lags = 0:1)
+  cv1_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
+                       n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                       y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
+                       method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
+  
+  cv1_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
+                       n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                       y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
+                       method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
+  
+  cv1_e <- list(cv_errors_all_pairs_yx = c(cv1_e_i$cv_errors_all_pairs_yx,
+                                           cv1_e_e$cv_errors_all_pairs_yx),
+                cv_yoy_errors_all_pairs_yx = c(cv1_e_i$cv_yoy_errors_all_pairs_yx,
+                                               cv1_e_e$cv_yoy_errors_all_pairs_yx)
+  )
   
   # using two-lags xregs (k = 2)
-  cv2_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max = h_max,
-                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
-                     y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
-                     method = "ML", s4xreg = s4xreg, xreg_lags = 0:2)
+  cv2_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
+                       n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                       y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
+                       method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
+  
+  cv2_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
+                       n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                       y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
+                       method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
+  
+  cv2_e <- list(cv_errors_all_pairs_yx = c(cv2_e_i$cv_errors_all_pairs_yx,
+                                           cv2_e_e$cv_errors_all_pairs_yx),
+                cv_yoy_errors_all_pairs_yx = c(cv2_e_i$cv_yoy_errors_all_pairs_yx,
+                                               cv2_e_e$cv_yoy_errors_all_pairs_yx)
+  )
   
   cv_rgdp_e <- cv_arima(y_ts = rgdp_ts, h_max = h_max, n_cv = number_of_cv,
                         training_length = train_span,  y_order = rgdp_order, 
@@ -753,11 +824,17 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
   y_start_year <- year(min( y_yqrt ))
   y_start_quarter <- quarter(min( y_yqrt ))
   
+  y_start_year_quarter <- stats::start(y_ts)
+  y_end_year_quarter <- stats::end(y_ts)
+  
+  
   n <- length(y_ts)
   
-  xreg_as_y <- window(xreg_ts, start = c(y_start_year, y_start_quarter),
-                      end = c(y_end_year, y_end_quarter), frequency = 4)
+  xreg_as_y <- window(xreg_ts, start = y_start_year_quarter,
+                      end = y_end_year_quarter, frequency = 4)
   
+  # print("xreg_as_y")
+  # print(xreg_as_y)
   
   if (s4xreg) {
     xreg_as_y <- diff(xreg_as_y, lag = 4)
@@ -765,10 +842,14 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
   }
   
   number_of_xregs <- ncol(as.matrix(xreg_ts))
+  # print("number_of_xregs")
+  # print(number_of_xregs)
+  
   cv_errors_all_pairs_yx <- list_along(seq.int(1, number_of_xregs)) 
   cv_yoy_errors_all_pairs_yx <- list_along(seq.int(1, number_of_xregs)) 
   
   for (x in 1:number_of_xregs) {
+    # print(paste("x =", x))
     
     if (is.null(ncol(xreg_as_y))) {
       x_series <-  xreg_as_y
@@ -785,12 +866,20 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
       xlagmat <- c()
       
       for (i in 0:max_xreg_lag) {
+        # print(paste("i =", i))
         xlagmat <- cbind(xlagmat, lag.xts(x_series, k = i))
       }
       
+      
       colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
+      # print("xlagmat")
+      # print(xlagmat)
+      
       x_series <- xlagmat
     }
+    
+    # print("x_series")
+    # print(x_series)
     
     cv_errors_this_x <- list_along(1:n_cv)
     cv_yoy_errors_this_x  <- list_along(1:n_cv)
@@ -827,10 +916,35 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                        start = start_test_index_x,
                        end = end_test_index_x)
       
-      this_arimax <- Arima(training_y, order = y_order,
+      # print("inside cv")
+      # print("training_y")
+      # print(training_y)
+      # print("training_x")
+      # print(training_x)
+      # print("method")
+      # print(method)
+
+      
+      this_arimax <- try(Arima(training_y, order = y_order,
                            seasonal = y_seasonal,
                            xreg = training_x,
-                           method = method)
+                           method = method))
+      
+      class_this_arimax <- class(this_arimax)[1]
+
+      
+      if (class_this_arimax == "try-error") {
+        this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
+                            ", ML method failed in Arima. Switched to CSS-ML.")
+        warning(this_mssg)
+        new_method <-  "CSS-ML"
+        this_arimax <- Arima(training_y, order = y_order,
+                                 seasonal = y_seasonal,
+                                 xreg = training_x,
+                                 method = new_method)
+      }
+      
+      # print("pasamos this_arimax")
       
       this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
       
@@ -1071,7 +1185,8 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   ext_monthly_series_tbl <- as.tibble(ext_monthly_series_mts) 
   ext_monthly_series_tbl <- cbind(tibble(date = index_date), ext_monthly_series_tbl)
   
-  ext_series_xts_monthly <- tk_xts(ext_monthly_series_tbl, date_var = date)
+  ext_series_xts_monthly <- tk_xts(ext_monthly_series_tbl, date_var = date,
+                                   silent = TRUE)
   
   
   
@@ -1189,7 +1304,8 @@ fcs_accu <- function(fc_mat, test_data_mat) {
 }
 
 fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
-                       my_biasadj = FALSE, this_arima_names = NULL) {
+                       my_biasadj = FALSE, this_arima_names = NULL,
+                       include.drift = TRUE) {
   
   n_of_series <- ncol(y_ts)
   
@@ -1208,10 +1324,10 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
       this_instruction <- order_list[[i]]
       this_order <- this_instruction[["order"]]
       this_seasonal <- this_instruction[["seasonal"]]
-      this_mean <- this_instruction[["mean_logical"]]
+      this_constant <- this_instruction[["mean_logical"]]
       
       fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
-                   include.mean = this_mean, lambda = my_lambda, 
+                   include.constant =  this_constant, lambda = my_lambda, 
                    biasadj = my_biasadj)
       
     } else {
@@ -1463,6 +1579,75 @@ get_arima_results <- function(country_name, read_results = FALSE,
   
 }
 
+get_data <- function(country_name, data_path = "./data/excel/", 
+                     data_transform = "level", apply_log = FALSE) {
+  
+  file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
+  file_paths <- paste0(data_path, file_names)
+  country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")
+  
+  general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
+                                      "month", "conf_emp", "conf_ibre", "ip_ine", 
+                                      "vta_auto", "exist"))
+  # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
+  # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
+  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
+                             Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
+                             Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
+                             Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
+                             Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
+  
+  variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
+  
+  data_qm_xts <- get_gdp_shaped_data(data_path = data_path, 
+                                     list_variables_to_drop = variables_to_drop,
+                                     only_complete_cases = TRUE,
+                                     apply_log = apply_log)
+  
+  
+  if (data_transform == "level") {
+    data_qm_mts <- map(data_qm_xts, to_ts_q)
+    if (country_name == "all") {
+      return(data_qm_mts)
+    } else {
+      level_data_ts <- data_qm_mts[[country_name]]
+      return(level_data_ts)
+    }
+    
+  } 
+  
+  if (data_transform == "yoy") {
+    data_qm_xts_yoy <- map(data_qm_xts, make_yoy_xts)
+    data_qm_mts_yoy <- map(data_qm_xts_yoy, to_ts_q)
+    if (country_name == "all") {
+      return(data_qm_mts_yoy)
+    } else {
+      yoy_data_ts <- data_qm_mts_yoy[[country_name]]
+      return(yoy_data_ts)
+    }
+    
+  }
+  
+  if (data_transform == "diff_yoy") {
+    data_qm_xts_yoy_diff <- map(data_qm_xts_yoy, diff.xts, na.pad = FALSE)
+    data_qm_mts_yoy_diff <- map(data_qm_xts_yoy_diff, to_ts_q)
+    if (country_name == "all") {
+      return(data_qm_mts_yoy_diff)
+    } else {
+      diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
+      return(diff_yoy_data_ts)
+    }
+    
+  }
+  
+  
+}
+
 
 
 get_demetra_params <- function(data_path) {
@@ -1493,9 +1678,12 @@ get_demetra_params <- function(data_path) {
   rgdp_order <- c(rgdp_demetra$p_dm, rgdp_demetra$d_dm, rgdp_demetra$q_dm)
   rgdp_seasonal <- c(rgdp_demetra$P_dm, rgdp_demetra$D_dm, rgdp_demetra$Q_dm)
   rgdp_inc_mean <- ifelse(rgdp_demetra$Mean == 1, TRUE, FALSE)
+  rgdp_to_take_log <- ifelse(rgdp_demetra$Log == 1, TRUE, FALSE)
+  
   
   this_instruction <- list(order = rgdp_order, seasonal = rgdp_seasonal,
-                           mean_logical = rgdp_inc_mean)
+                           mean_logical = rgdp_inc_mean, 
+                           log_logical = rgdp_to_take_log)
   
   rgdp_order_list <- list()
   
@@ -1513,8 +1701,11 @@ get_demetra_params <- function(data_path) {
     
     inc_mean <- ifelse(monthly_demetra$Mean[i] == 1, TRUE, FALSE)
     
+    to_take_log <- ifelse(monthly_demetra$Log[i] == 1, TRUE, FALSE)
+    
+    
     this_instruction <- list(order = this_order, seasonal = this_seasonal,
-                             mean_logical = inc_mean)
+                             mean_logical = inc_mean, log_logical = to_take_log)
     
     monthly_demetra_order_list[[i]] <- this_instruction
   }
@@ -1528,6 +1719,102 @@ get_demetra_params <- function(data_path) {
               rgdp_info_tbl = rgdp_demetra,
               rgdp_pqdPDQ = rgdp_demetra_pdqPDQ) 
   )
+}
+
+
+get_gdp_start_end <- function(data) {
+  
+  na_omitted_rgdp  <- data %>% dplyr::select(date, rgdp) %>% 
+    filter(!is.na(rgdp)) %>% 
+    summarise(start_rgdp_date = min(date), end_rgdp_date = max(date))
+  
+  rgdp_start <-  na_omitted_rgdp[["start_rgdp_date"]]
+  rgdp_end <-  na_omitted_rgdp[["end_rgdp_date"]]
+  
+  return(c(start = rgdp_start, end = rgdp_end))
+  
+}
+
+
+get_gdp_shaped_data <- function(data_path, country = NULL, 
+                                only_complete_cases = FALSE,
+                                list_variables_to_drop = NULL,
+                                apply_log = FALSE
+) {
+  
+  suppressMessages(data_q_m_qm <- read_gather_qm_data(
+    data_path = data_path, country = country)
+  )
+  
+  
+  data_qm <- data_q_m_qm[["countries_merged_q_m"]]
+  
+  country_names <- names(data_qm)
+  
+  rgdp_dates <- map(data_qm, get_gdp_start_end)
+  
+  data_qm_xts <- list_along(country_names)
+  
+  for (i in seq_along(country_names)) {
+    
+    this_qm_xts <- tk_xts(data_qm[[i]], date_var = date, silent = TRUE)
+    # print(this_qm_xts)
+    # print(glimpse(this_qm_xts))
+    
+    this_dates <- rgdp_dates[[i]]
+    
+    this_start <- this_dates[[1]]
+    this_end <- this_dates[[2]]
+    
+    this_qm_xts <- chop_start_end_xts(this_qm_xts, this_start, this_end)
+    
+    data_qm_xts[[i]] <- this_qm_xts
+    
+  }
+  
+  names(data_qm_xts) <- country_names
+  
+  if (!is.null(list_variables_to_drop)) {
+    data_qm_xts <- map2(data_qm_xts, list_variables_to_drop, drop_this_vars)
+  }
+  
+  if (only_complete_cases) {
+    # print("balanced data of all variables")
+    data_qm_xts <- map(data_qm_xts, ~ .x[complete.cases(.x) , ])
+  }
+  
+  if (apply_log) {
+    data_qm_xts <- map(data_qm_xts, log)
+  }
+  
+  return(data_qm_xts)
+  
+}
+
+
+
+get_monthly_variables <- function(data_path, vars_to_eliminate = 
+                                    c("hlookup")) {
+  data <- read_excel(data_path, sheet = "monthly")
+  
+  for (variable in vars_to_eliminate) {
+    data[, variable] <- NULL 
+  }
+  
+  return(data)
+}
+
+
+get_external_variables <- function(external_data_path, vars_to_eliminate = 
+                                    c("hlookup")) {
+  data <- read_excel(data_path, sheet = "external")
+  
+  for (variable in vars_to_eliminate) {
+    data[, variable] <- NULL 
+  }
+  
+  return(data)
+  
 }
 
 
@@ -1678,145 +1965,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
   
 }
 
-get_data <- function(country_name, data_path = "./data/excel/", 
-                     data_transform = "level", apply_log = FALSE) {
-  
-  file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
-  file_paths <- paste0(data_path, file_names)
-  country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")
-  
-  general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
-                                      "month", "conf_emp", "conf_ibre", "ip_ine", 
-                                      "vta_auto", "exist"))
-  # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
-  # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
-  extra_vars_to_drop <- list(Argentina = c("m2", "ri", "", "", "", "", "", "", "", "", ""), 
-                             Bolivia = c("igae", "", "", "", "", "", "", "", "", "", "", ""), 
-                             Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                             Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                             Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                             Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
-                             Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
-                             Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                             Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
-                             Uruguay = c("cred", "", "", "", "", "", "", "", "", "", "", ""))
-  
-  variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
-  
-  data_qm_xts <- get_gdp_shaped_data(data_path = data_path, 
-                                     list_variables_to_drop = variables_to_drop,
-                                     only_complete_cases = TRUE,
-                                     apply_log = apply_log)
-  
-  
-  if (data_transform == "level") {
-    data_qm_mts <- map(data_qm_xts, to_ts_q)
-    if (country_name == "all") {
-      return(data_qm_mts)
-    } else {
-      level_data_ts <- data_qm_mts[[country_name]]
-      return(level_data_ts)
-    }
-    
-  } 
-  
-  if (data_transform == "yoy") {
-    data_qm_xts_yoy <- map(data_qm_xts, make_yoy_xts)
-    data_qm_mts_yoy <- map(data_qm_xts_yoy, to_ts_q)
-    if (country_name == "all") {
-      return(data_qm_mts_yoy)
-    } else {
-      yoy_data_ts <- data_qm_mts_yoy[[country_name]]
-      return(yoy_data_ts)
-    }
-    
-  }
-  
-  if (data_transform == "diff_yoy") {
-    data_qm_xts_yoy_diff <- map(data_qm_xts_yoy, diff.xts, na.pad = FALSE)
-    data_qm_mts_yoy_diff <- map(data_qm_xts_yoy_diff, to_ts_q)
-    if (country_name == "all") {
-      return(data_qm_mts_yoy_diff)
-    } else {
-      diff_yoy_data_ts <- data_qm_mts_yoy_diff[[country_name]]
-      return(diff_yoy_data_ts)
-    }
-    
-  }
-  
-  
-}
 
-
-
-get_gdp_start_end <- function(data) {
-  
-  na_omitted_rgdp  <- data %>% dplyr::select(date, rgdp) %>% 
-    filter(!is.na(rgdp)) %>% 
-    summarise(start_rgdp_date = min(date), end_rgdp_date = max(date))
-  
-  rgdp_start <-  na_omitted_rgdp[["start_rgdp_date"]]
-  rgdp_end <-  na_omitted_rgdp[["end_rgdp_date"]]
-  
-  return(c(start = rgdp_start, end = rgdp_end))
-  
-}
-
-
-get_gdp_shaped_data <- function(data_path, country = NULL, 
-                                only_complete_cases = FALSE,
-                                list_variables_to_drop = NULL,
-                                apply_log = FALSE
-) {
-  
-  suppressMessages(data_q_m_qm <- read_gather_qm_data(
-    data_path = data_path, country = country)
-  )
-  
-  
-  data_qm <- data_q_m_qm[["countries_merged_q_m"]]
-  
-  country_names <- names(data_qm)
-  
-  rgdp_dates <- map(data_qm, get_gdp_start_end)
-  
-  data_qm_xts <- list_along(country_names)
-  
-  for (i in seq_along(country_names)) {
-    
-    this_qm_xts <- tk_xts(data_qm[[i]], date_var = date, silent = TRUE)
-    # print(this_qm_xts)
-    # print(glimpse(this_qm_xts))
-    
-    this_dates <- rgdp_dates[[i]]
-    
-    this_start <- this_dates[[1]]
-    this_end <- this_dates[[2]]
-    
-    this_qm_xts <- chop_start_end_xts(this_qm_xts, this_start, this_end)
-    
-    data_qm_xts[[i]] <- this_qm_xts
-    
-  }
-  
-  names(data_qm_xts) <- country_names
-  
-  if (!is.null(list_variables_to_drop)) {
-    data_qm_xts <- map2(data_qm_xts, list_variables_to_drop, drop_this_vars)
-  }
-  
-  if (only_complete_cases) {
-    # print("balanced data of all variables")
-    data_qm_xts <- map(data_qm_xts, ~ .x[complete.cases(.x) , ])
-  }
-  
-  if (apply_log) {
-    data_qm_xts <- map(data_qm_xts, log)
-  }
-  
-  return(data_qm_xts)
-  
-}
 
 
 
@@ -2085,17 +2234,6 @@ get_rgdp_and_dates <- function(data_path, gdp_name = "rgdp",
   
 }
 
-get_monthly_variables <- function(data_path, vars_to_eliminate = 
-                                    c("hlookup")) {
-  data <- read_excel(data_path, sheet = "monthly")
-  
-  for (variable in vars_to_eliminate) {
-    data[, variable] <- NULL 
-  }
-  
-  return(data)
-  
-}
 
 
 
@@ -2698,9 +2836,16 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
   
   x_names <- colnames(xreg_ts)
   
+  
   number_of_xregs <- ncol(as.matrix(xreg_ts))
   
   arimax_list <-  list()
+  
+  
+  # print(x_names)
+  # print("x_names")
+  # print(number_of_xreg)
+  # print("number_of_xreg")
   
   for (x_regressor in 1:number_of_xregs) {
     
@@ -2756,6 +2901,7 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       # print(y_ts)
       # print("x_as_y")
       # print(x_as_y)
+      
       this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
                            order = y_order, seasonal = y_seasonal,
                            include.mean = y_include_mean )
