@@ -74,7 +74,7 @@ rmh <- unique(ffall_VAR$rmse_h)
 
 rmse2_table_single_h <- ffall_VAR %>% 
   select(variables, lags, model_function, rmse_h, rmse) %>%
-  arrange(rmse_h, rmse)
+  arrange(rmse_h, rmse) %>% 
   mutate(idx = 1:n())
 
 
@@ -90,7 +90,7 @@ ggplot(rmse_table_single_h, aes(x = idx, y = rmse, color = model_function)) +
   geom_point() + coord_cartesian(ylim = c(0, 1.1*max_rmse))
 
 
-ggplot(rmse2_table_single_h, aes(x = idx, y = rmse, color = model_function)) + 
+ggplot(rmse2_table_single_h, aes(x = idx, y = rmse, color = rmse_h)) + 
   geom_point() + coord_cartesian(ylim = c(0, 1.1*max2_rmse))
 
 
@@ -301,15 +301,29 @@ number_of_models_per_h <- comb_fcs_all %>% group_by(horizon) %>%
 number_of_models_per_h
 
 
+comb_rmse2_table_single_h <- comb_fcs_all %>% 
+  select(variables, lags, model_function, rmse_h, rmse) %>%
+  arrange(rmse_h, rmse) %>% 
+  mutate(idx = 1:n())
+
+
 comb_rmse_table_single_h <- comb_fcs_all %>% 
   filter(rmse_h == rmh[1]) %>% 
   select(variables, lags, model_function, rmse) %>% 
   mutate(idx = 1:n())
 
 max_rmse <- max(comb_rmse_table_single_h$rmse)
+max2_rmse <- max(comb_rmse2_table_single_h$rmse)
 
 ggplot(comb_rmse_table_single_h, aes(x = idx, y = rmse, color = model_function)) + 
   geom_point() + coord_cartesian(ylim = c(0, 1.1*max_rmse))
+
+
+ggplot(comb_rmse2_table_single_h, aes(x = idx, y = rmse, color = rmse_h, 
+                                      shape = model_function)) + 
+  geom_point() + coord_cartesian(ylim = c(0, 1.1*max2_rmse))
+
+
 
 # Average Forecasts of all models (all models are the best 30 at each h)
 summ_comb_fcs_all <- comb_fcs_all %>% 
