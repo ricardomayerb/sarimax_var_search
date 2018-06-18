@@ -1,0 +1,649 @@
+---
+title: "Report of GDP forecasting"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = TRUE, cache = FALSE)
+library(here)
+# here::here()
+knitr::opts_knit$set(root.dir = here::here())
+```
+
+```{r load_libs_sources, message=FALSE, warning=FALSE, cache=FALSE, echo=FALSE}
+source('./R/utils_av.R')
+```
+
+
+
+## Real GDP data
+
+Our data consist, for now, of GDP quarterly series for 10 latin american countries: 
+Argentina, Bolivia, Brasil, Chile, Colombia, Ecuador, Mexico, Paraguay, Peru and Uruguay. 
+Most of the time we will demonstrate our analysis using only one country, Chile, some 
+other times we will also use Ecuador and Colombia for reasons that will be clear later.
+
+
+```{r get_data, echo=FALSE, cache=FALSE}
+country_data_level_ts <- get_raw_data_ts()
+all_rgdp_level_ts <- country_data_level_ts %>% 
+  map(~ .[, "rgdp"]) %>% reduce(ts.union)
+colnames(all_rgdp_level_ts) <- names(country_data_level_ts)
+
+chl_rgdp_level_ts <- all_rgdp_level_ts[, "Chile"]
+chl_rgdp_level_ts <- na.omit(chl_rgdp_level_ts)
+```
+
+
+Some summaries will present information for all ten countries, like table 1 presented below
+
+### Panoramic view
+The function get_data_raw_ts by default read economic data for all countries from the excel workbooks present in ./data/excel and returns a list with one mts object per country. 
+This mts object will be examined in detail when we talk about multivariate methods for forecasting GDP, for now it enough to know that contains quarterly series of class ts, including real gross domestic product under the name of rgdp.
+
+
+
+```{r obs_and_dates, echo=FALSE}
+dates_and_obs_vbl <- function(data_list, variable = "rgdp") {
+  
+  datesobs_col <- function(rgdp_ts) {
+    start_date <- as.yearqtr(min(time(na.omit(rgdp_ts))))
+    end_date <- as.yearqtr(max(time(na.omit(rgdp_ts))))
+    n_obs <- length(na.omit(rgdp_ts))
+    d_vec <- c(as.character(start_date), as.character(end_date), as.character(n_obs))
+    return(d_vec)
+  }
+  
+  dates_obs_rgdp <- country_data_level_ts %>% 
+    map(~ .[, variable]) %>% 
+    map(datesobs_col) %>% 
+    reduce(cbind) %>% t() %>% 
+    as_data_frame() 
+  
+  dates_obs_rgdp <- as_tibble(cbind(names(country_data_level_ts), dates_obs_rgdp))
+  names(dates_obs_rgdp) <-   c("country", "start", "end", "obs")
+  return(dates_obs_rgdp)
+}
+
+dates_rgdp_all <- dates_and_obs_vbl(country_data_level_ts)
+```
+
+The time span of real GDP data varies considerably across countries, the oldest series (Bolivia) starts at 1990 while the newest (Peru) does it at 2007, resulting in 111 and 44 observations. 
+
+```{r k_show_dates, echo=FALSE}
+knitr::kable(dates_rgdp_all, caption = "Quarterly GDP data span")  
+```
+
+
+### Zoom to one country
+
+#### Levels, year-on-year and diff YoY
+
+Two transformations of real GDP are going to be of interest: proportional change in a given quarter compared with the same quarter in the previous , ("YoY growth change") and the $t$ vs $(t-1)$ difference of such series ("diff of YoY growth change")
+
+```{r rgdp_mts_as_tbl, echo=FALSE}
+
+chl_rgdp_yoy_ts <- make_yoy_ts(chl_rgdp_level_ts)
+
+chl_logrgdp_ts <- log(chl_rgdp_level_ts)
+chl_logrgdp_diff_ts <- diff(chl_logrgdp_ts, lag = 4)
+
+chl_rgdp_diffyoy_ts <- diff(chl_rgdp_yoy_ts)
+chl_logrgdp_diffdiff_ts <- diff(chl_logrgdp_diff_ts)
+
+
+chl_rgdp_mts <- ts.union(chl_rgdp_level_ts, chl_rgdp_yoy_ts, 
+                         chl_logrgdp_ts, chl_logrgdp_diff_ts,
+                         chl_rgdp_diffyoy_ts, chl_logrgdp_diffdiff_ts)
+
+chl_rgdp_tbl <- tk_tbl(chl_rgdp_mts)
+
+# head(chl_rgdp_tbl)\
+
+knitr::kable(head(chl_rgdp_tbl[, 1:5], n = 8), caption = "Real GDP and transformation, Chile (first obs)", col.names = c("Date", "rgdp", "YoY", "log(rgdp)", "diff(log(rgdp))"), digits = 3)
+
+```
+
+
+A quick visual exploration reveals that real GDP is both trending and highly seasonal. 
+Next we turn to plotting YoY changes and its difference, where seasonality seems to have faded as with overarching trends, but we will apply to (non) stationarity test to asses them properly. Also, it seems clear that when modelling YoY you should leave room for non-zero constants. Finally 
+we can see that as far as YoY and diff-of-YoY are concerned, taking logs make only small differences to their level and none to their temporal pattern.
+
+
+```{r rgdp_data_plots, echo=FALSE}
+autoplot(chl_rgdp_level_ts) + 
+  ylab("GDP") + 
+  ggtitle("Real GDP, quarterly series", subtitle = "Chile")
+
+autoplot(chl_rgdp_yoy_ts, series = "YoY growth") + 
+  autolayer(chl_logrgdp_diff_ts, series = "YoY log_diffs") + 
+  ylab("") + theme(legend.position="bottom")
+
+autoplot(chl_rgdp_diffyoy_ts, series = "diff of YoY growth") + 
+  autolayer(chl_logrgdp_diffdiff_ts, series = "diff of YoY log_diffs") + 
+  ylab("") + theme(legend.position="bottom")
+
+```
+
+In a single plot, ignoring log-based series:
+
+<!-- ```{r} -->
+
+<!-- lev_yoy_diff_plot_ts(y_ts) -->
+
+<!-- ``` -->
+
+
+## Univariate models forecasts
+
+### Demetra and auto.arima specifications
+
+To be explained later, but DEMETRA+ includes the features found in seasonal adjustment softwares X-12, X-13 and TRAMO-SEATS. It generates an output that indicates any transformation such as log, the chosen arima parameters of the automatic estimation carried by it: p,q,d,P,D,Q and whether included a constant in the regression or not. At the same time we use the auto.arima function to obtain an alternative arima specification. Both specification include a drift parameter, only seasonal differencing (i.e. D=1 but d=0) and two autoregressive parameters. They differ in that the auto.arima includes a seasonal moving average term and in the value of the drift parameter. Information regarding the arima specification can be found at this table
+
+```{r arima_fitting, echo=FALSE, cache=TRUE}
+data_path <- "./data/excel/Chile.xlsx"
+demetra_output <- get_demetra_params(data_path)
+order_seasonal_rgdp <-  demetra_output[["rgdp_pqdPDQ"]]
+order_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["order"]]
+seasonal_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["seasonal"]]
+
+
+
+arima_log_fit <- Arima(y = chl_logrgdp_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp)
+arima_log_fit_drift <- Arima(y = chl_logrgdp_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = TRUE)
+arima_log_fit_constant <- Arima(y = chl_logrgdp_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.constant = TRUE)
+
+arima_log_fit_auto <- auto.arima(y = chl_logrgdp_ts)
+
+arima_log_fit_auto_slow <- auto.arima(y = chl_logrgdp_ts, stepwise = FALSE, 
+                                      approximation = FALSE)
+
+
+
+
+models_list <- list(
+  auto.arima = list(
+    y = chl_logrgdp_ts, stepwise = FALSE, approximation = FALSE),
+    Arima = list(y = chl_logrgdp_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = TRUE)
+        )
+
+models_tbl <- enframe(models_list, name = "f", value = "params")
+# models_tbl$name <- c("auto_slow", "dm_drift")
+
+models_tbl_fit <- models_tbl %>%
+  mutate(fit = invoke_map(f, params))
+models_tbl_fit
+
+models_estimates <- models_tbl_fit %>%
+  mutate(tidy = map(fit, sweep::sw_tidy)) %>%
+  unnest(tidy) %>%
+  spread(key = f, value = estimate)
+
+models_perf <- models_tbl_fit %>%
+  mutate(glance = map(fit, sw_glance)) %>%
+  unnest(glance, .drop = TRUE)
+
+
+# library(openxlsx)
+# write.xlsx(x = chl_rgdp_tbl[, c("index", "chl_logrgdp_ts")], 
+#            file = './stata/chl_log_rgdp.xlsx')
+
+dm_orders <- order_seasonal_rgdp
+names(dm_orders) <- c("p","d","q","P","D","Q")
+
+# order_names <- c("p", "q", "P", "Q", "freq", "d", "D")
+
+ord_auto_s <-  (arima_log_fit_auto_slow$arma)[c(1, 6, 2, 3, 7, 4)]
+names(ord_auto_s) <- c("p","d","q","P","D","Q")
+
+o_dm <- as_tibble(cbind(model = "demetra", dm_orders))
+o_as <- as_tibble(cbind(model = "auto.arima", t(ord_auto_s)))
+
+all_orders <- rbind(o_dm, o_as)
+
+
+knitr::kable(all_orders)
+
+```
+
+
+### Demetra and auto.arima estimated models
+
+
+```{r fit_results, echo=FALSE, message=FALSE, warning=FALSE}
+aco_as <- cbind(model = "auto_s", sw_tidy(arima_log_fit_auto_slow))
+aco_a <- cbind(model = "auto", sw_tidy(arima_log_fit_auto))
+aco_d <- cbind(model = "dm_drift", sw_tidy(arima_log_fit_drift))
+aco <- cbind(model = "dm_nodrift", sw_tidy(arima_log_fit))
+arima_coeff_sw <- rbind(aco_as, aco_a, aco_d, aco) 
+# arima_coeff_sw %>% filter(model %in% c("auto_s", "dm_drift"))
+
+gla_as <- sweep::sw_glance(arima_log_fit_auto_slow)
+gla_a <- sweep::sw_glance(arima_log_fit_auto)
+gla_d <- sweep::sw_glance(arima_log_fit_drift)
+gla <- sweep::sw_glance(arima_log_fit)
+models <-  tibble(model = c("auto_s", "auto", "dm_drift", "dm_nodrift")) 
+
+gla_4 <- rbind(gla_as, gla_a, gla_d, gla)
+gla_4_sel <- gla_4[, c(3, 4, 5, 7, 11,12)]
+gla_4_sel <- cbind(models, gla_4_sel)
+
+# knitr::kable(gla_4_sel, digits = c(1, 1, 1, 1, 3, 2, 2))
+
+
+stata_drift <- 0.037775
+stata_ar1 <- 1.288286
+stata_ar2 <- -0.5428544
+stata_loglik <- 248.0334
+stata_AIC <- -488.0668
+stata_BIC <- -478.3435
+stata_sigma <- 0.0124885
+
+manual_stata_swtd <- tibble(model = "stata_dm_drift", 
+                            term = c("drift", "ar1", "ar2"),
+                            estimate = c(stata_drift, stata_ar1, stata_ar2))
+
+manual_stata_gla_sel <- tibble(model = "stata_dm_drift",
+                               logLik = stata_loglik,
+                               AIC = stata_AIC,
+                               BIC = stata_BIC,
+                               RMSE = NA, MASE = NA, ACF1 = NA)
+
+gla_4_sel_stata <- rbind(gla_4_sel, manual_stata_gla_sel)
+arima_coeff_sw_stata <- rbind(arima_coeff_sw, manual_stata_swtd)
+
+# knitr::kable(gla_4_sel_stata, digits = c(1, 1, 1, 1, 3, 2, 2))
+# knitr::kable(arima_coeff_sw_stata)
+
+
+three_m_aic <- gla_4_sel_stata %>% 
+  filter(model %in% c("auto_s", "dm_drift", "stata_dm_drift"))
+
+three_m_par <- arima_coeff_sw_stata %>% 
+  filter(model %in% c("auto_s", "dm_drift", "stata_dm_drift"))
+
+
+
+
+# . arima chl_logrgdp_ts , arima(2,0,0) sarima(0,1,0, 4) robust iter(30)
+# 
+# ARIMA regression
+# 
+# Sample:  1997q1 - 2017q4                        Number of obs     =         84
+#                                                 Wald chi2(2)      =     283.57
+# Log pseudolikelihood =  248.0334                Prob > chi2       =     0.0000
+# 
+# --------------------------------------------------------------------------------
+# S4.            |             Semirobust
+# chl_logrgdp_ts |      Coef.   Std. Err.      z    P>|z|     [95% Conf. Interval]
+# ---------------+----------------------------------------------------------------
+# chl_logrgdp_ts |
+#          _cons |    .037775   .0052903     7.14   0.000     .0274062    .0481438
+# ---------------+----------------------------------------------------------------
+# ARMA           |
+#             ar |
+#            L1. |   1.288286   .1049547    12.27   0.000     1.082578    1.493993
+#            L2. |  -.5428544   .1199319    -4.53   0.000    -.7779167   -.3077921
+# ---------------+----------------------------------------------------------------
+#         /sigma |   .0124885   .0011339    11.01   0.000     .0102662    .0147108
+# --------------------------------------------------------------------------------
+# Note: The test of the variance against zero is one sided, and the two-sided
+#       confidence interval is truncated at zero.
+# 
+# 	  
+#  estat ic
+# 
+# Akaike's information criterion and Bayesian information criterion
+# 
+# -----------------------------------------------------------------------------
+#        Model |        Obs  ll(null)  ll(model)      df         AIC        BIC
+# -------------+---------------------------------------------------------------
+#            . |         84         .   248.0334       4   -488.0668  -478.3435
+# -----------------------------------------------------------------------------
+#                Note: N=Obs used in calculating BIC; see [R] BIC note.
+
+```
+
+
+
+<!-- ```{r} -->
+
+<!-- ``` -->
+
+
+
+Information about estimated parameters is summarized below:
+
+```{r k_show_parameter_estimates, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::kable(three_m_par)
+
+library(tidyquant)
+
+resid_plot <-  models_tbl_fit %>%
+  mutate(augment = map(fit, sw_augment, rename_index = "date")) %>%
+  unnest(augment) %>%
+  ggplot(aes(x = date, y = .resid, group = f)) +
+  geom_line(color = palette_light()[[2]]) +
+  geom_point(color = palette_light()[[1]]) +
+  geom_smooth(method = "loess") +
+  facet_wrap(~ f, nrow = 3) +
+  labs(title = "Residuals Plot") +
+  theme_tq()
+
+# resid_plot
+
+```
+
+A few model performance statistics can be seen in this table. It shows two things. The first is that the auto.arima model have better in-sample statistics: higher logLik, lower AIC and BIC (not shown here but also lower AICc than dm_drift, while AICc for stata_dm_drift if not available, but it should be fairly similar to dm_drift). The second is that despite the notorious difference in the drift parameter value, dm_drift and stata_dm_drift have very similar performance measures.
+
+```{r k_show_AIC_loglik, echo=FALSE}
+knitr::kable(three_m_aic, digits = c(1, 1, 1, 1, 3, 2, 2))
+```
+
+
+
+```{r show_residuals_auto_s}
+checkresiduals(arima_log_fit_auto_slow)
+```
+
+```{r show_residuals_dm_drift}
+checkresiduals(arima_log_fit_drift)
+```
+
+
+### Demetra and auto.arima forecasts
+
+```{r arima_based_forecasts, message=FALSE, warning=FALSE, echo=FALSE}
+logdiff_fcs_ts <- function(fobj) {
+  x <- fobj$x
+  fc <- fobj$mean
+  xfc <- ts(c(x, fc), frequency = 4, start = stats::start(x) )
+  xfc_logdiff <- diff(xfc, lag = 4)
+  return(xfc_logdiff)
+}
+
+
+
+plot_fcs_models <- function(fobj_list,  series_names = NULL, 
+                            add_yoy_plot = FALSE, is_log = TRUE, 
+                            add_logdiff_series = FALSE){
+  
+  if(is.null(series_names)){
+    series_names = paste0("model_", seq(1, length(fobj_list)))
+  }
+  
+  y_data <- fobj_list[[1]]$x
+  base_plot <- autoplot(y_data)
+  
+  for (i in  seq(1, length(fobj_list))) {
+    this_model <- fobj_list[[i]]
+    this_fc <- this_model$mean
+    this_name <- series_names[i]
+    base_plot <- base_plot + 
+    autolayer(this_fc, series = this_name)
+  }
+  
+  if(add_yoy_plot) {
+    if(is_log) {
+      y_data <- exp(y_data)
+    }
+    yoy_data <- make_yoy_ts(y_data)
+    base_yoy_plot <- autoplot(yoy_data)
+   
+    for (i in  seq(1, length(fobj_list))) {
+      this_model <- fobj_list[[i]]
+      this_fc <- this_model$mean
+      this_xfc <- ts(c(this_model$x, this_model$mean), frequency = 4,
+                     start = stats::start(this_model$x))
+      if(is_log) {
+        this_xfc <- exp(this_xfc)
+      }
+      
+      this_xfc_yoy <- make_yoy_ts(this_xfc)
+      this_fc_yoy <- window(this_xfc_yoy, start = stats::start(this_fc))
+                    
+      this_name <- series_names[i]
+      base_yoy_plot <- base_yoy_plot + 
+      autolayer(this_fc_yoy, series = this_name)
+      }
+    
+  }
+  
+  
+  if(add_yoy_plot) {
+    return(list(base = base_plot, yoy_base = base_yoy_plot))
+  } else {
+    return(base_plot)
+  }
+  
+}
+
+
+
+fc_auto <- forecast(arima_log_fit_auto, h = 8)
+fc_auto_s <- forecast(arima_log_fit_auto_slow, h = 8)
+fc_dm_drift <- forecast(arima_log_fit_drift, h = 8)
+
+fc_auto_logdiff_ts <- logdiff_fcs_ts(fc_auto)
+fc_auto_s_logdiff_ts <- logdiff_fcs_ts(fc_auto_s)
+fc_dm_drift_logdiff_ts <- logdiff_fcs_ts(fc_dm_drift)
+
+
+baseplot <- plot_fcs_models(list(fc_auto_s, fc_dm_drift),
+                            series_names = c("auto_slow", "demetra"))
+
+# print(baseplot)
+
+base_and_yoy_plot <- plot_fcs_models(list(fc_auto_s, fc_dm_drift),
+                            series_names = c("auto_slow", "demetra"),
+                             add_yoy_plot = TRUE, is_log = TRUE)
+
+base_p <- base_and_yoy_plot[[1]]
+base_p_yoy <- base_and_yoy_plot[[2]]  
+
+improved_p <- base_p +  theme(legend.position="bottom") +
+  coord_cartesian(xlim = c(2007, 2019), ylim = c(10, 10.75)) 
+  
+
+improved_p_yoy <- base_p_yoy  + theme(legend.position="bottom") + 
+  coord_cartesian(xlim = c(2007, 2019))
+
+
+models_tbl_fcast <- models_tbl_fit %>%
+  mutate(fcast = map(fit, forecast, h = 8))
+
+
+models_tbl_fcast_tidy <- models_tbl_fcast %>%
+  mutate(sweep = map(fcast, sw_sweep, fitted = FALSE, timetk_idx = TRUE,
+                     rename_index = "date")) 
+
+fcast_sweep <- models_tbl_fcast_tidy %>%
+  unnest(sweep) %>% 
+  mutate(yq = as.yearqtr(date),
+         date = lubridate::as_date(yq))
+
+
+```
+
+
+```{r show_forecast_plots}
+grid.arrange(improved_p , improved_p_yoy)
+
+```
+
+
+#### From quarterly to yearly growth
+
+From quarterly year-on-year growth rates is easy to obtain yearly ones.
+
+
+
+```{r quarterly_and_yearly_fc, message=FALSE, warning=FALSE}
+fcast_quarterly <- fcast_sweep %>% 
+  select(f, date, key, value, yq) %>% 
+  mutate(level = exp(value)) %>% 
+  rename(model = f, type = key) %>% 
+  as_tsibble(key = id(model), index = date) %>% 
+  group_by(model) %>% 
+  mutate(yoy = difference(level, lag = 4)/lag(level, n = 4))
+
+fcast_q_tsb <- as_tsibble(fcast_quarterly, key = id(model), index = date) %>% 
+  group_by(model) %>% 
+  mutate(yoy = difference(level, lag = 4)/lag(level, n = 4))
+
+fcast_q_tsb_y <- fcast_q_tsb %>% 
+  group_by(model) %>% 
+  index_by(year = year(date)) %>% 
+  summarise(growth_yr = mean(yoy, na.rm = TRUE))
+
+just_fcast_q_tbl <- fcast_q_tsb %>% 
+  filter(year(date) >= 2018) %>% as_tibble() %>% 
+  select(model, yq,  yoy) %>% 
+  mutate(yoy = 100*yoy) %>% 
+  tidyr::spread(key = model, value = yoy)
+  
+just_fcast_y_tbl <- fcast_q_tsb_y %>% 
+  filter(year >= 2018) %>% as_tibble() %>% 
+  mutate(growth_yr = 100*growth_yr) %>% 
+  tidyr::spread(key = model, value = growth_yr)
+
+
+```
+
+Quarterly:
+
+```{r show_quarterly_growth}
+knitr::kable(just_fcast_q_tbl, digits = 2)
+```
+
+and annual growth
+```{r show_yearly_growth}
+knitr::kable(just_fcast_y_tbl, digits = 2)
+```
+
+
+### Demetra and auto.arima cross validation
+
+We use tsCV in this case, in order to apraise forecast performance in multiple subsamples
+
+```{r tscv_arimas}
+
+
+farima2 <- function(x, h) {
+  forecast(Arima(x, order = order_rgdp, seasonal = seasonal_rgdp, 
+                 include.drift = TRUE), h = h)
+}
+
+ # (arima_log_fit_auto_slow$arma)[c(1, 6, 2, 3, 7, 4)]
+farima3 <- function(x, h) {
+  forecast(Arima(x, order = (arima_log_fit_auto_slow$arma)[c(1, 6, 2)],
+                 seasonal = (arima_log_fit_auto_slow$arma)[c(3, 7, 4)], 
+                 include.drift = TRUE), h = h)
+}
+
+
+e_autoarima <- tsCV(chl_logrgdp_ts, fautoarima, h=8, window = 20)
+e_arima_w20 <- tsCV(chl_logrgdp_ts, farima, h=8, window = 20)
+e_arima <- tsCV(chl_logrgdp_ts, farima, h=8)
+e_arimafoo <- tsCV(chl_logrgdp_ts, farima, h=8)
+e_arimafoo20 <- tsCV(chl_logrgdp_ts, farima, h=8, window = 20)
+
+
+# e_arima_w20 <- tsCV(chl_logrgdp_ts, farima, h = 8, window = 20)
+e2_arima_w20 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 20)
+e2_arima_w30 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 30)
+e2_arima_w40 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 40)
+e2_arima_w50 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 50)
+e2_arima_w60 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 60)
+e2_arima_w70 <- tsCV(chl_logrgdp_ts, farima2, h = 8, window = 70)
+e2_arima <- tsCV(chl_logrgdp_ts, farima2, h = 8)
+
+
+e3_arima_w20 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 20)
+e3_arima_w30 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 30)
+e3_arima_w40 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 40)
+e3_arima_w50 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 50)
+e3_arima_w60 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 60)
+e3_arima_w70 <- tsCV(chl_logrgdp_ts, farima3, h = 8, window = 70)
+e3_arima <- tsCV(chl_logrgdp_ts, farima3, h = 8)
+
+
+rmse20_dm <- sqrt(colMeans(e2_arima_w20^2 , na.rm = TRUE))
+rmse30_dm <- sqrt(colMeans(e2_arima_w30^2 , na.rm = TRUE))
+rmse40_dm <- sqrt(colMeans(e2_arima_w40^2 , na.rm = TRUE))
+rmse50_dm <- sqrt(colMeans(e2_arima_w50^2 , na.rm = TRUE))
+rmse60_dm <- sqrt(colMeans(e2_arima_w60^2 , na.rm = TRUE))
+rmse70_dm <- sqrt(colMeans(e2_arima_w70^2 , na.rm = TRUE))
+
+rmse20_auto <- sqrt(colMeans(e3_arima_w20^2 , na.rm = TRUE))
+rmse30_auto <- sqrt(colMeans(e3_arima_w20^2 , na.rm = TRUE))
+rmse40_auto <- sqrt(colMeans(e3_arima_w40^2 , na.rm = TRUE))
+rmse50_auto <- sqrt(colMeans(e3_arima_w50^2 , na.rm = TRUE))
+rmse60_auto <- sqrt(colMeans(e3_arima_w60^2 , na.rm = TRUE))
+rmse70_auto <- sqrt(colMeans(e3_arima_w70^2 , na.rm = TRUE))
+
+rmse_auto <- rbind(rmse20_auto, rmse30_auto, rmse40_auto, rmse50_auto, rmse60_auto, rmse70_auto)
+rmse_auto_tbl <- as_tibble(cbind(model = "auto", w = c("w_20","w_30","w_40","w_50","w_60", "w_70"), rmse_auto))
+names(rmse_auto_tbl) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
+
+rmse_dm <- rbind(rmse20_dm, rmse30_dm, rmse40_dm, rmse50_dm, rmse60_dm, rmse70_dm)
+rmse_dm_tbl <- as_tibble(cbind(model = "dm", w = c("w_20","w_30","w_40","w_50","w_60", "w_70"), rmse_dm))
+names(rmse_dm_tbl) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
+
+relative_auto_dm <- rmse_auto/rmse_dm
+percent_auto_dm <- 100*(relative_auto_dm - 1)
+
+# names(rmse_auto_dm) <- c("type", "w", "h_1", "h_2", "h_3", "h_4", "h_5", "h_6", "h_7", "h_8")
+
+rmse_auto_dm <- rbind(rmse_auto_tbl, rmse_dm_tbl)
+
+rmse_auto_dm_long <- rmse_auto_dm %>% 
+  gather(key = horizon, value = rmse, -c(type, w)) %>% 
+  group_by(type, w) %>% 
+  arrange(horizon) %>% 
+  mutate(h = 1:n())
+
+cv_rmse_plot <- ggplot(rmse_auto_dm_long, aes(x = h, y = rmse, col = type)) + 
+  geom_point() + 
+  facet_wrap(~ w)
+
+
+print(knitr::kable(cbind( rmse_auto_tbl[,2], as_tibble(percent_auto_dm)), digits = 1, caption = "Excess RMSE of auto vs demetra models (in %)"))
+
+print(cv_rmse_plot)
+
+
+
+
+# library(forecast)
+# 
+# fc <- function(y, h, xreg)
+# {
+#   X <- xreg[1:length(y),]
+#   if(NROW(xreg) < length(y) + h)
+#     stop("Not enough xreg data for forecasting")
+#   newX <- xreg[length(y)+(1:h),]
+#   fit <- auto.arima(y, xreg=X)
+#   forecast(fit, xreg=newX)
+# }
+# 
+# # Test
+# y <- ts(rnorm(100))
+# x <- matrix(ts(rnorm(100)),ncol=1)
+# 
+# tsCV(y, fc, xreg=x)
+
+```
+
+
+
+

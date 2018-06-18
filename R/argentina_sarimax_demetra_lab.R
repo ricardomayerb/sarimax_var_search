@@ -1,14 +1,4 @@
 source('./R/utils_av.R')
-library(tictoc)
-
-
-# library(xts)
-# library(forecast)
-# library(tidyverse)
-# library(readxl)
-# library(timetk)
-
-# library(lubridate)
 
 tic()
 # preliminaries -----------------------------------------------------------
@@ -18,17 +8,24 @@ h_max = 8 # last rgdp data is 2017 Q4
 number_of_cv = 8
 train_span = 16
 
-data_path <- "./data/excel/Colombia.xlsx"
+data_path <- "./data/excel/Chile.xlsx"
 
 gdp_and_dates <- get_rgdp_and_dates(data_path)
 
 monthly_data <- get_monthly_variables(data_path = data_path)
-
 monthly_ts <- make_monthly_ts(monthly_data)
 monthly_ts  <- log(monthly_ts)
-full_monthly_ts  <- monthly_ts
-
+# full_monthly_ts  <- monthly_ts
 monthly_names <- colnames(monthly_ts)
+# monthly_data <- get_monthly_variables(data_path = data_path)
+
+
+external_data_path <- "./data/external/external.xlsx"
+external_monthly_data <- get_monthly_variables(data_path = external_data_path)
+external_monthly_ts <- make_monthly_ts(external_monthly_data)
+external_monthly_ts  <- log(external_monthly_ts)
+external_monthly_names <- colnames(external_monthly_ts)
+
 
 rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
               start = gdp_and_dates[["gdp_start"]], frequency = 4)
@@ -45,9 +42,8 @@ rgdp_ts <- log(rgdp_ts)
 #                     start = stats::start(monthly_ts),
 #                     frequency = 12)
 
-
-
 demetra_output <- get_demetra_params(data_path)
+demetra_output_external <- get_demetra_params(external_data_path)
 
 tic()
 fit_arima_rgdp_list_dem <- fit_arimas(
@@ -65,6 +61,14 @@ fit_arima_monthly_list_dem <- fit_arimas(
   this_arima_names = monthly_names)
 toc()
 
+tic()
+fit_arima_external_monthly_list_dem <- fit_arimas(
+  y_ts = external_monthly_ts, order_list = demetra_output_external[["monthly_order_list"]],
+  this_arima_names = external_monthly_names)
+toc()
+
+
+
 
 gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
 
@@ -78,13 +82,28 @@ mdata_ext <- extend_and_qtr(data_mts = monthly_ts,
                                  fitted_arima_list = fit_arima_monthly_list_dem,
                                  start_date_gdp = gdp_and_dates[["gdp_start"]])
 
-# doox <- mdata_ext[["series_xts"]]
-mdata_ext_ts <- mdata_ext[["series_ts"]]
-yoy_mdata_ext_ts <- diff(mdata_ext_ts, lag = 4)
 
+external_mdata_ext <- extend_and_qtr(data_mts = external_monthly_ts, 
+                            final_horizon_date = final_forecast_horizon , 
+                            vec_of_names = external_monthly_names, 
+                            fitted_arima_list = fit_arima_external_monthly_list_dem,
+                            start_date_gdp = gdp_and_dates[["gdp_start"]])
+
+
+# doox <- mdata_ext[["series_xts"]]
+internal_mdata_ext_ts <- mdata_ext[["series_ts"]]
+internal_yoy_mdata_ext_ts <- diff(internal_mdata_ext_ts, lag = 4)
+internal_monthly_names <- monthly_names
+
+external_mdata_ext_ts <- external_mdata_ext[["series_ts"]]
+external_yoy_mdata_ext_ts <- diff(external_mdata_ext_ts, lag = 4)
 
 rgdp_order <-  gdp_order[c("p", "d", "q")]
 rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
+
+mdata_ext_ts <- ts.union(internal_mdata_ext_ts, external_mdata_ext_ts)
+monthly_names <- c(internal_monthly_names, external_monthly_names)
+colnames(mdata_ext_ts) <- monthly_names
 
 
 # emae_ts <- ts(mdata_ext_ts[, "emae"], , start = stats::start(rgdp_ts),
@@ -131,29 +150,64 @@ rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
 
 tic()
 # using contemporary xregs (k = 0)
-cv0_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
+cv0_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
+                   training_length = train_span,  y_order = rgdp_order, 
+                   y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
+                   method = "ML", s4xreg = FALSE)
+
+cv0_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts, 
+                     h_max =  h_max, n_cv = number_of_cv,
                      training_length = train_span,  y_order = rgdp_order, 
-                     y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
+                     y_seasonal = rgdp_seasonal, 
+                     vec_of_names = external_monthly_names,
                      method = "ML", s4xreg = FALSE)
 
-# using one-lag xregs (k = 1)
-# xreg01 <- cbind()
+cv0_e <- list(cv_errors_all_pairs_yx = c(cv0_e_i$cv_errors_all_pairs_yx,
+                                         cv0_e_e$cv_errors_all_pairs_yx),
+              cv_yoy_errors_all_pairs_yx = c(cv0_e_i$cv_yoy_errors_all_pairs_yx,
+                                         cv0_e_e$cv_yoy_errors_all_pairs_yx)
+              )
+              
 
-# cv1_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = lag.xts(mdata_ext_ts, k = 1),  h_max = h_max,
-#                       n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
-#                       y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
-#                       method = "ML", s4xreg = TRUE)
+# cv0_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
+#                      training_length = train_span,  y_order = rgdp_order, 
+#                      y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
+#                      method = "CSS", s4xreg = FALSE)
 
-cv1_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max = h_max,
+
+cv1_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
                    n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
-                   y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
+                   y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
                    method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
 
+cv1_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
+                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
+                     method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
+
+cv1_e <- list(cv_errors_all_pairs_yx = c(cv1_e_i$cv_errors_all_pairs_yx,
+                                         cv1_e_e$cv_errors_all_pairs_yx),
+              cv_yoy_errors_all_pairs_yx = c(cv1_e_i$cv_yoy_errors_all_pairs_yx,
+                                             cv1_e_e$cv_yoy_errors_all_pairs_yx)
+)
+
 # using two-lags xregs (k = 2)
-cv2_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max = h_max,
+cv2_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
                       n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
-                      y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
+                      y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
                       method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
+
+cv2_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
+                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
+                     method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
+
+cv2_e <- list(cv_errors_all_pairs_yx = c(cv2_e_i$cv_errors_all_pairs_yx,
+                                         cv2_e_e$cv_errors_all_pairs_yx),
+              cv_yoy_errors_all_pairs_yx = c(cv2_e_i$cv_yoy_errors_all_pairs_yx,
+                                             cv2_e_e$cv_yoy_errors_all_pairs_yx)
+)
+
 
 cv_rgdp_e <- cv_arima(y_ts = rgdp_ts, h_max = h_max, n_cv = number_of_cv,
                         training_length = train_span,  y_order = rgdp_order, 
