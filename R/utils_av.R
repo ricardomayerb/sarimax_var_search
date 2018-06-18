@@ -2411,9 +2411,9 @@ make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
     arrange(rmse_h, rank_h)
   
   return(models_rmse_at_each_h)
-  
-  
 }
+
+
 make_monthly_ts <- function(data, 
                             names_to_exclude = c("date", "year", "month")) {
   
