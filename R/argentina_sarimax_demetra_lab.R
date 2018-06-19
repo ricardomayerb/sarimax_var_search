@@ -316,7 +316,15 @@ all_fcs <- tibble(fc_0 = all_fcs_0, fc_1 = all_fcs_1, fc_2 = all_fcs_2,
   mutate(armapar = map(fc, c("model", "arma")),
          arima_order = map(armapar, function(x) x[c(1, 6, 2)]),
          arima_seasonal = map(armapar, function(x) x[c(3, 7, 4)])  
-         )
+         ) %>% 
+  mutate(data_and_fc = map(raw_rgdp_fc, ~ts(data = c(rgdp_ts, .), frequency = 4,
+                                             start = stats::start(rgdp_ts))),
+         yoy_data_and_fc = map(data_and_fc, ~ make_yoy_ts(exp(.))),
+         yoy_raw_rgdp_fc = map2(yoy_data_and_fc, raw_rgdp_fc,
+                                ~ window(.x, start = stats::start(.y)))
+  )
+
+
 
 var_lag_order_season <- all_fcs %>% 
   dplyr::select(id_fc, lag, arima_order, arima_seasonal) %>% 
@@ -362,6 +370,31 @@ fcs_using_yoy_weights <- ts(fcs_using_yoy_weights,
 
 
 
+this_fc <- all_fcs %>% filter(id_fc == "imacec", lag == "0")  
+this_fc_mean <- this_fc[["raw_rgdp_fc"]] [[1]] 
+this_yoy_fc_mean <- this_fc[["yoy_raw_rgdp_fc"]] [[1]] 
+
+
+p <- autoplot(rgdp_ts) + 
+  autolayer(rgdp_uncond_fc_mean, series = "uncond") +
+  autolayer(this_fc_mean, series = "imacec_0")
+
+all_fcs_no_im0 <- all_fcs %>% filter(!(id_fc == "imacec" & lag == "0"))
+
+for (i in 1:nrow(all_fcs_no_im0)) {
+  this_fc <- all_fcs_no_im0[i,]  
+  this_fc_mean <- this_fc[["raw_rgdp_fc"]] [[1]] 
+  p <- p + autolayer(this_fc_mean, alpha = 0.3)
+}
+
+p
+
+
+# plot_all_yoy_fcs <- function()
+
+
+
+
 final_rgdp_and_w_fc <- ts(c(rgdp_ts, weigthed_fcs), frequency = 4,
                               start = stats::start(rgdp_ts))
 
@@ -373,6 +406,10 @@ expo_final_rgdp_and_yoyw_fc <- exp(final_rgdp_and_yoyw_fc)
 
 yoy_growth_expo_final_rgdp_and_w_fc <- diff(expo_final_rgdp_and_w_fc, lag = 4)/lag.xts(expo_final_rgdp_and_w_fc, k = 4)
 yoy_growth_expo_final_rgdp_and_yoyw_fc <- diff(expo_final_rgdp_and_yoyw_fc, lag = 4)/lag.xts(expo_final_rgdp_and_yoyw_fc, k = 4)
+
+
+
+
 
 # return(list(cv_all_x_rmse_each_h,
 #             cv_all_x_rmse_each_h_yoy,

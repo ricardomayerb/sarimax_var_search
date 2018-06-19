@@ -394,6 +394,12 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
     mutate(armapar = map(fc, c("model", "arma")),
            arima_order = map(armapar, function(x) x[c(1, 6, 2)]),
            arima_seasonal = map(armapar, function(x) x[c(3, 7, 4)])  
+    ) %>% 
+    mutate(data_and_fc = map(raw_rgdp_fc, ~ ts(data = c(rgdp_ts, .), frequency = 4,
+                                               start = stats::start(rgdp_ts))),
+           yoy_data_and_fc = map(data_and_fc, ~ make_yoy_ts(exp(.))),
+           yoy_raw_rgdp_fc = map2(yoy_data_and_fc, raw_rgdp_fc,
+                                  ~ window(.x, start = stats::start(.y)))
     )
   
   all_arimax <- tibble(arimax_0 = all_arimax_0, arimax_1 = all_arimax_1, 
