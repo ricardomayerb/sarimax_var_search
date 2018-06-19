@@ -1,4 +1,5 @@
 source('./R/utils_av.R')
+library(ggthemes)
 
 country_name <- "Chile"
 
@@ -61,39 +62,6 @@ ffall_VAR <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                 model_type = "VAR", max_rank_h = 30)
 
 
-# gp_insample_fcs 
-var1 <- ffall_VAR[1, ]
-fo1 <- var1$fc_obj
-fo11 <- fo1[[1]]
-fo11y <- fo11[["model"]][["call"]][["y"]]
-
-unique(ffall_VAR$rmse_h)
-
-rmh <- unique(ffall_VAR$rmse_h)
-
-
-rmse2_table_single_h <- ffall_VAR %>% 
-  select(variables, lags, model_function, rmse_h, rmse) %>%
-  arrange(rmse_h, rmse) %>% 
-  mutate(idx = 1:n())
-
-
-rmse_table_single_h <- ffall_VAR %>% 
-  filter(rmse_h == rmh[1]) %>% 
-  select(variables, lags, model_function, rmse) %>% 
-  mutate(idx = 1:n()) 
-
-max_rmse <- max(rmse_table_single_h$rmse)
-max2_rmse <- max(rmse2_table_single_h$rmse)
-
-ggplot(rmse_table_single_h, aes(x = idx, y = rmse, color = model_function)) + 
-  geom_point() + coord_cartesian(ylim = c(0, 1.1*max_rmse))
-
-
-ggplot(rmse2_table_single_h, aes(x = idx, y = rmse, color = rmse_h)) + 
-  geom_point() + coord_cartesian(ylim = c(0, 1.1*max2_rmse))
-
-
 
 
 summ_all_VAR <- ffall_VAR %>% 
@@ -104,10 +72,6 @@ ffall_VAR_10 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
                                    model_type = "VAR", max_rank_h = 10)
-
-
-  
-
 
 summ_all_VAR_10 <- ffall_VAR_10 %>% 
   group_by(horizon) %>%
@@ -301,27 +265,73 @@ number_of_models_per_h <- comb_fcs_all %>% group_by(horizon) %>%
 number_of_models_per_h
 
 
-comb_rmse2_table_single_h <- comb_fcs_all %>% 
-  select(variables, lags, model_function, rmse_h, rmse) %>%
-  arrange(rmse_h, rmse) %>% 
-  mutate(idx = 1:n())
+single_plot_rmse_all_h <- function(selected_models_tbl) {
+  
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n())
+  
+  max_rmse <- max(rmse_table_single_h$rmse)
+  
+  p <- ggplot(rmse_table_single_h, aes(x = idx, y = rmse)) + 
+    geom_point(aes(color = model_function),
+               size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    geom_vline(xintercept =  c(1,31, 61, 91, 121, 151), alpha = 0.3, 
+               linetype = "dashed") +
+    annotate("text", x = 0 + 15, y = 1.1*max2_rmse, label = "h = 1") +
+    annotate("text", x = 30 + 15, y = 1.1*max2_rmse, label = "h = 2") +
+    annotate("text", x = 60 + 15, y = 1.1*max2_rmse, label = "h = 3") +
+    annotate("text", x = 90 + 15, y = 1.1*max2_rmse, label = "h = 4") +
+    annotate("text", x = 120 + 15, y = 1.1*max2_rmse, label = "h = 5") +
+    annotate("text", x = 150 + 15, y = 1.1*max2_rmse, label = "h = 6") +
+    theme_tufte() + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank())
+  
+  # p + annotate("text", x = 2:3, y = 20:21, label = c("my label", "label 2"))
+  
+  return(p)
+}
 
 
-comb_rmse_table_single_h <- comb_fcs_all %>% 
-  filter(rmse_h == rmh[1]) %>% 
-  select(variables, lags, model_function, rmse) %>% 
-  mutate(idx = 1:n())
+rmse_plot_all_h <- single_plot_rmse_all_h(comb_fcs_all)
+rmse_plot_all_h
 
-max_rmse <- max(comb_rmse_table_single_h$rmse)
-max2_rmse <- max(comb_rmse2_table_single_h$rmse)
+facet_rmse_all_h <- function(selected_models_tbl) {
+  
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n()) %>% 
+    group_by(horizon) %>% 
+    mutate(id_in_h = 1:n())
+  
+  
+  max_rmse <- max(rmse_table_single_h$rmse)
+  
+  p <- ggplot(rmse_table_single_h, aes(x = id_in_h, y = rmse)) + 
+    geom_point(aes(color = model_function), size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    facet_wrap(~ rmse_h) + 
+    theme_bw()  + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank())
+  
+  return(p)
+}
 
-ggplot(comb_rmse_table_single_h, aes(x = idx, y = rmse, color = model_function)) + 
-  geom_point() + coord_cartesian(ylim = c(0, 1.1*max_rmse))
+facet_rmse_plot_all_h <- facet_rmse_all_h(comb_fcs_all)
 
+facet_rmse_plot_all_h
 
-ggplot(comb_rmse2_table_single_h, aes(x = idx, y = rmse, color = rmse_h, 
-                                      shape = model_function)) + 
-  geom_point() + coord_cartesian(ylim = c(0, 1.1*max2_rmse))
 
 
 
