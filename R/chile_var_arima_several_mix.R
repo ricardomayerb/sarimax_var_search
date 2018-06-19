@@ -264,75 +264,29 @@ number_of_models_per_h <- comb_fcs_all %>% group_by(horizon) %>%
 
 number_of_models_per_h
 
-
-single_plot_rmse_all_h <- function(selected_models_tbl) {
-  
-  rmse_table_single_h <- selected_models_tbl %>% 
-    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
-    arrange(rmse_h, model_function, rmse) %>% 
-    mutate(idx = 1:n())
-  
-  max_rmse <- max(rmse_table_single_h$rmse)
-  
-  p <- ggplot(rmse_table_single_h, aes(x = idx, y = rmse)) + 
-    geom_point(aes(color = model_function),
-               size = 2.2, alpha = 0.8) + 
-    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
-    geom_vline(xintercept =  c(1,31, 61, 91, 121, 151), alpha = 0.3, 
-               linetype = "dashed") +
-    annotate("text", x = 0 + 15, y = 1.1*max2_rmse, label = "h = 1") +
-    annotate("text", x = 30 + 15, y = 1.1*max2_rmse, label = "h = 2") +
-    annotate("text", x = 60 + 15, y = 1.1*max2_rmse, label = "h = 3") +
-    annotate("text", x = 90 + 15, y = 1.1*max2_rmse, label = "h = 4") +
-    annotate("text", x = 120 + 15, y = 1.1*max2_rmse, label = "h = 5") +
-    annotate("text", x = 150 + 15, y = 1.1*max2_rmse, label = "h = 6") +
-    theme_tufte() + 
-    theme(
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank(),
-      axis.title.x = element_blank(),
-      legend.title = element_blank())
-  
-  # p + annotate("text", x = 2:3, y = 20:21, label = c("my label", "label 2"))
-  
-  return(p)
-}
-
-
 rmse_plot_all_h <- single_plot_rmse_all_h(comb_fcs_all)
-rmse_plot_all_h
-
-facet_rmse_all_h <- function(selected_models_tbl) {
-  
-  rmse_table_single_h <- selected_models_tbl %>% 
-    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
-    arrange(rmse_h, model_function, rmse) %>% 
-    mutate(idx = 1:n()) %>% 
-    group_by(horizon) %>% 
-    mutate(id_in_h = 1:n())
-  
-  
-  max_rmse <- max(rmse_table_single_h$rmse)
-  
-  p <- ggplot(rmse_table_single_h, aes(x = id_in_h, y = rmse)) + 
-    geom_point(aes(color = model_function), size = 2.2, alpha = 0.8) + 
-    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
-    facet_wrap(~ rmse_h) + 
-    theme_bw()  + 
-    theme(
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank(),
-      axis.title.x = element_blank(),
-      legend.title = element_blank())
-  
-  return(p)
-}
+print(rmse_plot_all_h)
 
 facet_rmse_plot_all_h <- facet_rmse_all_h(comb_fcs_all)
+print(facet_rmse_plot_all_h)
 
-facet_rmse_plot_all_h
-
-
+# library(ggplot2)
+# library(scales)
+# theme_set(theme_classic())
+# 
+# # Plot
+# ggplot(cty_mpg, aes(x=make, y=mileage)) + 
+#   geom_point(col="tomato2", size=3) +   # Draw points
+#   geom_segment(aes(x=make, 
+#                    xend=make, 
+#                    y=min(mileage), 
+#                    yend=max(mileage)), 
+#                linetype="dashed", 
+#                size=0.1) +   # Draw dashed lines
+#   labs(title="Dot Plot", 
+#        subtitle="Make Vs Avg. Mileage", 
+#        caption="source: mpg") +  
+#   coord_flip()
 
 
 # Average Forecasts of all models (all models are the best 30 at each h)

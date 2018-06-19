@@ -1209,58 +1209,34 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
 }
 
 
-follow_rec <- function(data_tbl_ts, table_of_recommendations) {
+
+facet_rmse_all_h <- function(selected_models_tbl) {
   
-  rec_rows <- nrow(table_of_recommendations)
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n()) %>% 
+    group_by(horizon) %>% 
+    mutate(id_in_h = 1:n())
   
-  rec_column <- "kpss_05_level"
   
-  new_variables_list <- list_along(1:rec_rows)
+  max_rmse <- max(rmse_table_single_h$rmse)
   
-  for (i in seq_len(rec_rows)) {
-    
-    this_rec <- table_of_recommendations[[i, rec_column]]
-    this_variable <- table_of_recommendations[[i, "variable"]]
-    this_variable_ts <- data_tbl_ts[, this_variable] 
-    
-    
-    
-    if (this_rec == "level") {
-      new_variable_ts <- this_variable_ts
-    }
-    
-    if (this_rec == "yoy") {
-      new_variable_ts <- make_yoy_ts(this_variable_ts)
-    }
-    
-    if (this_rec == "diff") {
-      new_variable_ts <- base::diff(this_variable_ts)
-    }
-    
-    if (this_rec == "diff_yoy") {
-      new_variable_ts <- base::diff(make_yoy_ts(this_variable_ts))
-    }
-    
-    if (this_rec == "diff_diff") {
-      new_variable_ts <- base::diff(this_variable_ts, differences = 2)
-    }
-    
-    if (this_rec == "diff_diff_yoy") {
-      new_variable_ts <- base::diff(make_yoy_ts(this_variable_ts),
-                                    differences = 2)
-    }
-    
-    new_variables_list[[i]] <- new_variable_ts
-    
-    
-  }
+  p <- ggplot(rmse_table_single_h, aes(x = id_in_h, y = rmse)) + 
+    geom_point(aes(color = model_function), size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    facet_wrap(~ rmse_h) + 
+    theme_bw()  + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank())
   
-  new_data_ts <- reduce(new_variables_list, ts.union)
-  colnames(new_data_ts) <- colnames(data_tbl_ts)
-  
-  return(new_data_ts)
-  
+  return(p)
 }
+
+
 
 fc_log2yoy <- function(model, rgdp_log_ts, fc_ts) {
   
@@ -1361,6 +1337,63 @@ fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables,
   } 
   return(fit)
 }
+
+
+
+follow_rec <- function(data_tbl_ts, table_of_recommendations) {
+  
+  rec_rows <- nrow(table_of_recommendations)
+  
+  rec_column <- "kpss_05_level"
+  
+  new_variables_list <- list_along(1:rec_rows)
+  
+  for (i in seq_len(rec_rows)) {
+    
+    this_rec <- table_of_recommendations[[i, rec_column]]
+    this_variable <- table_of_recommendations[[i, "variable"]]
+    this_variable_ts <- data_tbl_ts[, this_variable] 
+    
+    
+    
+    if (this_rec == "level") {
+      new_variable_ts <- this_variable_ts
+    }
+    
+    if (this_rec == "yoy") {
+      new_variable_ts <- make_yoy_ts(this_variable_ts)
+    }
+    
+    if (this_rec == "diff") {
+      new_variable_ts <- base::diff(this_variable_ts)
+    }
+    
+    if (this_rec == "diff_yoy") {
+      new_variable_ts <- base::diff(make_yoy_ts(this_variable_ts))
+    }
+    
+    if (this_rec == "diff_diff") {
+      new_variable_ts <- base::diff(this_variable_ts, differences = 2)
+    }
+    
+    if (this_rec == "diff_diff_yoy") {
+      new_variable_ts <- base::diff(make_yoy_ts(this_variable_ts),
+                                    differences = 2)
+    }
+    
+    new_variables_list[[i]] <- new_variable_ts
+    
+    
+  }
+  
+  new_data_ts <- reduce(new_variables_list, ts.union)
+  colnames(new_data_ts) <- colnames(data_tbl_ts)
+  
+  return(new_data_ts)
+  
+}
+
+
 
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
@@ -2998,6 +3031,41 @@ read_gather_qm_data <- function(data_path = "./data/pre_r_data/",
               countries_merged_q_m = countries_merged_q_m))
   
 }
+
+
+single_plot_rmse_all_h <- function(selected_models_tbl) {
+  
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n())
+  
+  max_rmse <- max(rmse_table_single_h$rmse)
+  
+  p <- ggplot(rmse_table_single_h, aes(x = idx, y = rmse)) + 
+    geom_point(aes(color = model_function),
+               size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    geom_vline(xintercept =  c(1,31, 61, 91, 121, 151), alpha = 0.3, 
+               linetype = "dashed") +
+    annotate("text", x = 0 + 15, y = 1.1*max_rmse, label = "h = 1") +
+    annotate("text", x = 30 + 15, y = 1.1*max_rmse, label = "h = 2") +
+    annotate("text", x = 60 + 15, y = 1.1*max_rmse, label = "h = 3") +
+    annotate("text", x = 90 + 15, y = 1.1*max_rmse, label = "h = 4") +
+    annotate("text", x = 120 + 15, y = 1.1*max_rmse, label = "h = 5") +
+    annotate("text", x = 150 + 15, y = 1.1*max_rmse, label = "h = 6") +
+    theme_tufte() + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank())
+  
+  # p + annotate("text", x = 2:3, y = 20:21, label = c("my label", "label 2"))
+  
+  return(p)
+}
+
 
 
 to_ts_q <- function(df_xts){
