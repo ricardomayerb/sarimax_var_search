@@ -695,3 +695,15 @@ yoy_growth_expo_final_rgdp_and_yoyw_fc <- diff(expo_final_rgdp_and_yoyw_fc, lag 
 
 ```
 
+comparing with bsarimax
+
+```{r call_bsarimax}
+final_forecast_horizon <- c(2020, 12)
+h_max = 8 # last rgdp data is 2017 Q4
+number_of_cv = 8
+train_span = 16
+country_name <- params$country 
+arima_res <- get_arima_results(country_name = country_name, h_max = 8, number_of_cv = 8, train_span = 16,                             final_ext_horizon = final_forecast_horizon)
+
+```
+

@@ -436,6 +436,7 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
   weigthed_fcs <- ts(weigthed_fcs, 
                      start = stats::start(rgdp_uncond_fc_mean), 
                      frequency = 4)
+  
   fcs_using_yoy_weights <- ts(fcs_using_yoy_weights, 
                               start = stats::start(rgdp_uncond_fc_mean), 
                               frequency = 4)
@@ -445,6 +446,15 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
   
   final_rgdp_and_yoyw_fc <- ts(c(rgdp_ts, fcs_using_yoy_weights), frequency = 4,
                                start = stats::start(rgdp_ts))
+  
+  rgdp_data_and_uncond_fc <- ts(data = c(rgdp_ts, rgdp_uncond_fc_mean), 
+                                frequency = 4, start = stats::start(rgdp_ts))
+  
+  yoy_rgdp_data_and_uncond_fc <- make_yoy_ts(exp(rgdp_data_and_uncond_fc))
+  
+  rgdp_uncond_yoy_fc_mean <- window(yoy_rgdp_data_and_uncond_fc,
+                                    start = stats::start(rgdp_uncond_fc_mean))
+  
   
   expo_final_rgdp_and_w_fc <- exp(final_rgdp_and_w_fc)
   expo_final_rgdp_and_yoyw_fc <- exp(final_rgdp_and_yoyw_fc)
@@ -508,7 +518,9 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
               all_arimax = all_arimax,
               compare_rmse_yoy = compare_rmse_yoy,
               compare_rmse = compare_rmse,
-              var_lag_order_season = var_lag_order_season))
+              var_lag_order_season = var_lag_order_season,
+              uncond_fc = rgdp_uncond_fc_mean,
+              uncond_yoy_fc = rgdp_uncond_yoy_fc_mean))
   
 }
 

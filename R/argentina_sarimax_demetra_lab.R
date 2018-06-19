@@ -347,9 +347,20 @@ fcs_using_yoy_weights[ is.nan(fcs_using_yoy_weights)] <- rgdp_uncond_fc_mean[ is
 weigthed_fcs <- ts(weigthed_fcs, 
                    start = stats::start(rgdp_uncond_fc_mean), 
                    frequency = 4)
+
+rgdp_data_and_uncond_fc <- ts(data = c(rgdp_ts, rgdp_uncond_fc_mean), 
+                              frequency = 4, start = stats::start(rgdp_ts))
+
+yoy_rgdp_data_and_uncond_fc <- make_yoy_ts(exp(rgdp_data_and_uncond_fc))
+
+rgdp_uncond_yoy_fc_mean <- window(yoy_rgdp_data_and_uncond_fc,
+                                  start = stats::start(rgdp_uncond_fc_mean))
+
 fcs_using_yoy_weights <- ts(fcs_using_yoy_weights, 
                             start = stats::start(rgdp_uncond_fc_mean), 
                             frequency = 4)
+
+
 
 final_rgdp_and_w_fc <- ts(c(rgdp_ts, weigthed_fcs), frequency = 4,
                               start = stats::start(rgdp_ts))
