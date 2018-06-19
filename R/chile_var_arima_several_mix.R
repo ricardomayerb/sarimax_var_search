@@ -29,17 +29,37 @@ models_and_accu <- readRDS(path_models_and_accu)
 cv_objects <- readRDS(path_cv_objects)
 VAR_data <- readRDS(path_VAR_data)
 
-h_max <- 6
+h_max <- 8
 
 # Get the table with all models from both the VARs and ARIMAX
 models_tbl <- make_models_tbl(
   arima_res = arima_res, var_models_and_rmse = models_and_accu, 
   VAR_data = VAR_data, h_max = h_max)
 
+models_tbl <- models_tbl %>%
+  mutate(short_name = map2(variables, lags,
+                           ~ make_model_name(variables = .x, lags = .y)),
+         long_name = pmap(list(variables, lags, model_function),
+                          ~ make_model_name(variables = ..1, lags = ..2,
+                                            model_function = ..3)),
+         short_name = as_factor(unlist(short_name)),
+         long_name = as_factor(unlist(long_name))
+  ) 
+  
+
 # ssel stands for "stata_selection" and what it does it to imitate stata-style selection 
 models_tbl_ssel <- make_models_tbl(
   arima_res, var_models_and_rmse = models_and_accu, VAR_data = VAR_data,
   h_max = h_max, ave_rmse_sel = TRUE)
+
+models_tbl_ssel <- models_tbl_ssel %>%
+  mutate(short_name = map2(variables, lags,
+                           ~ make_model_name(variables = .x, lags = .y)),
+         long_name = pmap(list(variables, lags, model_function),
+                          ~ make_model_name(variables = ..1, lags = ..2,
+                                            model_function = ..3))
+  ) 
+
 
 ################################### In Sample Accuracy Comparison ################################
 
@@ -256,6 +276,7 @@ comb_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                             max_rank_h = 30)
 
 
+
 number_of_models_per_h <- comb_fcs_all %>% group_by(horizon) %>% 
   summarise(n_models = n(), 
             n_VAR = sum(model_function == "VAR"),
@@ -270,23 +291,10 @@ print(rmse_plot_all_h)
 facet_rmse_plot_all_h <- facet_rmse_all_h(comb_fcs_all)
 print(facet_rmse_plot_all_h)
 
-# library(ggplot2)
-# library(scales)
-# theme_set(theme_classic())
-# 
-# # Plot
-# ggplot(cty_mpg, aes(x=make, y=mileage)) + 
-#   geom_point(col="tomato2", size=3) +   # Draw points
-#   geom_segment(aes(x=make, 
-#                    xend=make, 
-#                    y=min(mileage), 
-#                    yend=max(mileage)), 
-#                linetype="dashed", 
-#                size=0.1) +   # Draw dashed lines
-#   labs(title="Dot Plot", 
-#        subtitle="Make Vs Avg. Mileage", 
-#        caption="source: mpg") +  
-#   coord_flip()
+rmse_plots_list <- list_of_rmse_plots(comb_fcs_all)
+walk(rmse_plots_list, print)
+
+
 
 
 # Average Forecasts of all models (all models are the best 30 at each h)
