@@ -106,6 +106,11 @@ monthly_names <- c(internal_monthly_names, external_monthly_names)
 colnames(mdata_ext_ts) <- monthly_names
 
 
+imacec_ts <- ts(mdata_ext_ts[, "emae"], , start = stats::start(rgdp_ts),
+              end = stats::end(rgdp_ts), frequency = 4)
+
+
+
 # emae_ts <- ts(mdata_ext_ts[, "emae"], , start = stats::start(rgdp_ts),
 #               end = stats::end(rgdp_ts), frequency = 4)
 
@@ -265,16 +270,6 @@ cv_all_x_rmse_each_h_yoy <- rbind(cv0_rmse_each_h_yoy,
                             cv1_rmse_each_h_yoy, cv2_rmse_each_h_yoy)
 
 
-
-
-# foo <- get_fc_weights_one_h(mat_cv_rmses_from_x = cv_all_x_rmse_each_h
-#                       , vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp, pos = 6)
-# 
-# foo_yoy <- get_fc_weights_one_h(mat_cv_rmses_from_x = cv_all_x_rmse_each_h_yoy
-#                             , vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_yoy,
-#                             pos = 6)
-
-
 all_arimax_0 <- my_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  y_order = rgdp_order, 
                         y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
                         s4xreg = FALSE)
@@ -369,29 +364,52 @@ fcs_using_yoy_weights <- ts(fcs_using_yoy_weights,
                             frequency = 4)
 
 
-
-this_fc <- all_fcs %>% filter(id_fc == "imacec", lag == "0")  
-this_fc_mean <- this_fc[["raw_rgdp_fc"]] [[1]] 
-this_yoy_fc_mean <- this_fc[["yoy_raw_rgdp_fc"]] [[1]] 
-
-
-p <- autoplot(rgdp_ts) + 
-  autolayer(rgdp_uncond_fc_mean, series = "uncond") +
-  autolayer(this_fc_mean, series = "imacec_0")
-
-all_fcs_no_im0 <- all_fcs %>% filter(!(id_fc == "imacec" & lag == "0"))
-
-for (i in 1:nrow(all_fcs_no_im0)) {
-  this_fc <- all_fcs_no_im0[i,]  
+plot_all_fcs_lev_yoy <- function(fcs_tbl, y_ts, is_log = TRUE) {
+  
+  this_fc <- fcs_tbl %>% filter(id_fc == "imacec", lag == "2")  
+  
   this_fc_mean <- this_fc[["raw_rgdp_fc"]] [[1]] 
-  p <- p + autolayer(this_fc_mean, alpha = 0.3)
+  
+  this_yoy_fc_mean <- this_fc[["yoy_raw_rgdp_fc"]] [[1]] 
+  
+  if (is_log) {
+    yoy_rgdp_ts <- make_yoy_ts(exp(rgdp_ts))
+  } else {
+    yoy_rgdp_ts <- make_yoy_ts(rgdp_ts)
+  }
+  
+  all_fcs_no_im0 <- all_fcs %>% filter(!(id_fc == "imacec" & lag == "0"))
+  
+  p <- autoplot(rgdp_ts) + 
+    autolayer(rgdp_uncond_fc_mean, series = "uncond", size = 1.5) +
+    autolayer(this_fc_mean, series = "imacec_0", size = 1.5)
+  
+  yoy_p <- autoplot(yoy_rgdp_ts) + 
+    autolayer(rgdp_uncond_yoy_fc_mean, series = "uncond", size = 1.5) +
+    autolayer(this_yoy_fc_mean, series = "imacec_0", size = 1.5)
+  
+  
+  for (i in 1:nrow(all_fcs_no_im0)) {
+    
+    this_fc <- all_fcs_no_im0[i,]  
+    this_fc_mean <- this_fc[["raw_rgdp_fc"]][[1]] 
+    this_yoy_fc_mean <- this_fc[["yoy_raw_rgdp_fc"]][[1]] 
+    
+    p <- p + autolayer(this_fc_mean, alpha = 0.2, series = "other")
+    
+    yoy_p <- yoy_p + autolayer(this_yoy_fc_mean, alpha = 0.2, series = "other")
+  }
+  
+  p <- p + coord_cartesian(xlim = c(2012, 2020))
+  yoy_p <- yoy_p + coord_cartesian(xlim = c(2012, 2020))
+  
+  return(list(p, yoy_p))
+  
 }
 
-p
+p_yoy_p <- plot_all_fcs_lev_yoy(fcs_tbl = all_fcs, y_ts = rgdp_ts)
 
-
-# plot_all_yoy_fcs <- function()
-
+walk(p_yoy_p, print)
 
 
 
@@ -409,98 +427,3 @@ yoy_growth_expo_final_rgdp_and_yoyw_fc <- diff(expo_final_rgdp_and_yoyw_fc, lag 
 
 
 
-
-
-# return(list(cv_all_x_rmse_each_h,
-#             cv_all_x_rmse_each_h_yoy,
-#             cv_rmse_each_h_rgdp,
-#             cv_rmse_each_h_rgdp_yoy,
-#             expo_final_rgdp_and_w_fc,
-#             expo_final_rgdp_and_yoyw_fc,
-#             yoy_growth_expo_final_rgdp_and_w_fc,
-#             yoy_growth_expo_final_rgdp_and_yoyw_fc))
-
-# # example with weights_vec set to 0.2, 0.2, 0.2, 0.2, 0.1, 0.1
-# moo <- map(cv0_e_r, compute_rmse, h_max = 6, weights_vec = c(0.2, 0.2, 0.2, 0.2, 0.1, 0.1))
-# moo
-
-
-# each_h_rmse_012 <- cbind(reduce(cv0_rmse_each_h, rbind),
-#                          reduce(cv1_rmse_each_h, rbind),
-#                          reduce(cv2_rmse_each_h, rbind)
-# )
-# 
-
-
-# ave_rmse_r_tbl <- as_tibble(ave_rmse_012) %>% 
-#   mutate(id = monthly_names) %>% 
-#   gather(key = "type", value = "rmse", -id) %>% 
-#   cbind(all_fcs) %>% 
-#   select(-c(id, type)) %>% 
-#   arrange(id_fc) %>% 
-#   group_by(id_fc) %>% 
-#   mutate(min = min(rmse)) %>% 
-#   filter(rmse == min) %>% 
-#   mutate(rmse_rgdp = cv_rmse_rgdp) %>% 
-#   filter(min <= rmse_rgdp) %>% 
-#   mutate(fc_mean = map(fc, "mean")) %>% 
-#   mutate(inv_mse = 1/(rmse^2)) %>% 
-#   ungroup() %>% 
-#   mutate(sum_inv_mse = sum(inv_mse),
-#          fc_weight = inv_mse/sum_inv_mse)
-# 
-# ave_rmse_r_tbl_yoy <- as_tibble(ave_rmse_012_yoy) %>% 
-#   mutate(id = monthly_names) %>% 
-#   gather(key = "type", value = "rmse", -id) %>% 
-#   cbind(all_fcs_yoy) %>% 
-#   select(-c(id, type)) %>% 
-#   arrange(id_fc) %>% 
-#   group_by(id_fc) %>% 
-#   mutate(min = min(rmse)) %>% 
-#   filter(rmse == min) %>% 
-#   mutate(rmse_rgdp_yoy = cv_rmse_rgdp_yoy) %>% 
-#   filter(min <= rmse_rgdp_yoy) %>%
-#   mutate(inv_mse = 1/(rmse^2)) %>% 
-#   ungroup() %>% 
-#   mutate(sum_inv_mse = sum(inv_mse),
-#          fc_weight = inv_mse/sum_inv_mse)
-# 
-# fcs_and_weights <- ave_rmse_r_tbl %>% 
-#   select(c(id_fc, type_fc, fc_weight, fc_mean)) %>% 
-#   mutate(weighted_fc_means = map2(fc_weight, fc_mean, ~ .x * .y))
-# 
-# fcs_and_weights_yoy <- ave_rmse_r_tbl_yoy %>% 
-#   select(c(id_fc, type_fc, fc_weight, yoy_fc_rgdp_mean)) %>% 
-#   mutate(weighted_fc_means = map2(fc_weight, yoy_fc_rgdp_mean, ~ .x * .y))
-# 
-# w_fcs <- fcs_and_weights %>% select(weighted_fc_means) 
-# w_fcs_yoy <- fcs_and_weights_yoy %>% select(weighted_fc_means) 
-# 
-# final_fc_mean <- colSums(reduce((reduce(w_fcs, ts.union)), rbind))
-# final_fc_mean_yoy <- colSums(reduce((reduce(w_fcs_yoy, ts.union)), rbind))
-# 
-# final_rgdp_and_fc <- ts(c(rgdp_ts, final_fc_mean), frequency = 4,
-#                               start = stats::start(rgdp_ts))
-# 
-# expo_final_rgdp_and_fc <- exp(final_rgdp_and_fc)
-# 
-# yoy_expo_final_rgdp_and_fc <- diff(expo_final_rgdp_and_fc, lag = 4)/lag.xts(expo_final_rgdp_and_fc, k = 4)
-# 
-# 
-# direct_final_rgdp_and_fc_yoy <- diff(final_rgdp_and_fc, lag = 4)
-# direct_final_fc_yoy <- subset(direct_final_rgdp_and_fc_yoy,
-#                               start = length(direct_final_rgdp_and_fc_yoy) - h_max + 1)
-# 
-# 
-# 
-# m_arg <- read_excel("data/Argentina_m_analysis_rgdp.xlsx")
-# 
-# m_all_rmse <- m_arg[, c("rmse1", "rmse2", "rmse3", "rmse4", "rmse5", "rmse6", "rmse7", "rmse8")]
-# 
-# m_all_rmse$mean_rmse <- rowMeans(m_all_rmse)
-# 
-# m_all_rmse$cond_exo <- m_arg[ , "cond_exo"]
-# 
-# m_all_rmse <- arrange(m_all_rmse, rmse1)
-# 
-# 
