@@ -376,15 +376,15 @@ this_yoy_fc_mean <- this_fc[["yoy_raw_rgdp_fc"]] [[1]]
 
 
 p <- autoplot(rgdp_ts) + 
-  autolayer(rgdp_uncond_fc_mean, series = "uncond") +
-  autolayer(this_fc_mean, series = "imacec_0")
+  autolayer(rgdp_uncond_fc_mean, series = "uncond", size = 2) +
+  autolayer(this_fc_mean, series = "imacec_0", size = 2)
 
 all_fcs_no_im0 <- all_fcs %>% filter(!(id_fc == "imacec" & lag == "0"))
 
 for (i in 1:nrow(all_fcs_no_im0)) {
   this_fc <- all_fcs_no_im0[i,]  
   this_fc_mean <- this_fc[["raw_rgdp_fc"]] [[1]] 
-  p <- p + autolayer(this_fc_mean, alpha = 0.3)
+  p <- p + autolayer(this_fc_mean, alpha = 0.1)
 }
 
 p
