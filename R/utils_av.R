@@ -1299,7 +1299,8 @@ fcs_accu <- function(fc_mat, test_data_mat) {
 
 fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
                        my_biasadj = FALSE, this_arima_names = NULL,
-                       include.drift = TRUE) {
+                       include.constant = TRUE, do_stepwise = TRUE, 
+                       do_approximation = FALSE) {
   
   n_of_series <- ncol(y_ts)
   
@@ -1319,6 +1320,11 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
       this_order <- this_instruction[["order"]]
       this_seasonal <- this_instruction[["seasonal"]]
       this_constant <- this_instruction[["mean_logical"]]
+      # this_constant <- TRUE
+      
+      # fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+      #              include.constant =  this_constant, lambda = my_lambda, 
+      #              biasadj = my_biasadj)
       
       fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
                    include.constant =  this_constant, lambda = my_lambda, 
@@ -1326,7 +1332,9 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
       
     } else {
       
-      fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj)
+      fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj,
+                        stepwise = do_stepwise, approximation = do_approximation
+                        )
       
     }
     

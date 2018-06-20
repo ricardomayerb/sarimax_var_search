@@ -29,7 +29,7 @@ external_monthly_names <- colnames(external_monthly_ts)
 
 rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
               start = gdp_and_dates[["gdp_start"]], frequency = 4)
-rgdp_ts <- log(rgdp_ts)
+log_rgdp_ts <- log(rgdp_ts)
 
 
 # rgdp_ts_cv <- cutback_ts(single_ts = rgdp_ts, nrows_to_cut = 3)
@@ -47,7 +47,7 @@ demetra_output_external <- get_demetra_params(external_data_path)
 
 tic()
 fit_arima_rgdp_list_dem <- fit_arimas(
-  y_ts = rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
+  y_ts = log_rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
   this_arima_names = "rgdp")
 toc()
 
@@ -66,6 +66,20 @@ fit_arima_external_monthly_list_dem <- fit_arimas(
   y_ts = external_monthly_ts, order_list = demetra_output_external[["monthly_order_list"]],
   this_arima_names = external_monthly_names)
 toc()
+
+
+tic()
+fit_arima_monthly_list_auto <- fit_arimas(
+  y_ts = monthly_ts, auto = TRUE, do_stepwise = FALSE, do_approximation = TRUE,
+  this_arima_names = monthly_names)
+toc()
+
+tic()
+fit_arima_external_monthly_list_auto <- fit_arimas(
+  y_ts = external_monthly_ts, auto = TRUE, do_stepwise = FALSE, do_approximation = TRUE,
+  this_arima_names = external_monthly_names)
+toc()
+
 
 
 
@@ -106,9 +120,156 @@ monthly_names <- c(internal_monthly_names, external_monthly_names)
 colnames(mdata_ext_ts) <- monthly_names
 
 
-imacec_ts <- ts(mdata_ext_ts[, "emae"], , start = stats::start(rgdp_ts),
-              end = stats::end(rgdp_ts), frequency = 4)
+name_x_for_test <- "imacec"
+x_for_test_monthly_ts <- na.omit(monthly_ts[, name_x_for_test])
+x_for_test_monthly_ts
 
+# saveRDS(object = x_for_test_monthly_ts, file = "./data/imacec_monthly.rds")
+
+x_for_test_uncond_fit <- fit_arima_monthly_list_dem[[name_x_for_test]]
+print(x_for_test_uncond_fit)
+
+
+order_list_x_for_test <-  demetra_output[["monthly_order_list"]][[name_x_for_test]]
+order_x_for_test <- order_list_x_for_test[["order"]]
+seasonal_x_for_test <- order_list_x_for_test[["seasonal"]]
+x_for_test_uncond_fit <- Arima(y = x_for_test_monthly_ts, order = order_x_for_test,
+                               seasonal = seasonal_x_for_test, include.constant = TRUE)
+
+x_for_test_uncond_fit2 <- Arima(y = x_for_test_monthly_ts, order = c(0, 0, 1),
+                               seasonal = c(0, 1, 1), include.constant = TRUE)
+
+x_for_test_uncond_autofit <-auto.arima(x_for_test_monthly_ts)
+x_for_test_uncond_autofit_s <-auto.arima(x_for_test_monthly_ts, stepwise = FALSE, approximation = FALSE)
+
+
+x_for_test_ufc <- forecast(x_for_test_uncond_fit, h = 23)
+x_for_test_ufc_mean <- x_for_test_ufc$mean
+x_for_test_monthly_and_fc_ts <- ts(data = c(x_for_test_monthly_ts, 
+                                            x_for_test_ufc_mean), frequency = 12,
+                                   start = stats::start(x_for_test_monthly_ts))
+
+x_for_test_ufc2 <- forecast(x_for_test_uncond_fit2, h = 23)
+x_for_test_ufc_mean2 <- x_for_test_ufc2$mean
+x_for_test_monthly_and_fc_ts2 <- ts(data = c(x_for_test_monthly_ts, 
+                                             x_for_test_ufc_mean2), frequency = 12,
+                                   start = stats::start(x_for_test_monthly_ts))
+
+x_for_test_uautofc <- forecast(x_for_test_uncond_autofit, h = 23)
+x_for_test_uautofc_mean <- x_for_test_uautofc$mean
+x_for_test_monthly_and_autofc_ts <- ts(data = c(x_for_test_monthly_ts, 
+                                            x_for_test_uautofc_mean), frequency = 12,
+                                   start = stats::start(x_for_test_monthly_ts))
+
+x_for_test_uauto_s_fc <- forecast(x_for_test_uncond_autofit_s, h = 23)
+x_for_test_uauto_s_fc_mean <- x_for_test_uauto_s_fc$mean
+x_for_test_monthly_and_auto_s_fc_ts <- ts(data = c(x_for_test_monthly_ts, 
+                                                x_for_test_uauto_s_fc_mean), frequency = 12,
+                                       start = stats::start(x_for_test_monthly_ts))
+
+ts.union(x_for_test_monthly_and_fc_ts, x_for_test_monthly_and_autofc_ts, x_for_test_monthly_and_auto_s_fc_ts)
+
+
+x_for_test_monthly_and_fc_ts
+difflog_x_for_test_monthly_and_fc_ts <- diff(x_for_test_monthly_and_fc_ts, lag = 12)
+difflog_x_for_test_monthly_and_fc_ts
+x_for_test_monthly_and_fc_xts <- tk_xts(tk_tbl(x_for_test_monthly_and_fc_ts)) 
+x_for_test_monthly_and_fc_xts
+x_for_test_quarterly_and_fc_xts <- apply.quarterly(x_for_test_monthly_and_fc_xts , 
+                                                   mean, na.rm = TRUE)
+x_for_test_yearly_and_fc_xts <- apply.yearly(x_for_test_quarterly_and_fc_xts , 
+                                                   mean, na.rm = TRUE)
+x_for_test_quarterly_and_fc_ts <- tk_ts(x_for_test_quarterly_and_fc_xts, frequency = 4,
+                                        start = c(year(start(x_for_test_monthly_and_fc_xts)),
+                                                  quarter(start(x_for_test_monthly_and_fc_xts))
+                                        ))
+
+x_for_test_monthly_and_fc_ts2
+difflog_x_for_test_monthly_and_fc_ts2 <- diff(x_for_test_monthly_and_fc_ts2, lag = 12)
+difflog_x_for_test_monthly_and_fc_ts2
+x_for_test_monthly_and_fc_xts2 <- tk_xts(tk_tbl(x_for_test_monthly_and_fc_ts2)) 
+x_for_test_monthly_and_fc_xts2
+x_for_test_quarterly_and_fc_xts2 <- apply.quarterly(x_for_test_monthly_and_fc_xts2 , 
+                                                   mean, na.rm = TRUE)
+x_for_test_yearly_and_fc_xts2 <- apply.yearly(x_for_test_quarterly_and_fc_xts2 , 
+                                             mean, na.rm = TRUE)
+x_for_test_quarterly_and_fc_ts2 <- tk_ts(x_for_test_quarterly_and_fc_xts2, frequency = 4,
+                                        start = c(year(start(x_for_test_monthly_and_fc_xts)),
+                                                  quarter(start(x_for_test_monthly_and_fc_xts))
+                                        ))
+
+
+
+difflog_x_for_test_monthly_and_auto_s_fc_ts <- diff(x_for_test_monthly_and_auto_s_fc_ts, lag = 12)
+difflog_x_for_test_monthly_and_auto_s_fc_ts
+x_for_test_monthly_and_auto_s_fc_xts <- tk_xts(tk_tbl(x_for_test_monthly_and_auto_s_fc_ts)) 
+x_for_test_monthly_and_auto_s_fc_xts
+x_for_test_quarterly_and_auto_s_fc_xts <- apply.quarterly(x_for_test_monthly_and_auto_s_fc_xts , 
+                                                   mean, na.rm = TRUE)
+x_for_test_yearly_and_auto_s_fc_xts <- apply.yearly(x_for_test_quarterly_and_auto_s_fc_xts , 
+                                             mean, na.rm = TRUE)
+x_for_test_quarterly_and_auto_s_fc_ts <- tk_ts(x_for_test_quarterly_and_auto_s_fc_xts, frequency = 4,
+                                        start = c(year(start(x_for_test_monthly_and_auto_s_fc_xts)),
+                                                  quarter(start(x_for_test_monthly_and_auto_s_fc_xts))
+                                        ))
+
+
+difflog_x_for_test_monthly_and_autofc_ts <- diff(x_for_test_monthly_and_autofc_ts, lag = 12)
+difflog_x_for_test_monthly_and_autofc_ts
+x_for_test_monthly_and_autofc_xts <- tk_xts(tk_tbl(x_for_test_monthly_and_autofc_ts)) 
+x_for_test_monthly_and_autofc_xts
+x_for_test_quarterly_and_autofc_xts <- apply.quarterly(x_for_test_monthly_and_autofc_xts , 
+                                                       mean, na.rm = TRUE)
+x_for_test_yearly_and_autofc_xts <- apply.yearly(x_for_test_quarterly_and_autofc_xts , 
+                                                 mean, na.rm = TRUE)
+x_for_test_quarterly_and_autofc_ts <- tk_ts(x_for_test_quarterly_and_autofc_xts, frequency = 4,
+                                            start = c(year(start(x_for_test_monthly_and_autofc_xts)),
+                                                      quarter(start(x_for_test_monthly_and_autofc_xts))
+                                            ))
+
+
+difflog_x_for_test_quarterly_and_fc_ts2 <- diff(x_for_test_quarterly_and_fc_ts2, lag = 4)
+difflog_x_for_test_quarterly_and_fc_ts <- diff(x_for_test_quarterly_and_fc_ts, lag = 4)
+difflog_x_for_test_quarterly_and_autofc_ts <- diff(x_for_test_quarterly_and_autofc_ts, lag = 4)
+difflog_x_for_test_quarterly_and_auto_s_fc_ts <- diff(x_for_test_quarterly_and_auto_s_fc_ts, lag = 4)
+
+foo <- ts.union(difflog_x_for_test_quarterly_and_fc_ts, 
+                difflog_x_for_test_quarterly_and_autofc_ts,
+                difflog_x_for_test_quarterly_and_auto_s_fc_ts)
+
+foo
+
+
+x_for_test_quarterly_and_fc_ts
+
+test_x_plot_ufc <- autoplot(x_for_test_monthly_ts) + 
+  autolayer(x_for_test_ufc)
+
+
+print(test_x_plot_ufc)
+
+
+
+# verifying quarterly average from monthly values: OK for imacec
+# (4.679791+ 4.730206 + 4.674217)/3
+# 4.694738
+# 
+# (4.747647 + 4.785572 + 4.826040)/3
+# 4.786420
+
+
+testing_x_ext_ts <- mdata_ext_ts[, name_x_for_test]
+
+ts.union(x_for_test_quarterly_and_fc_ts, testing_x_ext_ts, x_for_test_quarterly_and_fc_ts - testing_x_ext_ts )
+
+testing_x_noext_ts  <- ts(mdata_ext_ts[, x_for_test],  start = stats::start(rgdp_ts),
+                                    end = stats::end(rgdp_ts), frequency = 4)
+
+yoy_testing_x_ext_ts <- make_yoy_ts(exp(mdata_ext_ts[, x_for_test]))
+diffoflog_testing_x_ext_ts <- diff(testing_x_ext_ts, lag = 4)
+
+
+ts.union(yoy_testing_x_ext_ts, diffoflog_testing_x_ext_ts)
 
 
 # emae_ts <- ts(mdata_ext_ts[, "emae"], , start = stats::start(rgdp_ts),
@@ -155,12 +316,12 @@ imacec_ts <- ts(mdata_ext_ts[, "emae"], , start = stats::start(rgdp_ts),
 
 tic()
 # using contemporary xregs (k = 0)
-cv0_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
+cv0_e_i <- cv_arimax(y_ts = log_rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
                    training_length = train_span,  y_order = rgdp_order, 
                    y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
                    method = "ML", s4xreg = FALSE)
 
-cv0_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts, 
+cv0_e_e <- cv_arimax(y_ts = log_rgdp_ts, xreg_ts = external_mdata_ext_ts, 
                      h_max =  h_max, n_cv = number_of_cv,
                      training_length = train_span,  y_order = rgdp_order, 
                      y_seasonal = rgdp_seasonal, 
@@ -174,18 +335,18 @@ cv0_e <- list(cv_errors_all_pairs_yx = c(cv0_e_i$cv_errors_all_pairs_yx,
               )
               
 
-# cv0_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
+# cv0_e <- cv_arimax(y_ts = log_rgdp_ts, xreg_ts = mdata_ext_ts,  h_max =  h_max, n_cv = number_of_cv,
 #                      training_length = train_span,  y_order = rgdp_order, 
 #                      y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
 #                      method = "CSS", s4xreg = FALSE)
 
 
-cv1_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
+cv1_e_i <- cv_arimax(y_ts = log_rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
                    n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
                    y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
                    method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
 
-cv1_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
+cv1_e_e <- cv_arimax(y_ts = log_rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
                      n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
                      y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
                      method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
@@ -197,12 +358,12 @@ cv1_e <- list(cv_errors_all_pairs_yx = c(cv1_e_i$cv_errors_all_pairs_yx,
 )
 
 # using two-lags xregs (k = 2)
-cv2_e_i <- cv_arimax(y_ts = rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
+cv2_e_i <- cv_arimax(y_ts = log_rgdp_ts, xreg_ts = internal_mdata_ext_ts,  h_max = h_max,
                       n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
                       y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
                       method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
 
-cv2_e_e <- cv_arimax(y_ts = rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
+cv2_e_e <- cv_arimax(y_ts = log_rgdp_ts, xreg_ts = external_mdata_ext_ts,  h_max = h_max,
                      n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
                      y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
                      method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
@@ -214,7 +375,7 @@ cv2_e <- list(cv_errors_all_pairs_yx = c(cv2_e_i$cv_errors_all_pairs_yx,
 )
 
 
-cv_rgdp_e <- cv_arima(y_ts = rgdp_ts, h_max = h_max, n_cv = number_of_cv,
+cv_rgdp_e <- cv_arima(y_ts = log_rgdp_ts, h_max = h_max, n_cv = number_of_cv,
                         training_length = train_span,  y_order = rgdp_order, 
                         y_seasonal = rgdp_seasonal,
                         method = "ML")
@@ -270,15 +431,15 @@ cv_all_x_rmse_each_h_yoy <- rbind(cv0_rmse_each_h_yoy,
                             cv1_rmse_each_h_yoy, cv2_rmse_each_h_yoy)
 
 
-all_arimax_0 <- my_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  y_order = rgdp_order, 
+all_arimax_0 <- my_arimax(y_ts = log_rgdp_ts, xreg_ts = mdata_ext_ts,  y_order = rgdp_order, 
                         y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
                         s4xreg = FALSE)
 
-all_arimax_1 <- my_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  y_order = rgdp_order, 
+all_arimax_1 <- my_arimax(y_ts = log_rgdp_ts, xreg_ts = mdata_ext_ts,  y_order = rgdp_order, 
                            y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
                           s4xreg = FALSE, xreg_lags = 0:1)
 
-all_arimax_2 <- my_arimax(y_ts = rgdp_ts, xreg_ts = mdata_ext_ts,  y_order = rgdp_order, 
+all_arimax_2 <- my_arimax(y_ts = log_rgdp_ts, xreg_ts = mdata_ext_ts,  y_order = rgdp_order, 
                            y_seasonal = rgdp_seasonal, vec_of_names = monthly_names,
                           s4xreg = FALSE, xreg_lags = 0:2)
 
@@ -312,8 +473,8 @@ all_fcs <- tibble(fc_0 = all_fcs_0, fc_1 = all_fcs_1, fc_2 = all_fcs_2,
          arima_order = map(armapar, function(x) x[c(1, 6, 2)]),
          arima_seasonal = map(armapar, function(x) x[c(3, 7, 4)])  
          ) %>% 
-  mutate(data_and_fc = map(raw_rgdp_fc, ~ts(data = c(rgdp_ts, .), frequency = 4,
-                                             start = stats::start(rgdp_ts))),
+  mutate(data_and_fc = map(raw_rgdp_fc, ~ts(data = c(log_rgdp_ts, .), frequency = 4,
+                                             start = stats::start(log_rgdp_ts))),
          yoy_data_and_fc = map(data_and_fc, ~ make_yoy_ts(exp(.))),
          yoy_raw_rgdp_fc = map2(yoy_data_and_fc, raw_rgdp_fc,
                                 ~ window(.x, start = stats::start(.y)))
@@ -351,8 +512,8 @@ weigthed_fcs <- ts(weigthed_fcs,
                    start = stats::start(rgdp_uncond_fc_mean), 
                    frequency = 4)
 
-rgdp_data_and_uncond_fc <- ts(data = c(rgdp_ts, rgdp_uncond_fc_mean), 
-                              frequency = 4, start = stats::start(rgdp_ts))
+rgdp_data_and_uncond_fc <- ts(data = c(log_rgdp_ts, rgdp_uncond_fc_mean), 
+                              frequency = 4, start = stats::start(log_rgdp_ts))
 
 yoy_rgdp_data_and_uncond_fc <- make_yoy_ts(exp(rgdp_data_and_uncond_fc))
 
@@ -374,18 +535,18 @@ plot_all_fcs_lev_yoy <- function(fcs_tbl, y_ts, is_log = TRUE) {
   this_yoy_fc_mean <- this_fc[["yoy_raw_rgdp_fc"]] [[1]] 
   
   if (is_log) {
-    yoy_rgdp_ts <- make_yoy_ts(exp(rgdp_ts))
+    yoy_y_ts <- make_yoy_ts(exp(y_ts))
   } else {
-    yoy_rgdp_ts <- make_yoy_ts(rgdp_ts)
+    yoy_y_ts <- make_yoy_ts(y_ts)
   }
   
   all_fcs_no_im0 <- all_fcs %>% filter(!(id_fc == "imacec" & lag == "0"))
   
-  p <- autoplot(rgdp_ts) + 
+  p <- autoplot(y_ts) + 
     autolayer(rgdp_uncond_fc_mean, series = "uncond", size = 1.5) +
     autolayer(this_fc_mean, series = "imacec_0", size = 1.5)
   
-  yoy_p <- autoplot(yoy_rgdp_ts) + 
+  yoy_p <- autoplot(yoy_y_ts) + 
     autolayer(rgdp_uncond_yoy_fc_mean, series = "uncond", size = 1.5) +
     autolayer(this_yoy_fc_mean, series = "imacec_0", size = 1.5)
   
@@ -414,11 +575,11 @@ walk(p_yoy_p, print)
 
 
 
-final_rgdp_and_w_fc <- ts(c(rgdp_ts, weigthed_fcs), frequency = 4,
-                              start = stats::start(rgdp_ts))
+final_rgdp_and_w_fc <- ts(c(log_rgdp_ts, weigthed_fcs), frequency = 4,
+                              start = stats::start(log_rgdp_ts))
 
-final_rgdp_and_yoyw_fc <- ts(c(rgdp_ts, fcs_using_yoy_weights), frequency = 4,
-                          start = stats::start(rgdp_ts))
+final_rgdp_and_yoyw_fc <- ts(c(log_rgdp_ts, fcs_using_yoy_weights), frequency = 4,
+                          start = stats::start(log_rgdp_ts))
 
 expo_final_rgdp_and_w_fc <- exp(final_rgdp_and_w_fc)
 expo_final_rgdp_and_yoyw_fc <- exp(final_rgdp_and_yoyw_fc)
