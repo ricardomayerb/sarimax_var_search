@@ -8,37 +8,6 @@ number_of_cv = 8
 train_span = 16
 use_demetra <- TRUE
 
-if (use_demetra) {
-  demetra_output <- get_demetra_params(data_path)
-  demetra_output_external <- get_demetra_params(external_data_path)
-}
-
-ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
-  
-  
-  gdp_and_dates <- get_rgdp_and_dates(data_path)
-
-  monthly_data <- get_monthly_variables(data_path = data_path)
-  monthly_ts <- make_monthly_ts(monthly_data)
-  monthly_names <- colnames(monthly_ts)
-  
-  external_monthly_data <- get_monthly_variables(data_path = external_data_path)
-  external_monthly_ts <- make_monthly_ts(external_monthly_data)
-  external_monthly_names <- colnames(external_monthly_ts)
-  
-  rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
-                start = gdp_and_dates[["gdp_start"]], frequency = 4)
-  
-  if (all_logs) {
-    monthly_ts  <- log(monthly_ts)
-    external_monthly_ts  <- log(external_monthly_ts)
-    log_rgdp_ts <- log(rgdp_ts)
-  }
-  
-  ret_list <- list(
-    monthly_ts = monthly_ts, external_monthly_ts = external_monthly_ts,
-    rgdp_ts = rgdp_ts)
-}
 
 
 all_arima_data <- ts_data_for_arima(data_path = data_path, 
@@ -48,6 +17,25 @@ all_arima_data <- ts_data_for_arima(data_path = data_path,
 rgdp_ts <- all_arima_data[["rgdp_ts"]]
 monthly_ts <- all_arima_data[["monthly_ts"]]
 external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
+
+
+do_univariate_rgdp <- function(rgdp_data, models = "all") {
+  
+  use_demetra <- TRUE
+  if (use_demetra) {
+    demetra_output <- get_demetra_params(data_path)
+    demetra_output_external <- get_demetra_params(external_data_path)
+  }
+  
+  
+  
+}
+
+
+
+
+
+
 
 
 fit_arima_logrgdp_list_dem <- fit_arimas(

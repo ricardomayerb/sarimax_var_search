@@ -3411,6 +3411,33 @@ transform_cv <- function(list_series, series_name, current_form,
 }
 
 
+ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
+  
+  
+  gdp_and_dates <- get_rgdp_and_dates(data_path)
+  
+  monthly_data <- get_monthly_variables(data_path = data_path)
+  monthly_ts <- make_monthly_ts(monthly_data)
+  monthly_names <- colnames(monthly_ts)
+  
+  external_monthly_data <- get_monthly_variables(data_path = external_data_path)
+  external_monthly_ts <- make_monthly_ts(external_monthly_data)
+  external_monthly_names <- colnames(external_monthly_ts)
+  
+  rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
+                start = gdp_and_dates[["gdp_start"]], frequency = 4)
+  
+  if (all_logs) {
+    monthly_ts  <- log(monthly_ts)
+    external_monthly_ts  <- log(external_monthly_ts)
+    log_rgdp_ts <- log(rgdp_ts)
+  }
+  
+  ret_list <- list(
+    monthly_ts = monthly_ts, external_monthly_ts = external_monthly_ts,
+    rgdp_ts = rgdp_ts)
+}
+
 
 
 try_sizes_vbls_lags <- function(var_data, rgdp_yoy_ts, rgdp_level_ts, target_v, vec_size = c(3,4,5), 
