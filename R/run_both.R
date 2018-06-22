@@ -149,6 +149,11 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0) {
 
 univariate_rgpd_obj <- do_univariate_rgdp(rgdp_ts)
 
+rgdp_ts 
+
+fit_arima_logrgdp_list_dem <- fit_arimas(
+  y_ts = log(rgdp_data), order_list = demetra_output[["rgdp_order_list"]],
+  this_arima_names = "rgdp")[[1]]
 
 
 
