@@ -23,12 +23,28 @@ monthly_ts <- all_arima_data[["monthly_ts"]]
 external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 
 
-do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0) {
+do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0, 
+                               freq = 4, h_max = 8) {
   
-  nx <- length(rgdp_data)
-  new_nx <- nx - n_offset
-  rgdp_data <- subset(rgdp_data, end = new_nx)
-  # print(rgdp_data)
+  if (n_offset > 0) {
+    
+    h_max = n_offset
+    
+    nx <- length(rgdp_data)
+    new_nx <- nx - n_offset
+    
+    test_data <- subset(rgdp_data, start = new_nx + 1)
+    dim(test_data) <- c(n_offset, 1)
+    
+    temp_yoy <- make_yoy_ts(rgdp_data, freq = freq)
+    yoy_test_data <- subset(temp_yoy, start = new_nx - freq + 1)
+    dim(yoy_test_data) <- c(n_offset, 1)
+    
+    rgdp_data <- subset(rgdp_data, end = new_nx)
+    dim(rgdp_data) <- c(new_nx, 1)
+    
+  }
+
 
   use_demetra <- TRUE
   
@@ -37,34 +53,35 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0) {
     demetra_output_external <- get_demetra_params(external_data_path)
   }
   
-  print("uno")
-  
+
   fit_arima_logrgdp_list_dem <- fit_arimas(
     y_ts = log(rgdp_data), order_list = demetra_output[["rgdp_order_list"]],
     this_arima_names = "rgdp")[[1]]
-  
-  print("dos")
+
   
   fit_arima_logrgdp_auto_slow <- fit_arimas(
     y_ts = log(rgdp_data), include.constant = TRUE, auto = TRUE, 
     do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp")[[1]]
+
   
   fit_arima_rgdp_auto_slow <- fit_arimas(
     y_ts = rgdp_data, include.constant = TRUE, auto = TRUE, 
     do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp", 
     my_lambda = 0, my_biasadj = FALSE
   )[[1]]
+
   
   fit_arima_rgdp_auto_slow_badj <- fit_arimas(
     y_ts = rgdp_data, include.constant = TRUE, auto = TRUE, 
     do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp", 
     my_lambda = 0, my_biasadj = TRUE
   )[[1]]
-  
+
   
   fit_arima_yoyrgdp_auto_slow <- fit_arimas(
-    y_ts = make_yoy_ts(rgdp_data), include.constant = TRUE, auto = TRUE, 
+    y_ts = make_yoy_ts(rgdp_data, freq = freq), include.constant = TRUE, auto = TRUE, 
     do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp")[[1]]
+
   
   
   fc_arima_logrgdp_list_dem <- forecast(fit_arima_logrgdp_list_dem, h = h_max)
@@ -72,26 +89,40 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0) {
   fc_arima_rgdp_auto_slow <- forecast(fit_arima_rgdp_auto_slow, h = h_max) 
   fc_arima_rgdp_auto_slow_badj <- forecast(fit_arima_rgdp_auto_slow_badj, h = h_max) 
   fc_arima_yoyrgdp_auto_slow <- forecast(fit_arima_yoyrgdp_auto_slow, h = h_max) 
+
   
-  acc_arima_rgdp_auto_slow <- accuracy(fc_arima_rgdp_auto_slow, window(rgdp_data, start = c(2016, 1) ))
-  acc_arima_rgdp_auto_slow_badj <- accuracy(fc_arima_rgdp_auto_slow_badj, window(rgdp_data, start = c(2016, 1) ))
-  acc_arima_logrgdp_auto_slow <- accuracy(fc_arima_logrgdp_auto_slow, window(rgdp_data, start = c(2016, 1) ))
-  acc_arima_logrgdp_list_dem <- accuracy(fc_arima_logrgdp_list_dem, window(rgdp_data, start = c(2016, 1) ))
-  acc_arima_yoyrgdp_auto_slow <- accuracy(fc_arima_yoyrgdp_auto_slow, window(rgdp_data, start = c(2016, 1) ))
+  
+  if (n_offset > 0) {
+    
+    acc_arima_rgdp_auto_slow <- accuracy(f = fc_arima_rgdp_auto_slow, x = test_data)
+    acc_arima_rgdp_auto_slow_badj <- accuracy(f = fc_arima_rgdp_auto_slow_badj, x = test_data)
+    acc_arima_logrgdp_auto_slow <- accuracy(fc_arima_logrgdp_auto_slow, x = test_data)
+    acc_arima_logrgdp_list_dem <- accuracy(fc_arima_logrgdp_list_dem, x = test_data)
+    acc_arima_yoyrgdp_auto_slow <- accuracy(fc_arima_yoyrgdp_auto_slow, x = test_data)
+    
+  } else {
+    acc_arima_rgdp_auto_slow <- accuracy(f = fc_arima_rgdp_auto_slow)
+    acc_arima_rgdp_auto_slow_badj <- accuracy(f = fc_arima_rgdp_auto_slow_badj)
+    acc_arima_logrgdp_auto_slow <- accuracy(fc_arima_logrgdp_auto_slow)
+    acc_arima_logrgdp_list_dem <- accuracy(fc_arima_logrgdp_list_dem)
+    acc_arima_yoyrgdp_auto_slow <- accuracy(fc_arima_yoyrgdp_auto_slow)
+  }
+
   
   acc_all <- cbind(acc_arima_rgdp_auto_slow, acc_arima_rgdp_auto_slow_badj,
                    acc_arima_logrgdp_auto_slow, acc_arima_logrgdp_list_dem,
                    acc_arima_yoyrgdp_auto_slow)
   
+
   difflog_fc_arima_logrgdp_list_dem <- fc_yoy_from_fc_level(fc_obj = fc_arima_logrgdp_list_dem, dodifflog = TRUE, isloglevel = TRUE)
   difflog_fc_arima_logrgdp_auto_slow <- fc_yoy_from_fc_level(fc_obj = fc_arima_logrgdp_auto_slow, dodifflog = TRUE, isloglevel = TRUE)
   yoy_fc_arima_logrgdp_list_dem <- fc_yoy_from_fc_level(fc_obj = fc_arima_logrgdp_list_dem, isloglevel = TRUE)
   yoy_fc_arima_logrgdp_auto_slow <- fc_yoy_from_fc_level(fc_obj = fc_arima_logrgdp_auto_slow, isloglevel = TRUE)
   yoy_fc_arima_rgdp_auto_slow <- fc_yoy_from_fc_level(fc_arima_rgdp_auto_slow)
   yoy_fc_arima_rgdp_auto_slow_badj <- fc_yoy_from_fc_level(fc_arima_rgdp_auto_slow_badj)
+
   
-  
-  autoplot(make_yoy_ts(rgdp_data)) + 
+  p_yoy <- autoplot(make_yoy_ts(rgdp_data, freq = freq)) + 
     autolayer(difflog_fc_arima_logrgdp_list_dem[["yoy_fc"]], series = "dl_logdm") + 
     autolayer(yoy_fc_arima_logrgdp_list_dem[["yoy_fc"]], series = "yoy_logdm") + 
     autolayer(fc_arima_yoyrgdp_auto_slow$mean, series = "direct_yoy") + 
@@ -100,14 +131,20 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0) {
     autolayer(yoy_fc_arima_rgdp_auto_slow[["yoy_fc"]], series = "yoy_auto") + 
     autolayer(yoy_fc_arima_rgdp_auto_slow_badj[["yoy_fc"]], series = "yoy_auto_badj") + 
     coord_cartesian(xlim = c(2012, 2020))
+
   
-  
-  autoplot(rgdp_data) + 
+  p_level <- autoplot(rgdp_data) + 
     autolayer(fc_arima_rgdp_auto_slow, PI = FALSE) + 
     autolayer(fc_arima_rgdp_auto_slow_badj, PI = FALSE) + 
     autolayer(exp(fc_arima_logrgdp_auto_slow$mean))  + 
     autolayer(exp(fc_arima_logrgdp_list_dem$mean)) +  
-    coord_cartesian(xlim = c(2009, 2020))
+    coord_cartesian(xlim = c(2012, 2020))
+  
+  if (n_offset > 0) {
+    p_yoy <- p_yoy + autolayer(yoy_test_data, series = "data")
+    p_level <- p_level + autolayer(test_data, series = "data")
+  }
+
   
   y_ave_logdem_ldiff <- difflog_fc_arima_logrgdp_list_dem[["yearly_average_yoy"]]
   y_ave_logdem <- yoy_fc_arima_logrgdp_list_dem[["yearly_average_yoy"]]
@@ -120,7 +157,7 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0) {
                      y_ave_logauto, y_ave_auto, y_ave_auto_badj)
   y_ave_all
   
-  
+
   y_gt_logdem_ldiff <- difflog_fc_arima_logrgdp_list_dem[["yearly_growth_of_total"]]
   y_gt_logdem <- yoy_fc_arima_logrgdp_list_dem[["yearly_growth_of_total"]]
   y_gt_logauto_ldiff <- difflog_fc_arima_logrgdp_auto_slow[["yearly_growth_of_total"]]
@@ -144,16 +181,36 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0) {
                        y_total_logauto, y_total_auto, y_total_auto_badj)
   y_total_all
 
+  
+  return(list(arima_of_log_y_demetra = fit_arima_logrgdp_list_dem,
+              arima_of_log_y_autoarima = fit_arima_logrgdp_auto_slow,
+              arima_of_y_autoarima = fit_arima_rgdp_auto_slow,
+              arima_of_y_autoarima_badj = fit_arima_rgdp_auto_slow_badj,
+              arima_of_yoy_y_autoarima = fit_arima_yoyrgdp_auto_slow,
+              yearly_total_y = y_total_all,
+              growth_of_yearly_total_y = y_gt_all,
+              yearly_average_yoy_growth = y_ave_all,
+              accuracy_measures = acc_all,
+              plot_y_level = p_level,
+              plot_y_yoy =  p_yoy))
+  
 }
-
 
 univariate_rgpd_obj <- do_univariate_rgdp(rgdp_ts)
 
-rgdp_ts 
+univariate_rgpd_obj_8 <- do_univariate_rgdp(rgdp_ts, n_offset = 8)
 
-fit_arima_logrgdp_list_dem <- fit_arimas(
-  y_ts = log(rgdp_data), order_list = demetra_output[["rgdp_order_list"]],
-  this_arima_names = "rgdp")[[1]]
+# n_offset <- 8
+# rgdp_data <- rgdp_ts
+# nx <- length(rgdp_data)
+# new_nx <- nx - n_offset
+# rgdp_data <- subset(rgdp_data, end = new_nx)
+# dim(rgdp_data) <- c(new_nx, 1)
+# 
+# 
+# fit_arima_logrgdp_list_dem <- fit_arimas(
+#   y_ts = log(rgdp_data), order_list = demetra_output[["rgdp_order_list"]],
+#   this_arima_names = "rgdp")[[1]]
 
 
 
