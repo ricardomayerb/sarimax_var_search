@@ -109,9 +109,17 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0,
   }
 
   
-  acc_all <- cbind(acc_arima_rgdp_auto_slow, acc_arima_rgdp_auto_slow_badj,
-                   acc_arima_logrgdp_auto_slow, acc_arima_logrgdp_list_dem,
-                   acc_arima_yoyrgdp_auto_slow)
+  acc_all_training <- rbind(acc_arima_rgdp_auto_slow[1,], acc_arima_rgdp_auto_slow_badj[1,],
+                   acc_arima_logrgdp_auto_slow[1,], acc_arima_logrgdp_list_dem[1,],
+                   acc_arima_yoyrgdp_auto_slow[1,])
+  
+  acc_all_test <- NULL
+  
+  if(n_offset > 0) {
+    acc_all_test <- rbind(acc_arima_rgdp_auto_slow[2,], acc_arima_rgdp_auto_slow_badj[2,],
+                              acc_arima_logrgdp_auto_slow[2,], acc_arima_logrgdp_list_dem[2,],
+                              acc_arima_yoyrgdp_auto_slow[2,])
+  }
   
 
   difflog_fc_arima_logrgdp_list_dem <- fc_yoy_from_fc_level(fc_obj = fc_arima_logrgdp_list_dem, dodifflog = TRUE, isloglevel = TRUE)
@@ -190,15 +198,20 @@ do_univariate_rgdp <- function(rgdp_data, models = "all", n_offset = 0,
               yearly_total_y = y_total_all,
               growth_of_yearly_total_y = y_gt_all,
               yearly_average_yoy_growth = y_ave_all,
-              accuracy_measures = acc_all,
+              accuracy_measures_training_set = acc_all_training,
+              accuracy_measures_test_set = acc_all_test,
               plot_y_level = p_level,
-              plot_y_yoy =  p_yoy))
+              plot_y_yoy =  p_yoy)
+         )
   
 }
 
 univariate_rgpd_obj <- do_univariate_rgdp(rgdp_ts)
 
 univariate_rgpd_obj_8 <- do_univariate_rgdp(rgdp_ts, n_offset = 8)
+
+accu <- univariate_rgpd_obj$accuracy_measures
+accu_8 <- univariate_rgpd_obj_8$accuracy_measures
 
 # n_offset <- 8
 # rgdp_data <- rgdp_ts
