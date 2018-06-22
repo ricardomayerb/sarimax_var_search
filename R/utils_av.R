@@ -1254,6 +1254,42 @@ facet_rmse_all_h <- function(selected_models_tbl) {
   return(p)
 }
 
+fc_yoy_from_fc_level <- function(fc_obj, isloglevel = FALSE, dodifflog = FALSE,
+                                 freq = 4){
+  x <- fc_obj$x
+  xfc <- fc_obj$mean
+  xandfc <- ts(data = c(x, xfc), frequency = freq, start = stats::start(x))
+  
+  
+  if (isloglevel) {
+    xandfc <- exp(xandfc)
+  }
+  
+  
+  if (dodifflog) {
+    yoy_all <- diff(log(xandfc), lag = freq)
+    
+  } else {
+    yoy_all <- make_yoy_ts(xandfc, freq = freq)
+  }
+  
+  
+  yoy_fc <- window(yoy_all, start = stats::start(xfc))
+  
+  
+  yoy_all_xts <- tk_xts(tk_tbl(yoy_all), silent = TRUE) 
+  xandfc_xts <- tk_xts(tk_tbl(xandfc), silent = TRUE) 
+  
+  
+  yearly_ave_yoy_all_xts <- apply.yearly(yoy_all_xts, mean, na.rm = TRUE)
+  yearly_total_all_xts <- apply.yearly(xandfc_xts, sum, na.rm = TRUE)
+  yearly_total_growth_xts <- make_yoy_xts(yearly_total_all_xts, freq = 1)
+  
+  return(list(yoy_fc = yoy_fc, yearly_average_yoy = yearly_ave_yoy_all_xts, 
+              yearly_total = yearly_total_all_xts, 
+              yearly_growth_of_total = yearly_total_growth_xts))
+}
+
 
 
 fc_log2yoy <- function(model, rgdp_log_ts, fc_ts) {
@@ -3840,6 +3876,5 @@ var_cv <- function(var_data, this_p, this_type = "const", n_cv = 8, h_max = 6,
               cv_vbl_names = cv_vbl_names,
               cv_lag = cv_lag))
 }
-
 
 
