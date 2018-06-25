@@ -492,6 +492,9 @@ p_da_yoy
 p_biasornot_lev
 p_biasornot_yoy
 
+p_lam_vs_explog_yoy
+p_lam_vs_explog_lev
+
 p_dir_vs_indir_yoy
 
 
