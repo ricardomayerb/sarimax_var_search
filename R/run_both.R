@@ -327,7 +327,7 @@ univariate_analysis <- function(rgdp_data, models = "all_arimas", n_offset = 0,
     
     p_lam0_vs_expoflog_lev <- autoplot(rgdp_data, freq = freq) + 
       autolayer(fc_arima_3, PI = FALSE, series = "level with lam0") + 
-      autolayer(exp(fc_arima_1$mean), series = "exp of log")  +
+      autolayer(exp(fc_arima_2$mean), series = "exp of log")  +
       labs(y = "GDP", x = "", title = "lambda = 0, with and without bias adj (level)") +
       theme(legend.position = "bottom",
             legend.title = element_blank())
@@ -341,7 +341,10 @@ univariate_analysis <- function(rgdp_data, models = "all_arimas", n_offset = 0,
     
     p_direct_vs_indirect_yoy <- autoplot(make_yoy_ts(rgdp_data, freq = freq)) + 
       autolayer(fc_arima_5$mean, series = "direct_yoy") + 
-      autolayer(yoy_fc_arima_3[["yoy_fc"]], series = "indirect_yoy (auto.arima lev)") 
+      autolayer(yoy_fc_arima_3[["yoy_fc"]], series = "indirect_yoy (auto.arima lev)") +
+      labs(y = "GDP", x = "", title = "lambda = 0 vs exp(log), with and without bias adj (growth)") +
+      theme(legend.position = "bottom",
+            legend.title = element_blank())
     
     
     
@@ -390,33 +393,61 @@ univariate_analysis <- function(rgdp_data, models = "all_arimas", n_offset = 0,
   if (models %in% c("all", "all_arimas")) {
     y_ave_logdem_ldiff <- difflog_fc_arima_1[["yearly_average_yoy"]]
     y_ave_logdem <- yoy_fc_arima_1[["yearly_average_yoy"]]
+    y_ave_dm_2018 <- round(100*as.numeric(y_ave_logdem["2018"]), digits = 2)
+    y_ave_dm_2019 <- round(100*as.numeric(y_ave_logdem["2019"]), digits = 2)
+    
+    
     y_ave_logauto_ldiff <- difflog_fc_arima_2[["yearly_average_yoy"]]
     y_ave_logauto <- yoy_fc_arima_2[["yearly_average_yoy"]]
+    y_ave_dm_2018 <- round(100*as.numeric(y_ave_logdem["2018"]), digits = 2)
+    y_ave_dm_2019 <- round(100*as.numeric(y_ave_logdem["2019"]), digits = 2)
+    
+    
     y_ave_auto <- yoy_fc_arima_3[["yearly_average_yoy"]]
     y_ave_auto_badj <- yoy_fc_arima_4[["yearly_average_yoy"]]
     
     y_gt_logdem_ldiff <- difflog_fc_arima_1[["yearly_growth_of_total"]]
+    
     y_gt_logdem <- yoy_fc_arima_1[["yearly_growth_of_total"]]
+    gt_dm_2018 <- round(100*as.numeric(y_gt_logdem["2018"]), digits = 2)
+    gt_dm_2019 <- round(100*as.numeric(y_gt_logdem["2019"]), digits = 2)
+    
     y_gt_logauto_ldiff <- difflog_fc_arima_2[["yearly_growth_of_total"]]
+    
     y_gt_logauto <- yoy_fc_arima_2[["yearly_growth_of_total"]]
+    gt_au_2018 <- round(100*as.numeric(y_gt_logauto["2018"]), digits = 2)
+    gt_au_2019 <- round(100*as.numeric(y_gt_logauto["2019"]), digits = 2)
+    
     y_gt_auto <- yoy_fc_arima_3[["yearly_growth_of_total"]]
+    
     y_gt_auto_badj <- yoy_fc_arima_4[["yearly_growth_of_total"]]
     
     y_total_logdem_ldiff <- difflog_fc_arima_1[["yearly_total"]]
     y_total_logdem <- yoy_fc_arima_1[["yearly_total"]]
+    y_tot_dm_2018 <- round(100*as.numeric(y_total_logdem["2018"]), digits = 2)
+    y_tot_dm_2019 <- round(100*as.numeric(y_total_logdem["2019"]), digits = 2)
+    
+    
     y_total_logauto_ldiff <- difflog_fc_arima_2[["yearly_total"]]
     y_total_logauto <- yoy_fc_arima_2[["yearly_total"]]
+    y_tot_au_2018 <- round(100*as.numeric(y_total_logauto["2018"]), digits = 2)
+    y_tot_au_2019 <- round(100*as.numeric(y_total_logauto["2019"]), digits = 2)
+    
+    
     y_total_auto <- yoy_fc_arima_3[["yearly_total"]]
     y_total_auto_badj <- yoy_fc_arima_4[["yearly_total"]]
     
-    y_ave_all <- cbind(y_ave_logdem_ldiff, y_ave_logdem, y_ave_logauto_ldiff,
-                       y_ave_logauto, y_ave_auto, y_ave_auto_badj)
+    y_ave_all <- cbind(dem_ld = y_ave_logdem_ldiff, dem_yoy = y_ave_logdem, 
+                       logauto_ld = y_ave_logauto_ldiff,
+                       logauto_yoy = y_ave_logauto, 
+                       auto = y_ave_auto, auto_badj = y_ave_auto_badj)
     
-    y_gt_all <- cbind(y_gt_logdem_ldiff, y_gt_logdem, y_gt_logauto_ldiff,
-                      y_gt_logauto, y_gt_auto, y_gt_auto_badj)
+    y_gt_all <- cbind(dem = y_gt_logdem, 
+                      auto = y_gt_auto, auto_badj = y_gt_auto_badj)
     
-    y_total_all <- cbind(y_total_logdem_ldiff, y_total_logdem, y_total_logauto_ldiff,
-                         y_total_logauto, y_total_auto, y_total_auto_badj)
+    y_total_all <- cbind(dem = y_total_logdem,  
+                         auto = y_total_auto , auto_badj = y_total_auto_badj)
+    
     
   }
   
@@ -475,8 +506,76 @@ tic()
 univariate_rgpd_obj <- univariate_analysis(rgdp_ts, models = "all_arimas")
 toc()
 
+ari_1 <- univariate_rgpd_obj$arima_of_log_y_demetra
+ari_2 <- univariate_rgpd_obj$arima_of_log_y_autoarima
+
+ari_3 <- univariate_rgpd_obj$arima_of_y_autoarima
+ari_4 <- univariate_rgpd_obj$arima_of_y_autoarima_badj
+
+ari_5 <- univariate_rgpd_obj$arima_of_yoy_y_autoarima
+
+
+
+univariate_rgpd_obj$yearly_total_y
+
+univariate_rgpd_obj$yearly_average_yoy_growth
+
+univariate_rgpd_obj$growth_of_yearly_total_y
+
+gr_dm <- (univariate_rgpd_obj$growth_of_yearly_total_y)[,1]
+gr_dm_2018 <- round(100*as.numeric(gr_dm["2018"]), digits = 2)
+gr_dm_2019 <- round(100*as.numeric(gr_dm["2019"]), digits = 2)
+gr_dm_2018
+gr_dm_2019
+
+gr_au <- (univariate_rgpd_obj$growth_of_yearly_total_y)[,2]
+gr_au_2018 <- round(100*as.numeric(gr_au["2018"]), digits = 2)
+gr_au_2019 <- round(100*as.numeric(gr_au["2019"]), digits = 2)
+gr_au_2018
+gr_au_2019
+
+ave_dm <- (univariate_rgpd_obj$yearly_average_yoy_growth)[,2]
+ave_dm_2018 <- round(100*as.numeric(ave_dm["2018"]), digits = 2)
+ave_dm_2019 <- round(100*as.numeric(ave_dm["2019"]), digits = 2)
+ave_dm_2018
+ave_dm_2019
+
+ave_au <- (univariate_rgpd_obj$yearly_average_yoy_growth)[,4]
+ave_au_2018 <- round(100*as.numeric(ave_au["2018"]), digits = 2)
+ave_au_2019 <- round(100*as.numeric(ave_au["2019"]), digits = 2)
+ave_au_2018
+ave_au_2019
+
+tot_dm <- (univariate_rgpd_obj$yearly_total_y)[,1]
+tot_dm_2018 <- round(100*as.numeric(tot_dm["2018"]), digits = 0)
+tot_dm_2019 <- round(100*as.numeric(tot_dm["2019"]), digits = 0)
+tot_dm_2018
+tot_dm_2019
+
+tot_au <- (univariate_rgpd_obj$yearly_total_y)[,2]
+tot_au_2018 <- round(100*as.numeric(tot_au["2018"]), digits = 0)
+tot_au_2019 <- round(100*as.numeric(tot_au["2019"]), digits = 0)
+tot_au_2018
+tot_au_2019
+
+
+
 p_da_lev <- univariate_rgpd_obj$plot_dm_vs_auto_lev 
+an_p_da_lev_2018 <- paste("2018: dm =", tot_dm_2018, ", auto =", tot_au_2018)
+an_p_da_lev_2019 <- paste("2019: dm =", tot_dm_2019, ", auto =", tot_au_2019)
+p_da_lev <- p_da_lev + 
+  annotate("text", x = 2003, y = 40000, label = an_p_da_lev_2018, size = 3) + 
+  annotate("text", x = 2003, y = 35000, label = an_p_da_lev_2019, size = 3) 
+p_da_lev
+
+
 p_da_yoy <- univariate_rgpd_obj$plot_dm_vs_auto_yoy
+an_p_da_yoy_2018 <- paste("2018: dm =", ave_dm_2018, ", auto =", ave_au_2018)
+an_p_da_yoy_2019 <- paste("2019: dm =", ave_dm_2019, ", auto =", ave_au_2019)
+p_da_yoy <- p_da_yoy + 
+  annotate("text", x = 2015, y = -0.02, label = an_p_da_yoy_2018, size = 3) + 
+  annotate("text", x = 2015, y = -0.04, label = an_p_da_yoy_2019, size = 3) 
+p_da_yoy
 
 p_biasornot_yoy <- univariate_rgpd_obj$plot_badj_vs_not_yoy
 p_biasornot_lev <- univariate_rgpd_obj$plot_badj_vs_not_lev
@@ -486,21 +585,35 @@ p_lam_vs_explog_lev <- univariate_rgpd_obj$plot_lam_vs_explog_lev
 
 p_dir_vs_indir_yoy <- univariate_rgpd_obj$plot_yoy_indirect_vs_direct
 
-p_da_lev
-p_da_yoy
 
-p_biasornot_lev
-p_biasornot_yoy
+p_da_lev + 
+  coord_cartesian(xlim = c(2015, 2020))
 
-p_lam_vs_explog_yoy
-p_lam_vs_explog_lev
-
-p_dir_vs_indir_yoy
+p_da_yoy + 
+  coord_cartesian(xlim = c(2015, 2020))
 
 
-tic()
-univariate_rgpd_obj <- univariate_analysis(rgdp_ts, models = "all")
-toc()
+p_biasornot_lev + 
+  coord_cartesian(xlim = c(2015, 2020))
+
+p_biasornot_yoy + 
+  coord_cartesian(xlim = c(2015, 2020))
+
+
+p_lam_vs_explog_yoy + 
+  coord_cartesian(xlim = c(2015, 2020))
+
+p_lam_vs_explog_lev + 
+  coord_cartesian(xlim = c(2015, 2020))
+
+
+p_dir_vs_indir_yoy + 
+  coord_cartesian(xlim = c(2015, 2020))
+
+
+# tic()
+# univariate_rgpd_obj <- univariate_analysis(rgdp_ts, models = "all")
+# toc()
 
 
 univariate_rgpd_obj_4 <- univariate_analysis(rgdp_ts, n_offset = 4)
