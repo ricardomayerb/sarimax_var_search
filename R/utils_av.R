@@ -1295,6 +1295,7 @@ fc_yoy_from_fc_level <- function(fc_obj, isloglevel = FALSE, dodifflog = FALSE,
 fc_log2yoy <- function(model, rgdp_log_ts, fc_ts) {
   
   if (model == "VAR") {
+    # we need to transform VARs that are not yoy into yoy
     fc_yoy = fc_ts
   }
   

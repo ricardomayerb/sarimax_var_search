@@ -30,8 +30,13 @@ external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 
 
 
-univariate_analysis <- function(rgdp_data, models = "all_arimas", n_offset = 0, 
-                               freq = 4, h_max = 8, tsCV_win = 40) {
+univariate_analysis <- function(rgdp_data, n_offset = 0, freq = 4, h_max = 8, 
+                                tsCV_win = 40, do_auto_lambda = TRUE, 
+                                do_demetra = TRUE, do_auto_biasadj = FALSE,
+                                do_other_auto = FALSE, do_ets = FALSE) {
+  
+  
+
   
   if (n_offset > 0) {
     
@@ -70,7 +75,16 @@ univariate_analysis <- function(rgdp_data, models = "all_arimas", n_offset = 0,
   # arima_5 : arima_yoyrgdp_auto_slow, arima_2 but data is in yoy growth
   
   
-  if (models %in% c("all", "all_arimas")) {
+  if (do_demetra) {
+    
+  }
+  
+  
+  
+  
+  
+  if (models %in% c("all", "all_arimas", "demetra", "auto.arima", "demetra_and_auto.arima")) {
+    
     
     print("Fitting arima suggested by Demetra (model 1)")
     fit_arima_1 <- fit_arimas(
