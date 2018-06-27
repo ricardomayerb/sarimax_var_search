@@ -23,6 +23,9 @@ rgdp_ts <- all_arima_data[["rgdp_ts"]]
 monthly_ts <- all_arima_data[["monthly_ts"]]
 external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 
+monthly_names <- colnames(monthly_ts)
+external_monthly_names <- colnames(external_monthly_ts)
+
 fit_arima_rgdp_list_dem <- fit_arimas(
   y_ts = log(rgdp_ts), order_list = demetra_output[["rgdp_order_list"]],
   this_arima_names = "rgdp")
@@ -30,15 +33,58 @@ fit_arima_rgdp_list_dem <- fit_arimas(
 rgdp_uncond_fc <- forecast(fit_arima_rgdp_list_dem[["rgdp"]], h = h_max)
 rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
 
+# default: forecast package's criteria about constants and differencing
+# force_constant <-  TRUE
+fit_arima_monthly_list_dem_stata <- fit_arimas(
+  y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
+  this_arima_names = monthly_names,  force_constant = TRUE, freq = 12)
+
+fit_arima_monthly_list_dem_r <- fit_arimas(
+  y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
+  this_arima_names = monthly_names,  force_constant = FALSE, freq = 12)
+
+fit_arima_external_monthly_list_dem <- fit_arimas(
+  y_ts = external_monthly_ts, order_list = demetra_output_external[["monthly_order_list"]],
+  this_arima_names = external_monthly_names,  force_constant = force_constant, freq = 12)
+
+# gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
+gdp_and_dates <- get_rgdp_and_dates(data_path)
+mdata_ext_r <- extend_and_qtr(data_mts = monthly_ts, 
+                            final_horizon_date = final_forecast_horizon , 
+                            vec_of_names = monthly_names, 
+                            fitted_arima_list = fit_arima_monthly_list_dem_r,
+                            start_date_gdp = gdp_and_dates[["gdp_start"]])
+
+mdata_ext_stata <- extend_and_qtr(data_mts = monthly_ts, 
+                              final_horizon_date = final_forecast_horizon , 
+                              vec_of_names = monthly_names, 
+                              fitted_arima_list = fit_arima_monthly_list_dem_stata,
+                              start_date_gdp = gdp_and_dates[["gdp_start"]])
+
+#### ----- some experiments ----
 rgdp_uncond_fc_mean
 
-fit_foo <- Arima(y = make_yoy_ts(log(rgdp_ts)), order = c(2,0,0), 
+s4logrgdp <- diff(log(rgdp_ts), lag = 4)
+init_logrgdp <- subset(log(rgdp_ts), end = 4)
+uns4logrgdp <- un_yoy_ts(init_lev = init_logrgdp, vec_yoy = s4logrgdp)
+
+fit_s4 <- Arima(y = s4logrgdp, order = c(2,0,0), 
                  seasonal = c(0,0,0), include.constant = TRUE)
 
-fc_foo <- forecast(fit_foo, h = h_max)
+fc_s4 <- forecast(fit_s4, h = h_max)
 
-data_fc_foo <- ts(c(fit_foo$x, fc_foo$mean), start = start(fit_foo$x),
+data_fc_s4 <- ts(c(fit_s4$x, fc_s4$mean), start = start(fit_s4$x),
                   frequency = 4)
+
+init_fc <- subset(log(rgdp_ts), start = 85)
+
+uns4_fc_s4 <- un_yoy_ts(init_lev = init_fc, vec_yoy = fc_s4$mean)
+
+uns4_data_fc <- ts(c(log(rgdp_ts), uns4_fc_s4), start = start(rgdp_ts),
+                   frequency = 4)
+
+res4 <- diff(uns4_data_fc, lag = 4)
+subset(res4, start = 85)
 
 moo <- un_yoy_ts(vec_yoy = data_fc_foo, init_lev = subset(log(rgdp_ts), end = 4))  
 
