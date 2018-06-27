@@ -30,91 +30,15 @@ VAR_data <- readRDS(path_VAR_data)
 
 h_max <- 6
 
-make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
-                            ave_rmse_sel = FALSE) {
-  
-  rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
-  rmse_level_sarimax <- arima_res$compare_rmse
-  v_lags_order_season <- arima_res$var_lag_order_season 
-  extended_x_data_ts <- arima_res$mdata_ext_ts
-  rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
-  
-  
-  rmse_yoy_sarimax <- rmse_yoy_sarimax %>% 
-    left_join(v_lags_order_season, by = c("variable", "lag"))
-  
-  
-  each_h_just_model_and_ave_rmse_var <- models_and_accu %>% 
-    mutate(arima_order = NA, arima_seasonal = NA, model_function = "VAR") %>% 
-    dplyr::select(-c(rank_1, rank_2, rank_3, rank_4, rank_5, rank_6))
-  
-  each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
-    mutate(model_function = "Arima") %>% 
-    dplyr::select(variable, lag, yoy_rmse_1, yoy_rmse_2, yoy_rmse_3, yoy_rmse_4, 
-                  yoy_rmse_5, yoy_rmse_6, arima_order, arima_seasonal, 
-                  model_function) %>% 
-    rename(variables = variable, rmse_1 = yoy_rmse_1, rmse_2 = yoy_rmse_2, 
-           rmse_3 = yoy_rmse_3, rmse_4 = yoy_rmse_4, rmse_5 = yoy_rmse_5, 
-           rmse_6 = yoy_rmse_6, lags = lag)
-  
-  if (ave_rmse_sel) {
-    models_rmse_at_each_h_arima  <- as_tibble(
-      each_h_just_model_and_ave_rmse_sarimax) %>% 
-      mutate(ave_rmse = rowMeans(select(., starts_with("rmse")))) %>% 
-      group_by(variables) %>%
-      mutate(min_ave_per_variable = min(ave_rmse)) %>% 
-      filter(ave_rmse == min_ave_per_variable) %>% 
-      ungroup() %>% 
-      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
-      ungroup() %>% 
-      group_by(rmse_h) %>% 
-      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
-      filter(rmse <= rgdp_rmse) %>% 
-      ungroup() %>% 
-      select(-c(ave_rmse, rgdp_rmse, min_ave_per_variable)) %>% 
-      arrange(rmse_h, variables)
-    
-  } else {
-    models_rmse_at_each_h_arima <- as_tibble(
-      each_h_just_model_and_ave_rmse_sarimax) %>% 
-      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
-      arrange(variables) %>% 
-      group_by(rmse_h, variables) %>% 
-      mutate(min_per_variable_and_h = min(rmse)) %>% 
-      filter(rmse == min_per_variable_and_h) %>% 
-      select(-min_per_variable_and_h ) %>%  
-      ungroup() %>% 
-      group_by(rmse_h) %>% 
-      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
-      filter(rmse <= rgdp_rmse) %>% 
-      ungroup() %>% 
-      select(-rgdp_rmse) %>% 
-      arrange(rmse_h, rmse)
-  }
-   
-  models_rmse_at_each_h_var <- as_tibble(each_h_just_model_and_ave_rmse_var) %>% 
-    gather(key = "rmse_h", value = "rmse", starts_with("rmse"))
-  
-  models_rmse_at_each_h <- rbind(models_rmse_at_each_h_var, 
-                                 models_rmse_at_each_h_arima) %>% 
-    mutate(inv_mse = 1/rmse^2) %>% 
-    group_by(rmse_h) %>% 
-    mutate(rank_h = rank(rmse)) %>% 
-    arrange(rmse_h, rank_h)
-  
-  return(models_rmse_at_each_h)
-  
-  
-}
-
 # Get the table with all models from both the VARs and ARIMAX
 models_tbl <- make_models_tbl(
-  arima_res = arima_res, var_models_and_rmse = models_and_accu, VAR_data = VAR_data,
-  h_max = h_max)
+  arima_res = arima_res, var_models_and_rmse = models_and_accu, 
+  VAR_data = VAR_data, h_max = h_max)
 
 # ssel stands for "stata_selection" and what it does it to imitate stata-style selection 
-models_tbl_ssel <- make_models_tbl(arima_res, var_models_and_rmse = models_and_accu, VAR_data = VAR_data,
-                                   h_max = h_max, ave_rmse_sel = TRUE)
+models_tbl_ssel <- make_models_tbl(
+  arima_res, var_models_and_rmse = models_and_accu, VAR_data = VAR_data,
+  h_max = h_max, ave_rmse_sel = TRUE)
 
 ################################### In Sample Accuracy Comparison ################################
 
@@ -124,8 +48,6 @@ models_tbl_ssel <- make_models_tbl(arima_res, var_models_and_rmse = models_and_a
 # that show the rmse's (from the cross-validation exercise) of the combined and individual models at each h. 
 # Once we have a good idea about the VAR and ARIMAX in sample performance 
 # it is time to look at the out of sample performance, i.e. the actual forecasts. 
-
-
 
 ######################################## Forecasts VARs ##########################################
 # First have a look at the VAR models
