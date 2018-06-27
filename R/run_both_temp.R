@@ -61,140 +61,146 @@ mdata_ext_stata <- extend_and_qtr(data_mts = monthly_ts,
                               fitted_arima_list = fit_arima_monthly_list_dem_stata,
                               start_date_gdp = gdp_and_dates[["gdp_start"]])
 
-#### ----- some experiments ----
-rgdp_uncond_fc_mean
-
-s4logrgdp <- diff(log(rgdp_ts), lag = 4)
-init_logrgdp <- subset(log(rgdp_ts), end = 4)
-uns4logrgdp <- un_yoy_ts(init_lev = init_logrgdp, vec_yoy = s4logrgdp)
-
-fit_s4 <- Arima(y = s4logrgdp, order = c(2,0,0), 
-                 seasonal = c(0,0,0), include.constant = TRUE)
-
-fc_s4 <- forecast(fit_s4, h = h_max)
-
-data_fc_s4 <- ts(c(fit_s4$x, fc_s4$mean), start = start(fit_s4$x),
-                  frequency = 4)
-
-init_fc <- subset(log(rgdp_ts), start = 85)
-
-uns4_fc_s4 <- un_yoy_ts(init_lev = init_fc, vec_yoy = fc_s4$mean)
-
-uns4_data_fc <- ts(c(log(rgdp_ts), uns4_fc_s4), start = start(rgdp_ts),
-                   frequency = 4)
-
-res4 <- diff(uns4_data_fc, lag = 4)
-subset(res4, start = 85)
-
-moo <- un_yoy_ts(vec_yoy = data_fc_foo, init_lev = subset(log(rgdp_ts), end = 4))  
-
-ts.union(log(rgdp_ts), moo)  
-
-
-roo <- un_yoy_ts(vec_yoy = make_yoy_ts(log(rgdp_ts)), 
-                 init_lev = subset(log(rgdp_ts), end = 4))
-
-ts.union(roo, log(rgdp_ts))
-
-if (always_include_constant) {
-  
-  fit_arima_monthly_list_dem <- fit_arimas(
-    y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
-    this_arima_names = monthly_names, force_constant = TRUE)
-  
-} else {
-  
-  fit_arima_monthly_list_dem <- fit_arimas(
-    y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
-    this_arima_names = monthly_names)
-}
 
 
 
-# goo <- tk_tbl(external_monthly_ts)
-# goo
-# goodf <- as_data_frame(goo)
-
-
-
-
-tic()
-univariate_rgpd_obj <- univariate_analysis(rgdp_ts, do_demetra = TRUE, do_auto_lambda = FALSE)
-toc()
-
-univariate_rgpd_obj$plot_levels
-univariate_rgpd_obj$plot_yoy
-univariate_rgpd_obj$fit_models
-
-univariate_rgpd_obj$yearly_total_y
-
-
-tic()
-univariate_rgpd_obj_da <- univariate_analysis(rgdp_ts, do_demetra = TRUE, do_auto_lambda = TRUE)
-toc()
-
-
-
-
-univariate_rgpd_obj_da_o4 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                 do_auto_lambda = TRUE,
-                                                 n_offset = 4)
-
-univariate_rgpd_obj_da_o8 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                 do_auto_lambda = TRUE,
-                                                 n_offset = 8)
-
-univariate_rgpd_obj_da_o8$yearly_total_y
-univariate_rgpd_obj_da_o8$yearly_average_yoy_growth
-univariate_rgpd_obj_da_o8$growth_of_yearly_total_y
-univariate_rgpd_obj_da_o8$accuracy_measures_training_set
-univariate_rgpd_obj_da_o8$accuracy_measures_test_set
-univariate_rgpd_obj_da_o8$cv_rmse
-univariate_rgpd_obj_da_o8$cv_rmse_no_rolling_window
-univariate_rgpd_obj_da_o8$fit_models
-
-
-univariate_rgpd_obj_da_o12 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                  do_auto_lambda = TRUE,
-                                                  n_offset = 12)
-
-univariate_rgpd_obj_da_o16 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                  do_auto_lambda = TRUE,
-                                                  n_offset = 16)
-
-univariate_rgpd_obj_da_o20 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                  do_auto_lambda = TRUE,
-                                                  n_offset = 20)
-
-# walk(univariate_rgpd_obj_da$fit_models, print)
-
-
-univariate_rgpd_obj_da$plot_levels
-univariate_rgpd_obj_da$plot_yoy
-univariate_rgpd_obj_da_o4$plot_levels
-univariate_rgpd_obj_da_o4$plot_yoy
-univariate_rgpd_obj_da_o8$plot_levels
-univariate_rgpd_obj_da_o8$plot_yoy
-univariate_rgpd_obj_da_o12$plot_levels
-univariate_rgpd_obj_da_o12$plot_yoy
-univariate_rgpd_obj_da_o16$plot_levels
-univariate_rgpd_obj_da_o16$plot_yoy
-univariate_rgpd_obj_da_o20$plot_levels
-univariate_rgpd_obj_da_o20$plot_yoy
-
-
-
-#### -------- foo -------
-
-rgdp_data <- rgdp_ts
-n_offset <- 8
-freq <-  4
-h_max <- 8
-tsCV_win <- 40
-do_auto_lambda = FALSE
-do_demetra = TRUE
-do_auto_biasadj = FALSE
-do_other_auto = FALSE
-do_ets = FALSE
-
-
+# 
+# #### ----- some experiments ----
+# rgdp_uncond_fc_mean
+# 
+# s4logrgdp <- diff(log(rgdp_ts), lag = 4)
+# init_logrgdp <- subset(log(rgdp_ts), end = 4)
+# uns4logrgdp <- un_yoy_ts(init_lev = init_logrgdp, vec_yoy = s4logrgdp)
+# 
+# fit_s4 <- Arima(y = s4logrgdp, order = c(2,0,0), 
+#                  seasonal = c(0,0,0), include.constant = TRUE)
+# 
+# fc_s4 <- forecast(fit_s4, h = h_max)
+# 
+# data_fc_s4 <- ts(c(fit_s4$x, fc_s4$mean), start = start(fit_s4$x),
+#                   frequency = 4)
+# 
+# init_fc <- subset(log(rgdp_ts), start = 85)
+# 
+# uns4_fc_s4 <- un_yoy_ts(init_lev = init_fc, vec_yoy = fc_s4$mean)
+# 
+# uns4_data_fc <- ts(c(log(rgdp_ts), uns4_fc_s4), start = start(rgdp_ts),
+#                    frequency = 4)
+# 
+# res4 <- diff(uns4_data_fc, lag = 4)
+# subset(res4, start = 85)
+# 
+# moo <- un_yoy_ts(vec_yoy = data_fc_foo, init_lev = subset(log(rgdp_ts), end = 4))  
+# 
+# ts.union(log(rgdp_ts), moo)  
+# 
+# 
+# roo <- un_yoy_ts(vec_yoy = make_yoy_ts(log(rgdp_ts)), 
+#                  init_lev = subset(log(rgdp_ts), end = 4))
+# 
+# ts.union(roo, log(rgdp_ts))
+# 
+# if (always_include_constant) {
+#   
+#   fit_arima_monthly_list_dem <- fit_arimas(
+#     y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
+#     this_arima_names = monthly_names, force_constant = TRUE)
+#   
+# } else {
+#   
+#   fit_arima_monthly_list_dem <- fit_arimas(
+#     y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
+#     this_arima_names = monthly_names)
+# }
+# 
+# 
+# 
+# # goo <- tk_tbl(external_monthly_ts)
+# # goo
+# # goodf <- as_data_frame(goo)
+# 
+# 
+# 
+# 
+# tic()
+# univariate_rgpd_obj <- univariate_analysis(rgdp_ts, do_demetra = TRUE, do_auto_lambda = FALSE)
+# toc()
+# 
+# univariate_rgpd_obj$plot_levels
+# univariate_rgpd_obj$plot_yoy
+# univariate_rgpd_obj$fit_models
+# 
+# univariate_rgpd_obj$yearly_total_y
+# 
+# 
+# tic()
+# univariate_rgpd_obj_da <- univariate_analysis(rgdp_ts, do_demetra = TRUE, do_auto_lambda = TRUE)
+# toc()
+# 
+# 
+# 
+# 
+# univariate_rgpd_obj_da_o4 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
+#                                                  do_auto_lambda = TRUE,
+#                                                  n_offset = 4)
+# 
+# univariate_rgpd_obj_da_o8 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
+#                                                  do_auto_lambda = TRUE,
+#                                                  n_offset = 8)
+# 
+# univariate_rgpd_obj_da_o8$yearly_total_y
+# univariate_rgpd_obj_da_o8$yearly_average_yoy_growth
+# univariate_rgpd_obj_da_o8$growth_of_yearly_total_y
+# univariate_rgpd_obj_da_o8$accuracy_measures_training_set
+# univariate_rgpd_obj_da_o8$accuracy_measures_test_set
+# univariate_rgpd_obj_da_o8$cv_rmse
+# univariate_rgpd_obj_da_o8$cv_rmse_no_rolling_window
+# univariate_rgpd_obj_da_o8$fit_models
+# 
+# 
+# univariate_rgpd_obj_da_o12 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
+#                                                   do_auto_lambda = TRUE,
+#                                                   n_offset = 12)
+# 
+# univariate_rgpd_obj_da_o16 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
+#                                                   do_auto_lambda = TRUE,
+#                                                   n_offset = 16)
+# 
+# univariate_rgpd_obj_da_o20 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
+#                                                   do_auto_lambda = TRUE,
+#                                                   n_offset = 20)
+# 
+# # walk(univariate_rgpd_obj_da$fit_models, print)
+# 
+# 
+# univariate_rgpd_obj_da$plot_levels
+# univariate_rgpd_obj_da$plot_yoy
+# univariate_rgpd_obj_da_o4$plot_levels
+# univariate_rgpd_obj_da_o4$plot_yoy
+# univariate_rgpd_obj_da_o8$plot_levels
+# univariate_rgpd_obj_da_o8$plot_yoy
+# univariate_rgpd_obj_da_o12$plot_levels
+# univariate_rgpd_obj_da_o12$plot_yoy
+# univariate_rgpd_obj_da_o16$plot_levels
+# univariate_rgpd_obj_da_o16$plot_yoy
+# univariate_rgpd_obj_da_o20$plot_levels
+# univariate_rgpd_obj_da_o20$plot_yoy
+# 
+# 
+# 
+# #### -------- foo -------
+# 
+# rgdp_data <- rgdp_ts
+# n_offset <- 8
+# freq <-  4
+# h_max <- 8
+# tsCV_win <- 40
+# do_auto_lambda = FALSE
+# do_demetra = TRUE
+# do_auto_biasadj = FALSE
+# do_other_auto = FALSE
+# do_ets = FALSE
+# 
+# 
+# 
+# 
