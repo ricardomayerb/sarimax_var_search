@@ -29,12 +29,13 @@ models_and_accu <- readRDS(path_models_and_accu)
 cv_objects <- readRDS(path_cv_objects)
 VAR_data <- readRDS(path_VAR_data)
 
-
-
 h_max <- 8
 
-
 # Get the table with all models from both the VARs and ARIMAX
+models_tbl <- make_models_tbl(
+  arima_res = arima_res, var_models_and_rmse = models_and_accu, 
+  VAR_data = VAR_data, h_max = h_max)
+
 models_tbl <- models_tbl %>%
   mutate(short_name = map2(variables, lags,
                            ~ make_model_name(variables = .x, lags = .y)),
@@ -44,9 +45,12 @@ models_tbl <- models_tbl %>%
          short_name = as_factor(unlist(short_name)),
          long_name = as_factor(unlist(long_name))
   ) 
-
+  
 
 # ssel stands for "stata_selection" and what it does it to imitate stata-style selection 
+models_tbl_ssel <- make_models_tbl(
+  arima_res, var_models_and_rmse = models_and_accu, VAR_data = VAR_data,
+  h_max = h_max, ave_rmse_sel = TRUE)
 
 models_tbl_ssel <- models_tbl_ssel %>%
   mutate(short_name = map2(variables, lags,
@@ -65,6 +69,10 @@ models_tbl_ssel <- models_tbl_ssel %>%
 # that show the rmse's (from the cross-validation exercise) of the combined and individual models at each h. 
 # Once we have a good idea about the VAR and ARIMAX in sample performance 
 # it is time to look at the out of sample performance, i.e. the actual forecasts. 
+
+
+# VAR_co_1 <- cv_objects[1,]
+# td_1 <-  VAR_co_1$cv_test_data
 
 ######################################## Forecasts VARs ##########################################
 # First have a look at the VAR models
@@ -313,14 +321,34 @@ summ_comb_fcs_all_ssel <- comb_fcs_all_ssel %>%
 
 # for consistency with stata i focus on ssel method
 
-comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
-                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                    max_rank_h = 20)
-
-summ_comb_fcs_ssel_best_20 <- comb_fcs_ssel_best_20 %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
+cv_from_models_tbl <- function(VAR_data, rgdp_ts_in_arima, tbl_of_models_and_rmse,
+                               h, max_rank_h) {
+  
+  cv_errors_list = list()
+  
+  for(i in 1:n_cv){
+    training_VAR_data <- bla
+    training_arima_data <- bla 
+    test_rgdp_data <- bla
+    
+    comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
+                                                h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                                rgdp_ts_in_arima = rgdp_ts_in_arima,
+                                                max_rank_h = 20, VAR_data = training_VAR_data, test_rgdp_data)
+    
+    summ_comb_fcs_ssel_best_20 <- comb_fcs_ssel_best_20 %>% 
+      group_by(horizon) %>%
+      summarise(sum_one_h = reduce(one_model_w_fc, sum))
+    
+    cv_errors <- rgdp_test_data - summ_comb_fcs_ssel_best_20$fcs
+    
+    cv_errors_list[[i]] <- cv_errors 
+    
+  }
+  
+  return(cv_errors_list)
+  
+}
 
 # summ_all_20 add an extra row with horizon = 0 and sum_one_h is the last observation of rgdp_var
 summ_comb_fcs_all_ssel <- summ_comb_fcs_all_ssel %>% add_row(horizon = 0, sum_one_h = last(rgdp_var)) %>% arrange(horizon)

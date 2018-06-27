@@ -35,8 +35,8 @@ all_rgdp_level_ts <- country_data_level_ts %>%
   map(~ .[, "rgdp"]) %>% reduce(ts.union)
 colnames(all_rgdp_level_ts) <- names(country_data_level_ts)
 
-chl_rgdp_level_ts <- all_rgdp_level_ts[, params$country]
-chl_rgdp_level_ts <- na.omit(chl_rgdp_level_ts)
+country_rgdp_level_ts <- all_rgdp_level_ts[, params$country]
+country_rgdp_level_ts <- na.omit(country_rgdp_level_ts)
 ```
 
 
@@ -93,24 +93,24 @@ Two transformations of real GDP are going to be of interest: proportional change
 
 ```{r rgdp_mts_as_tbl, echo=FALSE}
 
-chl_rgdp_yoy_ts <- make_yoy_ts(chl_rgdp_level_ts)
+country_rgdp_yoy_ts <- make_yoy_ts(country_rgdp_level_ts)
 
-chl_logrgdp_ts <- log(chl_rgdp_level_ts)
-chl_logrgdp_diff_ts <- diff(chl_logrgdp_ts, lag = 4)
+country_logrgdp_ts <- log(country_rgdp_level_ts)
+country_logrgdp_diff_ts <- diff(country_logrgdp_ts, lag = 4)
 
-chl_rgdp_diffyoy_ts <- diff(chl_rgdp_yoy_ts)
-chl_logrgdp_diffdiff_ts <- diff(chl_logrgdp_diff_ts)
+country_rgdp_diffyoy_ts <- diff(country_rgdp_yoy_ts)
+country_logrgdp_diffdiff_ts <- diff(country_logrgdp_diff_ts)
 
 
-chl_rgdp_mts <- ts.union(chl_rgdp_level_ts, chl_rgdp_yoy_ts, 
-                         chl_logrgdp_ts, chl_logrgdp_diff_ts,
-                         chl_rgdp_diffyoy_ts, chl_logrgdp_diffdiff_ts)
+country_rgdp_mts <- ts.union(country_rgdp_level_ts, country_rgdp_yoy_ts, 
+                         country_logrgdp_ts, country_logrgdp_diff_ts,
+                         country_rgdp_diffyoy_ts, country_logrgdp_diffdiff_ts)
 
-chl_rgdp_tbl <- tk_tbl(chl_rgdp_mts)
+country_rgdp_tbl <- tk_tbl(country_rgdp_mts)
 
-# head(chl_rgdp_tbl)\
+# head(country_rgdp_tbl)\
 
-knitr::kable(head(chl_rgdp_tbl[, 1:5], n = 8), caption = "Real GDP and transformation, Chile (first obs)", col.names = c("Date", "rgdp", "YoY", "log(rgdp)", "diff(log(rgdp))"), digits = 3)
+knitr::kable(head(country_rgdp_tbl[, 1:5], n = 8), caption = "Real GDP and transformation, Chile (first obs)", col.names = c("Date", "rgdp", "YoY", "log(rgdp)", "diff(log(rgdp))"), digits = 3)
 
 ```
 
@@ -120,16 +120,16 @@ we can see that as far as YoY and diff-of-YoY are concerned, taking logs make on
 
 
 ```{r rgdp_data_plots, echo=FALSE}
-g_rgdp <- autoplot(chl_rgdp_level_ts) + 
+g_rgdp <- autoplot(country_rgdp_level_ts) + 
   ylab("GDP") + 
   ggtitle("Real GDP, quarterly series", subtitle = "Chile")
 
-g_rgdp_yoy <-  autoplot(chl_rgdp_yoy_ts, series = "YoY growth") + 
-  autolayer(chl_logrgdp_diff_ts, series = "YoY log_diffs") + 
-  ylab("") + theme(legend.position="bottom")
+g_rgdp_yoy <-  autoplot(country_rgdp_yoy_ts, series = "YoY growth") + 
+  autolayer(country_logrgdp_diff_ts, series = "YoY log_diffs") + 
+  ylab("") + theme(legend.position ="bottom")
 
-g_rgdp_diffofyoy <- autoplot(chl_rgdp_diffyoy_ts, series = "diff of YoY growth") + 
-  autolayer(chl_logrgdp_diffdiff_ts, series = "diff of YoY log_diffs") + 
+g_rgdp_diffofyoy <- autoplot(country_rgdp_diffyoy_ts, series = "diff of YoY growth") + 
+  autolayer(country_logrgdp_diffdiff_ts, series = "diff of YoY log_diffs") + 
   ylab("") + theme(legend.position="bottom")
 
 g3 <- grid.arrange(g_rgdp, g_rgdp_yoy, g_rgdp_diffofyoy)
@@ -152,11 +152,26 @@ seasonal_rgdp <- demetra_output[["rgdp_order_list"]][[1]][["seasonal"]]
 to_include_constant <- demetra_output[["rgdp_order_list"]][[1]][["mean_logical"]]
 take_logs <- TRUE
 
-arima_log_fit_drift <- Arima(y = chl_logrgdp_ts, order = order_rgdp, 
+if (take_logs) {
+  arima_fit_drift <-  Arima(y = country_rgdp_level_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = to_include_constant,
+                   lambda = 0, biasadj = TRUE)
+} else {
+  arima_fit_drift <-  Arima(y = country_rgdp_level_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = to_include_constant)
+}
+   
+
+arima_log_fit_drift <- Arima(y = country_logrgdp_ts, order = order_rgdp, 
                    seasonal = seasonal_rgdp, include.drift = to_include_constant)
  
+arima_lambda_fit_drift <- Arima(y = country_rgdp_level_ts, order = order_rgdp, 
+                   seasonal = seasonal_rgdp, include.drift = to_include_constant,
+                   lambda = 0, biasadj = TRUE)
 
-# arima_stat_log_fit_drift <- arima(x = chl_logrgdp_ts, order = order_rgdp, 
+
+
+# arima_stat_log_fit_drift <- arima(x = country_logrgdp_ts, order = order_rgdp, 
 #                                   seasonal = list(order = seasonal_rgdp, period = 4), include.mean = has_drift)
 
 dm_orders <- order_seasonal_rgdp
@@ -166,10 +181,7 @@ names(dm_orders) <- c("p","d","q","P","D","Q")
 o_dm <- as_tibble(cbind(model = "demetra", take_logs, 
                         drift = to_include_constant, dm_orders))
 
-
-print(arima_log_fit_drift)
-
-
+# print(arima_log_fit_drift)BoxCox.lambda(elec)
 ```
 
 ```{r show_order_and_coeff}
@@ -281,7 +293,7 @@ improved_p_yoy <- base_p_yoy  + theme(legend.position="bottom") +
   coord_cartesian(xlim = c(2007, 2019))
 
 models_list <- list(
-   Arima = list(y = chl_logrgdp_ts, order = order_rgdp, 
+   Arima = list(y = country_logrgdp_ts, order = order_rgdp, 
                    seasonal = seasonal_rgdp, include.drift = TRUE)
         )
 
@@ -692,6 +704,18 @@ expo_final_rgdp_and_yoyw_fc <- exp(final_rgdp_and_yoyw_fc)
 
 yoy_growth_expo_final_rgdp_and_w_fc <- diff(expo_final_rgdp_and_w_fc, lag = 4)/lag.xts(expo_final_rgdp_and_w_fc, k = 4)
 yoy_growth_expo_final_rgdp_and_yoyw_fc <- diff(expo_final_rgdp_and_yoyw_fc, lag = 4)/lag.xts(expo_final_rgdp_and_yoyw_fc, k = 4)
+
+```
+
+comparing with bsarimax
+
+```{r call_bsarimax}
+final_forecast_horizon <- c(2020, 12)
+h_max = 8 # last rgdp data is 2017 Q4
+number_of_cv = 8
+train_span = 16
+country_name <- params$country 
+arima_res <- get_arima_results(country_name = country_name, h_max = 8, number_of_cv = 8, train_span = 16,                             final_ext_horizon = final_forecast_horizon)
 
 ```
 

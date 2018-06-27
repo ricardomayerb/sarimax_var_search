@@ -394,6 +394,12 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
     mutate(armapar = map(fc, c("model", "arma")),
            arima_order = map(armapar, function(x) x[c(1, 6, 2)]),
            arima_seasonal = map(armapar, function(x) x[c(3, 7, 4)])  
+    ) %>% 
+    mutate(data_and_fc = map(raw_rgdp_fc, ~ ts(data = c(rgdp_ts, .), frequency = 4,
+                                               start = stats::start(rgdp_ts))),
+           yoy_data_and_fc = map(data_and_fc, ~ make_yoy_ts(exp(.))),
+           yoy_raw_rgdp_fc = map2(yoy_data_and_fc, raw_rgdp_fc,
+                                  ~ window(.x, start = stats::start(.y)))
     )
   
   all_arimax <- tibble(arimax_0 = all_arimax_0, arimax_1 = all_arimax_1, 
@@ -436,6 +442,7 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
   weigthed_fcs <- ts(weigthed_fcs, 
                      start = stats::start(rgdp_uncond_fc_mean), 
                      frequency = 4)
+  
   fcs_using_yoy_weights <- ts(fcs_using_yoy_weights, 
                               start = stats::start(rgdp_uncond_fc_mean), 
                               frequency = 4)
@@ -445,6 +452,15 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
   
   final_rgdp_and_yoyw_fc <- ts(c(rgdp_ts, fcs_using_yoy_weights), frequency = 4,
                                start = stats::start(rgdp_ts))
+  
+  rgdp_data_and_uncond_fc <- ts(data = c(rgdp_ts, rgdp_uncond_fc_mean), 
+                                frequency = 4, start = stats::start(rgdp_ts))
+  
+  yoy_rgdp_data_and_uncond_fc <- make_yoy_ts(exp(rgdp_data_and_uncond_fc))
+  
+  rgdp_uncond_yoy_fc_mean <- window(yoy_rgdp_data_and_uncond_fc,
+                                    start = stats::start(rgdp_uncond_fc_mean))
+  
   
   expo_final_rgdp_and_w_fc <- exp(final_rgdp_and_w_fc)
   expo_final_rgdp_and_yoyw_fc <- exp(final_rgdp_and_yoyw_fc)
@@ -508,7 +524,9 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
               all_arimax = all_arimax,
               compare_rmse_yoy = compare_rmse_yoy,
               compare_rmse = compare_rmse,
-              var_lag_order_season = var_lag_order_season))
+              var_lag_order_season = var_lag_order_season,
+              uncond_fc = rgdp_uncond_fc_mean,
+              uncond_yoy_fc = rgdp_uncond_yoy_fc_mean))
   
 }
 
@@ -1209,6 +1227,199 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
 }
 
 
+
+facet_rmse_all_h <- function(selected_models_tbl) {
+  
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n()) %>% 
+    group_by(horizon) %>% 
+    mutate(id_in_h = 1:n())
+  
+  
+  max_rmse <- max(rmse_table_single_h$rmse)
+  
+  p <- ggplot(rmse_table_single_h, aes(x = id_in_h, y = rmse)) + 
+    geom_point(aes(color = model_function), size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    facet_wrap(~ rmse_h) + 
+    theme_bw()  + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank())
+  
+  return(p)
+}
+
+fc_yoy_from_fc_level <- function(fc_obj, isloglevel = FALSE, dodifflog = FALSE,
+                                 freq = 4){
+  x <- fc_obj$x
+  xfc <- fc_obj$mean
+  xandfc <- ts(data = c(x, xfc), frequency = freq, start = stats::start(x))
+  
+  
+  if (isloglevel) {
+    xandfc <- exp(xandfc)
+  }
+  
+  
+  if (dodifflog) {
+    yoy_all <- diff(log(xandfc), lag = freq)
+    
+  } else {
+    yoy_all <- make_yoy_ts(xandfc, freq = freq)
+  }
+  
+  
+  yoy_fc <- window(yoy_all, start = stats::start(xfc))
+  
+  
+  yoy_all_xts <- tk_xts(tk_tbl(yoy_all), silent = TRUE) 
+  xandfc_xts <- tk_xts(tk_tbl(xandfc), silent = TRUE) 
+  
+  
+  yearly_ave_yoy_all_xts <- apply.yearly(yoy_all_xts, mean, na.rm = TRUE)
+  yearly_total_all_xts <- apply.yearly(xandfc_xts, sum, na.rm = TRUE)
+  yearly_total_growth_xts <- make_yoy_xts(yearly_total_all_xts, freq = 1)
+  
+  return(list(yoy_fc = yoy_fc, yearly_average_yoy = yearly_ave_yoy_all_xts, 
+              yearly_total = yearly_total_all_xts, 
+              yearly_growth_of_total = yearly_total_growth_xts))
+}
+
+
+
+fc_log2yoy <- function(model, rgdp_log_ts, fc_ts) {
+  
+  if (model == "VAR") {
+    # we need to transform VARs that are not yoy into yoy
+    fc_yoy = fc_ts
+  }
+  
+  if (model == "Arima") {
+    fc_log_ts <- fc_ts
+    data_fc_log <-  ts(c(rgdp_log_ts, fc_log_ts), frequency = 4,
+                       start = stats::start(rgdp_log_ts))
+    
+    data_fc <- exp(data_fc_log)
+    data_fc_yoy <- make_yoy_ts(data_fc)
+    fc_yoy <- window(data_fc_yoy, start = stats::start(fc_log_ts))
+  }
+  
+  return(fc_yoy)
+  
+}
+
+fc_mean_var_arima <- function(model, fc_obj) {
+  if (model == "VAR") {
+    fc_mean <- fc_obj[["forecast"]][["rgdp"]][["mean"]]
+  }
+  
+  if (model == "Arima") {
+    fc_mean <- fc_obj[["mean"]]
+  }
+  
+  return(fc_mean)
+}
+
+
+fcs_accu <- function(fc_mat, test_data_mat) {
+  
+  errors_mat <- test_data_mat - fc_mat
+  rmse_vec <- sqrt(colMeans(errors_mat^2))
+  mean_rmse <- mean(rmse_vec)
+  return(mean_rmse)
+}
+
+fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
+                       my_biasadj = FALSE, this_arima_names = NULL,
+                       include.constant = TRUE, do_stepwise = TRUE, 
+                       do_approximation = FALSE, , force_constant = FALSE) {
+  
+  n_of_series <- ncol(y_ts)
+  
+  if (is.null(n_of_series)) {
+    n_of_series <- 1
+  }
+  
+  
+  fit_arimas_list <- list_along(seq.int(1, n_of_series))
+  
+  for (i in seq.int(1, n_of_series)) {
+    
+    this_y <- y_ts[, i]
+    
+    if (!auto) {
+      this_instruction <- order_list[[i]]
+      this_order <- this_instruction[["order"]]
+      this_seasonal <- this_instruction[["seasonal"]]
+      this_constant <- this_instruction[["mean_logical"]]
+      
+      
+      # this_arimax <- try(Arima(training_y, order = y_order,
+      #                          seasonal = y_seasonal,
+      #                          xreg = training_x,
+      #                          method = method))
+      # 
+      # class_this_arimax <- class(this_arimax)[1]
+      # 
+      # 
+      # if (class_this_arimax == "try-error") {
+      #   this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
+      #                       ", ML method failed in Arima. Switched to CSS-ML.")
+      #   warning(this_mssg)
+      #   new_method <-  "CSS-ML"
+      #   this_arimax <- Arima(training_y, order = y_order,
+      #                        seasonal = y_seasonal,
+      #                        xreg = training_x,
+      #                        method = new_method)
+      # }
+      # 
+      
+      fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+                   include.constant =  this_constant, lambda = my_lambda, 
+                   biasadj = my_biasadj)
+      
+    } else {
+      
+      fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj,
+                        stepwise = do_stepwise, 
+                        approximation = do_approximation
+                        )
+      
+    }
+    
+    fit_arimas_list[[i]] <- fit
+    
+  }
+  
+  names(fit_arimas_list) <- this_arima_names
+  
+  return(fit_arimas_list)
+  
+}
+
+fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables, 
+                          lags, order, seasonal, extended_x_data_ts) {
+  if (model_function == "VAR") {
+    
+    fit <- vars::VAR(y = VAR_data[, variables], p = lags)
+  } 
+  
+  if (model_function == "Arima") {
+    
+    fit <- my_arima_one_x(y_ts = arima_rgdp_ts, y_order = order, 
+                          y_seasonal = seasonal, xreg_lags = lags, 
+                          x_name = variables, xreg_data = extended_x_data_ts)
+  } 
+  return(fit)
+}
+
+
+
 follow_rec <- function(data_tbl_ts, table_of_recommendations) {
   
   rec_rows <- nrow(table_of_recommendations)
@@ -1262,105 +1473,7 @@ follow_rec <- function(data_tbl_ts, table_of_recommendations) {
   
 }
 
-fc_log2yoy <- function(model, rgdp_log_ts, fc_ts) {
-  
-  if (model == "VAR") {
-    fc_yoy = fc_ts
-  }
-  
-  if (model == "Arima") {
-    fc_log_ts <- fc_ts
-    data_fc_log <-  ts(c(rgdp_log_ts, fc_log_ts), frequency = 4,
-                       start = stats::start(rgdp_log_ts))
-    
-    data_fc <- exp(data_fc_log)
-    data_fc_yoy <- make_yoy_ts(data_fc)
-    fc_yoy <- window(data_fc_yoy, start = stats::start(fc_log_ts))
-  }
-  
-  return(fc_yoy)
-  
-}
 
-fc_mean_var_arima <- function(model, fc_obj) {
-  if (model == "VAR") {
-    fc_mean <- fc_obj[["forecast"]][["rgdp"]][["mean"]]
-  }
-  
-  if (model == "Arima") {
-    fc_mean <- fc_obj[["mean"]]
-  }
-  
-  return(fc_mean)
-}
-
-
-fcs_accu <- function(fc_mat, test_data_mat) {
-  
-  errors_mat <- test_data_mat - fc_mat
-  rmse_vec <- sqrt(colMeans(errors_mat^2))
-  mean_rmse <- mean(rmse_vec)
-  return(mean_rmse)
-}
-
-fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
-                       my_biasadj = FALSE, this_arima_names = NULL,
-                       include.drift = TRUE) {
-  
-  n_of_series <- ncol(y_ts)
-  
-  if (is.null(n_of_series)) {
-    n_of_series <- 1
-  }
-  
-  
-  fit_arimas_list <- list_along(seq.int(1, n_of_series))
-  
-  for (i in seq.int(1, n_of_series)) {
-    
-    this_y <- y_ts[, i]
-    
-    if (!auto) {
-      this_instruction <- order_list[[i]]
-      this_order <- this_instruction[["order"]]
-      this_seasonal <- this_instruction[["seasonal"]]
-      this_constant <- this_instruction[["mean_logical"]]
-      
-      fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
-                   include.constant =  this_constant, lambda = my_lambda, 
-                   biasadj = my_biasadj)
-      
-    } else {
-      
-      fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj)
-      
-    }
-    
-    fit_arimas_list[[i]] <- fit
-    
-  }
-  
-  names(fit_arimas_list) <- this_arima_names
-  
-  return(fit_arimas_list)
-  
-}
-
-fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables, 
-                          lags, order, seasonal, extended_x_data_ts) {
-  if (model_function == "VAR") {
-    
-    fit <- vars::VAR(y = VAR_data[, variables], p = lags)
-  } 
-  
-  if (model_function == "Arima") {
-    
-    fit <- my_arima_one_x(y_ts = arima_rgdp_ts, y_order = order, 
-                          y_seasonal = seasonal, xreg_lags = lags, 
-                          x_name = variables, xreg_data = extended_x_data_ts)
-  } 
-  return(fit)
-}
 
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
@@ -2274,6 +2387,39 @@ glue_x_mean <- function(ts1, ts2, freq = 12) {
   return(ts12)
 }
 
+list_of_rmse_plots <- function(selected_models_tbl) {
+  
+  theme_set(theme_classic())
+  hzs <- unique(selected_models_tbl$horizon)
+  list_of_plots <- list_along(hzs)
+  
+  for (i in hzs) {
+    thiscb <- selected_models_tbl %>% 
+      filter(horizon == i) %>% 
+      group_by(horizon) %>% 
+      mutate(short_name = fct_reorder(short_name, rmse))
+    
+    p <- ggplot(thiscb, 
+                aes(x = short_name, y = rmse, col = model_function)) + 
+      geom_point() + 
+      geom_segment(aes(x = short_name, 
+                       xend = short_name, 
+                       y = min(rmse), 
+                       yend = max(rmse)), 
+                   linetype="dashed", 
+                   size=0.1) +
+      coord_flip() + 
+      theme(axis.text.y = element_text(size = 8),
+            axis.title.y = element_blank(),
+            legend.title = element_blank()) +
+      ggtitle(paste0("h = ", i))
+    
+    list_of_plots[[i]] <- p
+  }
+  
+  return(list_of_plots)
+}
+
 
 
 logyoy <- function(logfc_ts, log_data_ts) {
@@ -2338,7 +2484,26 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
 }
 
 
-make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
+
+make_model_name <- function(variables, lags, model_function = NULL) {
+  
+  colap_variables <- paste(variables, collapse = "_")
+  # print(colap_variables)
+  
+  if (is.null(model_function)) {
+    short_name <- paste(colap_variables, lags, sep = "_")
+    short_name <- str_remove(short_name, "rgdp_")
+    model_name <- short_name
+  } else {
+    long_name <- paste(model_function, colap_variables, lags, sep = "_")
+    long_name <- str_remove(long_name, "rgdp_")
+    model_name <- long_name
+  }
+  return(model_name)
+}
+
+
+make_models_tbl_old <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
                             ave_rmse_sel = FALSE) {
   
   rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
@@ -2351,7 +2516,13 @@ make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
   rmse_yoy_sarimax <- rmse_yoy_sarimax %>% 
     left_join(v_lags_order_season, by = c("variable", "lag"))
   
-  
+  # cfa110 <- comb_fcs_all[1:10, ] %>% 
+  #   mutate(short_name = map2(variables, lags,
+  #                            ~ make_model_name(variables = .x, lags = .y)),
+  #          long_name = pmap(list(variables, lags, model_function), 
+  #                           ~ make_model_name(variables = ..1, lags = ..2, model_function = ..3))
+  #   )
+ 
   each_h_just_model_and_ave_rmse_var <- models_and_accu %>% 
     mutate(arima_order = NA, arima_seasonal = NA, model_function = "VAR") %>% 
     dplyr::select(-c(rank_1, rank_2, rank_3, rank_4, rank_5, rank_6))
@@ -2411,9 +2582,202 @@ make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
     arrange(rmse_h, rank_h)
   
   return(models_rmse_at_each_h)
-  
-  
 }
+
+
+
+make_models_tblsemiold <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
+                            ave_rmse_sel = FALSE) {
+  
+  rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
+  rmse_level_sarimax <- arima_res$compare_rmse
+  v_lags_order_season <- arima_res$var_lag_order_season 
+  extended_x_data_ts <- arima_res$mdata_ext_ts
+  rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
+  
+  
+  rmse_yoy_sarimax <- rmse_yoy_sarimax %>% 
+    left_join(v_lags_order_season, by = c("variable", "lag"))
+  
+  # cfa110 <- comb_fcs_all[1:10, ] %>% 
+  #   mutate(short_name = map2(variables, lags,
+  #                            ~ make_model_name(variables = .x, lags = .y)),
+  #          long_name = pmap(list(variables, lags, model_function), 
+  #                           ~ make_model_name(variables = ..1, lags = ..2, model_function = ..3))
+  #   )
+  
+  each_h_just_model_and_ave_rmse_var <- models_and_accu %>% 
+    mutate(arima_order = NA, arima_seasonal = NA, model_function = "VAR") %>% 
+    dplyr::select(- starts_with("rank"))
+  
+
+  each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
+    mutate(model_function = "Arima") %>% 
+    dplyr::select(variable, lag, starts_with("yoy"), arima_order, arima_seasonal, 
+                  model_function) %>% 
+    rename(variables = variable, lags = lag) %>% 
+    rename_at(vars(starts_with("yoy_rmse")), funs(sub("yoy_rmse", "rmse", .)))
+  
+    # rename(rmse_1 = yoy_rmse_1, rmse_2 = yoy_rmse_2, 
+    #        rmse_3 = yoy_rmse_3, rmse_4 = yoy_rmse_4, rmse_5 = yoy_rmse_5, 
+    #        rmse_6 = yoy_rmse_6)
+    # 
+  if (ave_rmse_sel) {
+    models_rmse_at_each_h_arima  <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      mutate(ave_rmse = rowMeans(select(., starts_with("rmse")))) %>% 
+      group_by(variables) %>%
+      mutate(min_ave_per_variable = min(ave_rmse)) %>% 
+      filter(ave_rmse == min_ave_per_variable) %>% 
+      ungroup() %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-c(ave_rmse, rgdp_rmse, min_ave_per_variable)) %>% 
+      arrange(rmse_h, variables)
+    
+  } else {
+    models_rmse_at_each_h_arima <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      arrange(variables) %>% 
+      group_by(rmse_h, variables) %>% 
+      mutate(min_per_variable_and_h = min(rmse)) %>% 
+      filter(rmse == min_per_variable_and_h) %>% 
+      select(-min_per_variable_and_h ) %>%  
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-rgdp_rmse) %>% 
+      arrange(rmse_h, rmse)
+  }
+  
+  # models_rmse_at_each_h_arima <- models_rmse_at_each_h_arima %>%
+  #   mutate(short_name = map2(variables, lags,
+  #                          ~ make_model_name(variables = .x, lags = .y)),
+  #                          long_name = pmap(list(variables, lags, model_function),
+  #                          ~ make_model_name(variables = ..1, lags = ..2,
+  #                                            model_function = ..3))
+  #                          )
+  
+  models_rmse_at_each_h_var <- as_tibble(each_h_just_model_and_ave_rmse_var) %>% 
+    gather(key = "rmse_h", value = "rmse", starts_with("rmse"))
+  
+  models_rmse_at_each_h <- rbind(models_rmse_at_each_h_var, 
+                                 models_rmse_at_each_h_arima) %>% 
+    mutate(inv_mse = 1/rmse^2) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse)) %>% 
+    arrange(rmse_h, rank_h)
+  
+  return(models_rmse_at_each_h)
+}
+
+
+
+make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
+                            ave_rmse_sel = FALSE) {
+  
+  # rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
+  # rmse_level_sarimax <- arima_res$compare_rmse
+  # add an id variable to the rmse of the arimax models
+  rmse_yoy_sarimax <- arima_res$compare_rmse_yoy %>% mutate(id = 1:n())
+  rmse_level_sarimax <- arima_res$compare_rmse %>% mutate(id = 1:n())
+  v_lags_order_season <- arima_res$var_lag_order_season 
+  extended_x_data_ts <- arima_res$mdata_ext_ts
+  rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
+  
+  
+  rmse_yoy_sarimax <- rmse_yoy_sarimax %>% 
+    left_join(v_lags_order_season, by = c("variable", "lag"))
+  
+  # cfa110 <- comb_fcs_all[1:10, ] %>% 
+  #   mutate(short_name = map2(variables, lags,
+  #                            ~ make_model_name(variables = .x, lags = .y)),
+  #          long_name = pmap(list(variables, lags, model_function), 
+  #                           ~ make_model_name(variables = ..1, lags = ..2, model_function = ..3))
+  #   )
+  
+  each_h_just_model_and_ave_rmse_var <- models_and_accu %>% 
+    mutate(arima_order = NA, arima_seasonal = NA, model_function = "VAR") %>% 
+    dplyr::select(- starts_with("rank"))
+  
+  
+  each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
+    mutate(model_function = "Arima") %>% 
+    dplyr::select(variable, lag, id, starts_with("yoy"), arima_order, arima_seasonal, 
+                  model_function) %>% 
+    rename(variables = variable, lags = lag) %>% 
+    rename_at(vars(starts_with("yoy_rmse")), funs(sub("yoy_rmse", "rmse", .)))
+  
+  # rename(rmse_1 = yoy_rmse_1, rmse_2 = yoy_rmse_2, 
+  #        rmse_3 = yoy_rmse_3, rmse_4 = yoy_rmse_4, rmse_5 = yoy_rmse_5, 
+  #        rmse_6 = yoy_rmse_6)
+  # 
+  if (ave_rmse_sel) {
+    models_rmse_at_each_h_arima  <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      mutate(ave_rmse = rowMeans(select(., starts_with("rmse")))) %>% 
+      group_by(variables) %>%
+      mutate(min_ave_per_variable = min(ave_rmse)) %>% 
+      filter(ave_rmse == min_ave_per_variable) %>% 
+      ungroup() %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-c(ave_rmse, rgdp_rmse, min_ave_per_variable)) %>% 
+      arrange(rmse_h, variables)
+    
+  } else {
+    models_rmse_at_each_h_arima <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      arrange(variables) %>% 
+      group_by(rmse_h, variables) %>% 
+      mutate(min_per_variable_and_h = min(rmse)) %>% 
+      filter(rmse == min_per_variable_and_h) %>% 
+      select(-min_per_variable_and_h ) %>%  
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-rgdp_rmse) %>% 
+      arrange(rmse_h, rmse)
+  }
+  
+  # models_rmse_at_each_h_arima <- models_rmse_at_each_h_arima %>%
+  #   mutate(short_name = map2(variables, lags,
+  #                          ~ make_model_name(variables = .x, lags = .y)),
+  #                          long_name = pmap(list(variables, lags, model_function),
+  #                          ~ make_model_name(variables = ..1, lags = ..2,
+  #                                            model_function = ..3))
+  #                          )
+  
+  models_rmse_at_each_h_var <- as_tibble(each_h_just_model_and_ave_rmse_var) %>% 
+    gather(key = "rmse_h", value = "rmse", starts_with("rmse"))
+  
+  models_rmse_at_each_h <- rbind(models_rmse_at_each_h_var, 
+                                 models_rmse_at_each_h_arima) %>% 
+    mutate(inv_mse = 1/rmse^2) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse)) %>% 
+    arrange(rmse_h, rank_h)
+  
+  return(models_rmse_at_each_h)
+}
+
+
+
+
 make_monthly_ts <- function(data, 
                             names_to_exclude = c("date", "year", "month")) {
   
@@ -2424,7 +2788,8 @@ make_monthly_ts <- function(data,
   names_to_keep <- all_names[!str_detect(all_names, names_to_exclude)]
   
   data_ts <- tk_ts(data, frequency = 12, 
-                   start = c(start_year, start_month))
+                   start = c(start_year, start_month),
+                   silent = TRUE)
   
   data_ts <- data_ts[ , names_to_keep]
   
@@ -2756,15 +3121,17 @@ make_xreg_fc <- function(variable_name, mx_ext, lags, start_fc, h) {
   return(x_lagmat_for_fc)
 }
 
-make_yoy_xts <- function(df_xts) {
-  new_xts <- diff.xts(df_xts, lag = 4, na.pad = FALSE)/lag.xts(
-    df_xts, na.pad = FALSE, k = 4)
+
+make_yoy_xts <- function(df_xts, freq = 4) {
+  new_xts <- diff.xts(df_xts, lag = freq, na.pad = FALSE)/lag.xts(
+    df_xts, na.pad = FALSE, k = freq)
 }
 
 
-make_yoy_ts <- function(df_ts) {
-  new_ts <- base::diff(df_ts, lag = 4)/stats::lag(df_ts, k = -4)
+make_yoy_ts <- function(df_ts, freq = 4) {
+  new_ts <- base::diff(df_ts, lag = freq)/stats::lag(df_ts, k = -freq)
 }
+
 
 my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
                            xreg_data = NULL) {
@@ -3000,6 +3367,41 @@ read_gather_qm_data <- function(data_path = "./data/pre_r_data/",
 }
 
 
+single_plot_rmse_all_h <- function(selected_models_tbl) {
+  
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n())
+  
+  max_rmse <- max(rmse_table_single_h$rmse)
+  
+  p <- ggplot(rmse_table_single_h, aes(x = idx, y = rmse)) + 
+    geom_point(aes(color = model_function),
+               size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    geom_vline(xintercept =  c(1,31, 61, 91, 121, 151), alpha = 0.3, 
+               linetype = "dashed") +
+    annotate("text", x = 0 + 15, y = 1.1*max_rmse, label = "h = 1") +
+    annotate("text", x = 30 + 15, y = 1.1*max_rmse, label = "h = 2") +
+    annotate("text", x = 60 + 15, y = 1.1*max_rmse, label = "h = 3") +
+    annotate("text", x = 90 + 15, y = 1.1*max_rmse, label = "h = 4") +
+    annotate("text", x = 120 + 15, y = 1.1*max_rmse, label = "h = 5") +
+    annotate("text", x = 150 + 15, y = 1.1*max_rmse, label = "h = 6") +
+    theme_tufte() + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank())
+  
+  # p + annotate("text", x = 2:3, y = 20:21, label = c("my label", "label 2"))
+  
+  return(p)
+}
+
+
+
 to_ts_q <- function(df_xts){
   
   yq_start <- first(index(df_xts))
@@ -3062,6 +3464,33 @@ transform_cv <- function(list_series, series_name, current_form,
   
 }
 
+
+ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
+  
+  
+  gdp_and_dates <- get_rgdp_and_dates(data_path)
+  
+  monthly_data <- get_monthly_variables(data_path = data_path)
+  monthly_ts <- make_monthly_ts(monthly_data)
+  monthly_names <- colnames(monthly_ts)
+  
+  external_monthly_data <- get_monthly_variables(data_path = external_data_path)
+  external_monthly_ts <- make_monthly_ts(external_monthly_data)
+  external_monthly_names <- colnames(external_monthly_ts)
+  
+  rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
+                start = gdp_and_dates[["gdp_start"]], frequency = 4)
+  
+  if (all_logs) {
+    monthly_ts  <- log(monthly_ts)
+    external_monthly_ts  <- log(external_monthly_ts)
+    log_rgdp_ts <- log(rgdp_ts)
+  }
+  
+  ret_list <- list(
+    monthly_ts = monthly_ts, external_monthly_ts = external_monthly_ts,
+    rgdp_ts = rgdp_ts)
+}
 
 
 
@@ -3322,6 +3751,496 @@ un_diff_ts <- function(last_undiffed, diffed_ts) {
 un_diff <- function(last_undiffed, diffed_ts) {
   undiffed <- as.numeric(last_undiffed) + cumsum(diffed_ts)
   return(undiffed)
+  
+}
+
+
+univariate_analysis <- function(rgdp_data, n_offset = 0, freq = 4, h_max = 8, 
+                                tsCV_win = 40, do_auto_lambda = TRUE, 
+                                do_demetra = TRUE, do_auto_biasadj = FALSE,
+                                do_other_auto = FALSE, do_ets = FALSE) {
+  
+  
+  
+  
+  if (n_offset > 0) {
+    
+    h_max = n_offset
+    
+    long_data <- rgdp_data
+    
+    nx <- length(rgdp_data)
+    new_nx <- nx - n_offset
+    
+    test_data <- subset(rgdp_data, start = new_nx + 1)
+    dim(test_data) <- c(n_offset, 1)
+    
+    temp_yoy <- make_yoy_ts(rgdp_data, freq = freq)
+    yoy_test_data <- subset(temp_yoy, start = new_nx - freq + 1)
+    dim(yoy_test_data) <- c(n_offset, 1)
+    
+    rgdp_data <- subset(rgdp_data, end = new_nx)
+    dim(rgdp_data) <- c(new_nx, 1)
+    
+  }
+  
+  yoy_data_ts <- make_yoy_ts(rgdp_data, freq = freq)
+  
+  
+  p_base_lev <- autoplot(rgdp_data) + 
+    labs(y = "GDP", x = "", title = "Real GDP forecast") +
+    theme(legend.position = "bottom",
+          legend.title = element_blank())
+  
+  p_base_yoy <- autoplot(make_yoy_ts(rgdp_data, freq = freq)) +
+    labs(y = "GDP", x = "", title = "YoY growth of GDP") +
+    theme(legend.position = "bottom",
+          legend.title = element_blank())
+  
+  if (n_offset > 0) {
+    p_base_lev <- p_base_lev + 
+      autolayer(test_data, series = "test data") 
+    
+    p_base_yoy <- p_base_yoy + 
+      autolayer(yoy_test_data, series = "test data") 
+  }
+  
+  
+  
+  if (do_demetra) {
+    demetra_output <- get_demetra_params(data_path)
+    demetra_output_external <- get_demetra_params(external_data_path)
+  }
+  
+  e_list <- NULL
+  e_names <-  c()
+  e_nw_list <- NULL
+  e_nw_names <-  c()
+  acc_all_training <- vector()
+  acc_all_test <- vector()
+  y_ave_all <- list()
+  y_gt_all <- list()
+  y_total_all <- list()
+  fit_models <- list()
+  
+  
+  # arima_1 : arima_logrgdp_list_dem, data is in logs, params from demetra
+  # arima_2 : arima_logrgdp_auto_slow, data is in logs, auto.arima with stepwise FALSE and approximation FALSE
+  # arima_3 : arima_rgdp_auto_slow, data is levels, auto.arima lambda = 0, with stepwise FALSE and approximation FALSE
+  # arima_4 : arima_rgdp_auto_slow_badj, arima_3 with bias.adjust = TRUE
+  # arima_5 : arima_yoyrgdp_auto_slow, arima_2 but data is in yoy growth
+  
+  
+  if (do_demetra) {
+    
+    print("Fitting arima suggested by Demetra (model 1)")
+    
+    fit_arima_1 <- fit_arimas(
+      y_ts = log(rgdp_data), order_list = demetra_output[["rgdp_order_list"]],
+      this_arima_names = "rgdp")[[1]]
+    
+    fit_models[[length(fit_models) + 1]] <-  fit_arima_1
+    
+    farima_1 <- function(x, h) {
+      forecast(Arima(x, order = (fit_arima_1$arma)[c(1, 6, 2)],
+                     seasonal = (fit_arima_1$arma)[c(3, 7, 4)],
+                     include.drift = TRUE), h = h)
+    }
+    
+    e_1 <- tsCV(log(rgdp_data), farima_1, h = 8, window = tsCV_win)
+    e_1_nw <- tsCV(log(rgdp_data), farima_1, h = 8)
+    
+    if(is.null(e_list)) {
+      e_list <- list(e_1)
+    } else {
+      e_list[[length(e_list) + 1]] <-  e_1
+    }
+    
+    if(is.null(e_nw_list)) {
+      e_nw_list <- list(e_1_nw)
+    } else {
+      e_nw_list[[length(e_nw_list) + 1]] <-  e_1_nw
+    }
+    
+    e_names <- c(e_names, "dm")
+    names(e_list) <- e_names
+    e_nw_names <- c(e_nw_names, "dm")
+    names(e_nw_list) <- e_nw_names
+    
+    fc_arima_1 <- forecast(fit_arima_1, h = h_max)
+    
+    if (n_offset > 0) {
+      acc_arima_1 <- accuracy(f = fc_arima_1, x = log(test_data))
+      acc_all_training = rbind(acc_all_training, acc_arima_1[1,])
+      acc_all_test = rbind(acc_all_test, acc_arima_1[2,])
+      
+    } else {
+      acc_arima_1 <- accuracy(f = fc_arima_1)
+      acc_all_training = rbind(acc_all_training, acc_arima_1[1,])
+    }
+    
+    difflog_fc_arima_1 <- fc_yoy_from_fc_level(fc_obj = fc_arima_1, dodifflog = TRUE, isloglevel = TRUE)
+    yoy_fc_arima_1 <- fc_yoy_from_fc_level(fc_obj = fc_arima_1, dodifflog = FALSE, isloglevel = TRUE)
+    
+    y_ave_logdem_ldiff <- difflog_fc_arima_1[["yearly_average_yoy"]]
+    y_ave_logdem <- yoy_fc_arima_1[["yearly_average_yoy"]]
+    y_gt_logdem_ldiff <- difflog_fc_arima_1[["yearly_growth_of_total"]]
+    y_gt_logdem <- yoy_fc_arima_1[["yearly_growth_of_total"]]
+    y_total_logdem_ldiff <- difflog_fc_arima_1[["yearly_total"]]
+    y_total_logdem <- yoy_fc_arima_1[["yearly_total"]]
+    
+    y_ave_all <- c(y_ave_all, list(y_ave_logdem))
+    y_gt_all <- c(y_gt_all, list(y_gt_logdem))
+    y_total_all <- c(y_total_all, list(y_total_logdem))
+    
+    y_tot_dm_2018 <- round(100*as.numeric(y_total_logdem["2018"]), digits = 2)
+    y_tot_dm_2019 <- round(100*as.numeric(y_total_logdem["2019"]), digits = 2)
+    y_ave_dm_2018 <- round(100*as.numeric(y_ave_logdem["2018"]), digits = 2)
+    y_ave_dm_2019 <- round(100*as.numeric(y_ave_logdem["2019"]), digits = 2)
+    gt_dm_2018 <- round(100*as.numeric(y_gt_logdem["2018"]), digits = 2)
+    gt_dm_2019 <- round(100*as.numeric(y_gt_logdem["2019"]), digits = 2)
+    
+    p_base_lev <- p_base_lev + 
+      autolayer(exp(fc_arima_1$mean), series = "demetra")
+    
+    p_base_yoy <-  p_base_yoy + 
+      autolayer(yoy_fc_arima_1$yoy_fc, series = "demetra")
+    
+  }
+  
+  if (do_auto_lambda) {
+    print("Fitting auto.arima (sw and apprx set to FALSE) to level data with lambda=0 (model 3)")
+    
+    fit_arima_3 <- fit_arimas(
+      y_ts = rgdp_data, include.constant = TRUE, auto = TRUE, 
+      do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp", 
+      my_lambda = 0, my_biasadj = FALSE
+    )[[1]]
+    
+    fit_models[[length(fit_models) + 1]] <-  fit_arima_3
+    
+    farima_3 <- function(x, h) {
+      forecast(Arima(x, order = (fit_arima_3$arma)[c(1, 6, 2)],
+                     seasonal = (fit_arima_3$arma)[c(3, 7, 4)],
+                     include.drift = TRUE, lambda = 0), h = h)
+    }
+    
+    e_3 <- tsCV(rgdp_data, farima_3, h = 8, window = tsCV_win)
+    e_3_nw <- tsCV(rgdp_data, farima_3, h = 8)
+    
+    if(is.null(e_list)) {
+      e_list <- list(e_3)
+    } else {
+      e_list[[length(e_list) + 1]] <-  e_3
+    }
+    
+    if(is.null(e_nw_list)) {
+      e_nw_list <- list(e_3_nw)
+    } else {
+      e_nw_list[[length(e_nw_list) + 1]] <-  e_3_nw
+    }
+    
+    e_names <- c(e_names, "au")
+    names(e_list) <- e_names
+    e_nw_names <- c(e_nw_names, "au")
+    names(e_nw_list) <- e_nw_names
+    
+    fc_arima_3 <- forecast(fit_arima_3, h = h_max)
+    
+    if (n_offset > 0) {
+      acc_arima_3 <- accuracy(f = fc_arima_3, x = test_data)
+      acc_all_training = rbind(acc_all_training, acc_arima_3[1,])
+      acc_all_test = rbind(acc_all_test, acc_arima_3[2,])
+      
+    } else {
+      acc_arima_3 <- accuracy(f = fc_arima_3)
+      acc_all_training = rbind(acc_all_training, acc_arima_3[1,])
+    }
+    
+    
+    yoy_fc_arima_3 <- fc_yoy_from_fc_level(fc_arima_3)
+    
+    y_ave_auto <- yoy_fc_arima_3[["yearly_average_yoy"]]
+    y_gt_auto <- yoy_fc_arima_3[["yearly_growth_of_total"]]
+    y_total_auto <- yoy_fc_arima_3[["yearly_total"]]
+    
+    y_ave_all <- c(y_ave_all, list(y_ave_auto))
+    y_gt_all <- c(y_gt_all, list(y_gt_auto))
+    y_total_all <- c(y_total_all, list(y_total_auto))
+    
+    gt_auto_2018 <- round(100*as.numeric(y_gt_auto["2018"]), digits = 2)
+    gt_auto_2019 <- round(100*as.numeric(y_gt_auto["2019"]), digits = 2)
+    y_tot_auto_2018 <- round(100*as.numeric(y_total_auto["2018"]), digits = 2)
+    y_tot_auto_2019 <- round(100*as.numeric(y_total_auto["2019"]), digits = 2)
+    y_ave_auto_2018 <- round(100*as.numeric(y_ave_auto["2018"]), digits = 2)
+    y_ave_auto_2019 <- round(100*as.numeric(y_ave_auto["2019"]), digits = 2)
+    
+    p_base_lev <- p_base_lev + 
+      autolayer(fc_arima_3, series = "auto", PI = FALSE)
+    
+    p_base_yoy <-  p_base_yoy + 
+      autolayer(yoy_fc_arima_3$yoy_fc, series = "auto")
+    
+  }
+  
+  if (do_other_auto) {
+    print("Fitting auto.arima to log data (sw and apprx set to FALSE) (model 2)")
+    fit_arima_2 <- fit_arimas(
+      y_ts = log(rgdp_data), include.constant = TRUE, auto = TRUE, 
+      do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp")[[1]]
+    
+    print("Fitting auto.arima (sw and apprx set to FALSE) to level data with lambda=0, bias-adjusted (model 4)")
+    fit_arima_4 <- fit_arimas(
+      y_ts = rgdp_data, include.constant = TRUE, auto = TRUE, 
+      do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp", 
+      my_lambda = 0, my_biasadj = TRUE
+    )[[1]]
+    
+    print("Fitting auto.arima to YoY growth data (sw and apprx set to FALSE) (model 5)")
+    fit_arima_5 <- fit_arimas(
+      y_ts = make_yoy_ts(rgdp_data, freq = freq), include.constant = TRUE, auto = TRUE, 
+      do_stepwise = FALSE, do_approximation = FALSE, this_arima_names = "rgdp")[[1]]
+    
+    fit_models[[length(fit_models) + 1]] <-  fit_arima_2
+    fit_models[[length(fit_models) + 1]] <-  fit_arima_4
+    fit_models[[length(fit_models) + 1]] <-  fit_arima_5
+    
+    farima_2 <- function(x, h) {
+      forecast(Arima(x, order = (fit_arima_2$arma)[c(1, 6, 2)],
+                     seasonal = (fit_arima_2$arma)[c(3, 7, 4)],
+                     include.drift = TRUE), h = h)
+    }
+    
+    farima_4 <- function(x, h) {
+      forecast(Arima(x, order = (fit_arima_4$arma)[c(1, 6, 2)],
+                     seasonal = (fit_arima_4$arma)[c(3, 7, 4)],
+                     include.drift = TRUE, lambda = 0, biasadj = TRUE), h = h)
+    }
+    
+    farima_5 <- function(x, h) {
+      forecast(Arima(x, order = (fit_arima_5$arma)[c(1, 6, 2)],
+                     seasonal = (fit_arima_5$arma)[c(3, 7, 4)],
+                     include.drift = TRUE), h = h)
+    }
+    
+    e_2 <- tsCV(log(rgdp_data), farima_2, h = 8, window = tsCV_win)
+    e_4 <- tsCV(rgdp_data, farima_4, h = 8, window = tsCV_win)
+    e_5 <- tsCV(yoy_data_ts, farima_5, h = 8, window = tsCV_win)
+    
+    e_2_nw <- tsCV(log(rgdp_data), farima_2, h = 8)
+    e_4_nw <- tsCV(rgdp_data, farima_4, h = 8)
+    e_5_nw <- tsCV(yoy_data_ts, farima_5, h = 8)
+    
+    if (is.null(e_list)) {
+      e_list <- list(e_2)
+      e_list[[2]] <- e_4
+      e_list[[3]] <- e_5
+    } else {
+      e_list[[length(e_list) + 1]] <-  e_2
+      e_list[[length(e_list) + 1]] <-  e_4
+      e_list[[length(e_list) + 1]] <-  e_5
+    }
+    
+    if (is.null(e_nw_list)) {
+      e_nw_list <- list(e_2_nw)
+      e_nw_list[[2]] <- e_4_nw
+      e_nw_list[[3]] <- e_5_nw
+    } else {
+      e_nw_list[[length(e_nw_list) + 1]] <-  e_2_nw
+      e_nw_list[[length(e_nw_list) + 1]] <-  e_4_nw
+      e_nw_list[[length(e_nw_list) + 1]] <-  e_5_nw
+    }
+    
+    e_names <- c(e_names, c("lau", "aubj", "yoyau"))
+    names(e_list) <- e_names
+    e_nw_names <- c(e_nw_names, c("lau", "aubj", "yoyau"))
+    names(e_nw_list) <- e_nw_names
+    
+    
+    fc_arima_2 <- forecast(fit_arima_2, h = h_max) 
+    fc_arima_4 <- forecast(fit_arima_4, h = h_max, lambda = 0, biasadj = TRUE) 
+    fc_arima_5 <- forecast(fit_arima_5, h = h_max) 
+    
+    if (n_offset > 0) {
+      acc_arima_2 <- accuracy(f = fc_arima_2, x = log(test_data))
+      acc_arima_4 <- accuracy(f = fc_arima_4, x = test_data)
+      acc_arima_5 <- accuracy(f = fc_arima_5, x = yoy_test_data)
+      
+      acc_all_training = rbind(acc_all_training, acc_arima_2[1,])
+      acc_all_test = rbind(acc_all_test, acc_arima_2[2,])
+      acc_all_training = rbind(acc_all_training, acc_arima_4[1,])
+      acc_all_test = rbind(acc_all_test, acc_arima_4[2,])
+      acc_all_training = rbind(acc_all_training, acc_arima_5[1,])
+      acc_all_test = rbind(acc_all_test, acc_arima_5[2,])
+      
+    } else {
+      acc_arima_2 <- accuracy(f = fc_arima_2)
+      acc_arima_4 <- accuracy(f = fc_arima_4)
+      acc_arima_5 <- accuracy(f = fc_arima_5)
+      
+      acc_all_training = rbind(acc_all_training, acc_arima_2[1,])
+      acc_all_training = rbind(acc_all_training, acc_arima_4[1,])
+      acc_all_training = rbind(acc_all_training, acc_arima_5[1,])
+    }
+    
+    
+    difflog_fc_arima_2 <- fc_yoy_from_fc_level(fc_obj = fc_arima_2, dodifflog = TRUE, isloglevel = TRUE)
+    yoy_fc_arima_2 <- fc_yoy_from_fc_level(fc_obj = fc_arima_2, isloglevel = TRUE)
+    yoy_fc_arima_4 <- fc_yoy_from_fc_level(fc_arima_4)
+    
+    y_ave_logauto_ldiff <- difflog_fc_arima_2[["yearly_average_yoy"]]
+    y_ave_logauto <- yoy_fc_arima_2[["yearly_average_yoy"]]
+    y_ave_auto_badj <- yoy_fc_arima_4[["yearly_average_yoy"]]
+    
+    y_gt_logauto_ldiff <- difflog_fc_arima_2[["yearly_growth_of_total"]]
+    y_gt_logauto <- yoy_fc_arima_2[["yearly_growth_of_total"]]
+    y_gt_auto_badj <- yoy_fc_arima_4[["yearly_growth_of_total"]]
+    
+    y_total_logauto_ldiff <- difflog_fc_arima_2[["yearly_total"]]
+    y_total_logauto <- yoy_fc_arima_2[["yearly_total"]]
+    y_total_auto_badj <- yoy_fc_arima_4[["yearly_total"]]
+    
+    y_ave_all <- c(y_ave_all, list(y_ave_logauto), list(y_ave_auto_badj))
+    y_gt_all <- c(y_gt_all, list(y_gt_logauto), list(y_gt_auto_badj))
+    y_total_all <- c(y_total_all, list(y_total_logauto), list(y_total_auto_badj))
+    
+    p_base_lev <- p_base_lev + 
+      autolayer(exp(fc_arima_2$mean), series = "auto of log") + 
+      autolayer(fc_arima_4, series = "auto with badj")
+    
+    p_base_yoy <-  p_base_yoy + 
+      autolayer(yoy_fc_arima_2$yoy_fc, series = "auto of log") + 
+      autolayer(yoy_fc_arima_4$yoy_fc, series = "auto with badj") + 
+      autolayer(fc_arima_5, series = "auto of yoy", PI = FALSE)
+  }
+  
+  if (do_ets) {
+    print("Fitting auto ETS to level data (model 6)")
+    fit_ets_6 <- ets(rgdp_data)
+    
+    print("Fitting auto ETS to level data, with lambda=0 and bias-adjusted (model 7)")
+    fit_ets_7 <- ets(rgdp_data, lambda = 0, biasadj = TRUE)
+    
+    fit_models[[length(fit_models) + 1]] <-  fit_ets_6
+    fit_models[[length(fit_models) + 1]] <-  fit_ets_7
+    
+    fets_6 <- function(x, h) {
+      forecast(ets(x), h = h)
+    }
+    
+    fets_7 <- function(x, h) {
+      forecast(ets(x, lambda = 0, biasadj = TRUE), h = h)
+    }
+    
+    e_6 <- tsCV(rgdp_ts, fets_6, h = 8, window = tsCV_win)
+    e_7 <- tsCV(rgdp_ts, fets_7, h = 8, window = tsCV_win)
+    e_6_nw <- tsCV(rgdp_ts, fets_6, h = 8)
+    e_7_nw <- tsCV(rgdp_ts, fets_7, h = 8)
+    
+    if (is.null(e_list)) {
+      e_list <- list(e_6)
+      e_list[[2]] <- e_7
+    } else {
+      e_list[[length(e_list) + 1]] <-  e_6
+      e_list[[length(e_list) + 1]] <-  e_7
+    }
+    
+    if (is.null(e_nw_list)) {
+      e_nw_list <- list(e_6_nw)
+      e_nw_list[[2]] <- e_7_nw
+    } else {
+      e_nw_list[[length(e_nw_list) + 1]] <-  e_6_nw
+      e_nw_list[[length(e_nw_list) + 1]] <-  e_7_nw
+    }
+    
+    e_names <- c(e_names, c("ets", "etsbj"))
+    names(e_list) <- e_names
+    e_nw_names <- c(e_nw_names, c("ets", "etsbj"))
+    names(e_nw_list) <- e_nw_names
+    
+    fc_ets_6 <- forecast(fit_ets_6, h = h_max) 
+    fc_ets_7 <- forecast(fit_ets_7, h = h_max) 
+    
+    if (n_offset > 0) {
+      acc_ets_6 <- accuracy(f = fc_ets_6, x = test_data)
+      acc_ets_7 <- accuracy(f = fc_ets_7, x = test_data)
+      
+      acc_all_training = rbind(acc_all_training, acc_ets_6[1,])
+      acc_all_test = rbind(acc_all_test, acc_ets_6[2,])
+      acc_all_training = rbind(acc_all_training, acc_ets_7[1,])
+      acc_all_test = rbind(acc_all_test, acc_ets_7[2,])
+      
+    } else {
+      acc_ets_6 <- accuracy(f = fc_ets_6)
+      acc_ets_7 <- accuracy(f = fc_ets_7)
+      
+      acc_all_training = rbind(acc_all_training, acc_ets_6[1,])
+      acc_all_training = rbind(acc_all_training, acc_ets_7[1,])
+    }
+    
+    yoy_fc_ets_6 <- fc_yoy_from_fc_level(fc_ets_6)
+    yoy_fc_ets_7 <- fc_yoy_from_fc_level(fc_ets_7)
+    
+    y_ave_ets <- yoy_fc_ets_6[["yearly_average_yoy"]]
+    y_ave_ets_badj <- yoy_fc_ets_7[["yearly_average_yoy"]]
+    
+    y_total_ets <- yoy_fc_ets_6[["yearly_total"]]
+    y_total_ets_badj <- yoy_fc_ets_7[["yearly_total"]]
+    
+    y_gt_ets <- yoy_fc_ets_6[["yearly_growth_of_total"]]
+    y_gt_ets_badj <- yoy_fc_ets_7[["yearly_growth_of_total"]]
+    
+    y_ave_all <- c(y_ave_all, list(y_ave_ets), list(y_ave_ets_badj))
+    y_gt_all <- c(y_gt_all, list(y_gt_ets), list(y_gt_ets_badj))
+    y_total_all <- c(y_total_all, list(y_total_ets), list(y_total_ets_badj))
+    
+    p_base_lev <- p_base_lev + 
+      autolayer(fc_ets_6, series = "ets", PI = FALSE) + 
+      autolayer(fc_ets_7, series = "ets lambda0", PI = FALSE)
+    
+    p_base_yoy <-  p_base_yoy + 
+      autolayer(yoy_fc_ets_6$yoy_fc, series = "ets") + 
+      autolayer(yoy_fc_ets_7$yoy_fc, series = "ets lambda0")
+    
+  }
+  
+  # print(paste("Computing CV errors (tsCV)) for each model, with and without a rolling window of", tsCV_win))
+  
+  cv_rmse <- map(e_list, ~ sqrt(colMeans(.^2, na.rm = TRUE))) %>% reduce(rbind)
+  cv_mae <- map(e_list, ~ colMeans(abs(.), na.rm = TRUE)) %>% reduce(rbind)
+  
+  cv_rmse_nw <- map(e_nw_list, ~ sqrt(colMeans(.^2, na.rm = TRUE))) %>% reduce(rbind)
+  cv_mae_nw <- map(e_nw_list, ~ colMeans(abs(.), na.rm = TRUE)) %>% reduce(rbind)  
+  
+  if (is.null(dim(cv_rmse)) ) {
+    dim(cv_rmse) <- c(1, length(cv_rmse))
+    dim(cv_rmse_nw) <- c(1, length(cv_rmse_nw))
+    dim(cv_mae) <- c(1, length(cv_mae))
+    dim(cv_mae_nw) <- c(1, length(cv_mae_nw))
+  }
+  
+  row.names(cv_mae) <- e_names
+  row.names(cv_rmse) <- e_names
+  row.names(cv_mae_nw) <- e_nw_names
+  row.names(cv_rmse_nw) <- e_nw_names
+  
+  y_ave_all <- reduce(y_ave_all, cbind)
+  y_gt_all <- reduce(y_gt_all, cbind)
+  y_total_all <- reduce(y_total_all, cbind)
+  
+  return(list(fit_models = fit_models,
+              yearly_total_y = y_total_all,
+              growth_of_yearly_total_y = y_gt_all,
+              yearly_average_yoy_growth = y_ave_all,
+              accuracy_measures_training_set = acc_all_training,
+              accuracy_measures_test_set = acc_all_test,
+              plot_levels = p_base_lev,
+              plot_yoy = p_base_yoy,
+              cv_rmse = cv_rmse,
+              cv_rmse_no_rolling_window = cv_rmse_nw,
+              cv_mae = cv_mae,
+              cv_mae_no_rolling_window = cv_mae_nw)
+  )
   
 }
 
