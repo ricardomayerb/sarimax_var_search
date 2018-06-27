@@ -1180,7 +1180,7 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
     
     this_fc <- forecast(this_arima, h = diff_in_month)
     fc_mean <- this_fc$mean
-    extended_monthly_series <- glue_x_mean(monthly_series, fc_mean)
+    
     
     if (force_constant) {
       this_instruction <- order_list[[i]]
@@ -1194,10 +1194,29 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
       
       if (this_d + this_D >= 2) {
         print("Undifferencing monthly estimated data")
-        unsd_fc <- un_yoy_ts(vec_yoy = fc_mean, init_lev = foo)
+        # data_mts is undifferenced, is still in levels
+        start_ini <- length(na.omit(monthly_series)) - 12 + 1
+        this_init_lev <- subset(na.omit(monthly_series), start = start_ini)
+        
+        unsd_fc <- un_yoy_ts(vec_yoy = fc_mean, init_lev = this_init_lev,
+                            freq = 12)
+        
+        if(i == 1) {
+          print("fc_mean")
+          print(fc_mean)
+          print("this_init_lev")
+          print(this_init_lev)
+          print("unsd_fc")
+          print(unsd_fc)
+        }
+        
+        fc_mean <- unsd_fc 
+        
       }
       
     }
+    
+    extended_monthly_series <- glue_x_mean(monthly_series, fc_mean)
     
     fc_list_m[[i]] <- this_fc
     extended_m_ts_list[[i]] <- extended_monthly_series
@@ -1235,8 +1254,10 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   
   # chop off any obs previous to the start of gdp
   
-  return(list(series_ts = ext_series_ts_quarterly,
-              series_xts = ext_series_xts_quarterly))
+  return(list(quarterly_series_ts = ext_series_ts_quarterly,
+              quarterly_series_xts = ext_series_xts_quarterly,
+              monthly_series_ts = ext_monthly_series_mts,
+              monthly_series_xts = ext_series_xts_monthly))
   
   # return(ext_series_ts_quarterly)
   
@@ -1376,7 +1397,19 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
       this_order <- this_instruction[["order"]]
       this_seasonal <- this_instruction[["seasonal"]]
       this_constant <- this_instruction[["mean_logical"]]
-      this_log <- this_instruction[["log_logical"]]
+      is_log <- this_instruction[["log_logical"]]
+      
+      if (is_log) {
+        my_lambda <- 1
+      }
+      
+      if (is.null(my_lambda)) {
+        if (is_log) {
+          my_lambda <- 1
+        } else {
+          my_lambda <- NULL
+        }
+      }
       
       this_d <- this_order[2]
       this_D <- this_seasonal[2]
@@ -1389,12 +1422,12 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
         
         if (force_constant) {
           print("Using Stata default (i.e. include a constant even if D+D >=2) by differencing the series before estimation")
-          sdiff_this_y = diff(this_y, lag = 4)
+          sdiff_this_y = diff(this_y, lag = freq)
           this_seasonal[2] <- this_seasonal[2]-1
           
           fit <- Arima(y = sdiff_this_y, order = this_order, seasonal = this_seasonal,
-                       include.constant =  this_constant, lambda = my_lambda, 
-                       biasadj = my_biasadj)
+                       include.constant =  TRUE, lambda = my_lambda, 
+                       biasadj = my_biasadj, method = "ML")
           
           
         } else {
@@ -3748,7 +3781,7 @@ un_yoy <- function(init_lev, vec_yoy) {
   return(un_yoy_vec)
 }
 
-un_yoy_ts <- function(init_lev, vec_yoy) {
+un_yoy_ts <- function(init_lev, vec_yoy, freq = 4) {
   
   n_init <- length(init_lev)
   n_yoy <- length(vec_yoy)
@@ -3786,6 +3819,52 @@ un_yoy_ts <- function(init_lev, vec_yoy) {
   return(un_yoy_ts)
 }
 
+un_yoy_ts <- function(init_lev, vec_yoy, freq = 4) {
+  
+  n_init <- length(init_lev)
+  n_yoy <- length(vec_yoy)
+  y_vec <- vector(mode = "numeric", length = n_init + n_yoy)
+  y_vec[1:n_init] <- init_lev
+  
+  for (i in seq_along(vec_yoy)) {
+    
+    this_y <- vec_yoy[i] + y_vec[ i ]
+    
+    y_vec[n_init + i] <- this_y
+  }
+  
+  un_yoy_vec <- y_vec[(n_init + 1):(n_init + n_yoy)]
+  
+  this_year <- as.integer(floor(time(vec_yoy)))
+  
+  # print("time(vec_yoy) in un_yoy_ts")
+  # print(time(vec_yoy))
+  
+  
+  # print("this_year in un_yoy_ts")
+  # print(this_year)
+  
+  this_quarter <- as.integer(4 * (time(vec_yoy) - this_year + 0.25))
+  
+  # print("this_quarter in un_yoy_ts")
+  # print(this_quarter)
+  
+  this_start <- c(first(this_year), first(this_quarter))
+  # print("this_start in un_yoy_ts")
+  # print(this_start)
+  
+  if (freq == 4) {
+    un_yoy_ts <- ts(un_yoy_vec, start = this_start, frequency = freq)
+  }
+  
+  if (freq == 12) {
+    un_yoy_ts <- ts(un_yoy_vec, start = start(vec_yoy), frequency = freq)
+  }
+  
+  
+  
+  return(un_yoy_ts)
+}
 
 un_diff_ts <- function(last_undiffed, diffed_ts) {
   undiffed <- as.numeric(last_undiffed) + cumsum(diffed_ts)
