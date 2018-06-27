@@ -1158,7 +1158,8 @@ drop_this_vars_this_country <- function(df, id_col, country, vars_to_drop) {
 
 
 extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names, 
-                           fitted_arima_list, start_date_gdp) {
+                           fitted_arima_list, start_date_gdp,
+                           force_constant = FALSE, order_list = NULL) {
   
   fc_list_m <- list() 
   extended_m_ts_list <- list()
@@ -1178,10 +1179,25 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
     diff_in_month <- as.integer(12 * diff_decimal)
     
     this_fc <- forecast(this_arima, h = diff_in_month)
-    
     fc_mean <- this_fc$mean
-    
     extended_monthly_series <- glue_x_mean(monthly_series, fc_mean)
+    
+    if (force_constant) {
+      this_instruction <- order_list[[i]]
+      this_order <- this_instruction[["order"]]
+      this_seasonal <- this_instruction[["seasonal"]]
+      this_constant <- this_instruction[["mean_logical"]]
+      this_log <- this_instruction[["log_logical"]]
+      
+      this_d <- this_order[2]
+      this_D <- this_seasonal[2]
+      
+      if (this_d + this_D >= 2) {
+        print("Undifferencing monthly estimated data")
+        unsd_fc <- un_yoy_ts(vec_yoy = fc_mean, init_lev = foo)
+      }
+      
+    }
     
     fc_list_m[[i]] <- this_fc
     extended_m_ts_list[[i]] <- extended_monthly_series
@@ -1337,13 +1353,16 @@ fcs_accu <- function(fc_mat, test_data_mat) {
 fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
                        my_biasadj = FALSE, this_arima_names = NULL,
                        include.constant = TRUE, do_stepwise = TRUE, 
-                       do_approximation = FALSE, , force_constant = FALSE) {
+                       do_approximation = FALSE,  force_constant = FALSE, 
+                       take_log_before = FALSE, freq = 4, parallel = FALSE, 
+                       num.cores = 2) {
   
   n_of_series <- ncol(y_ts)
   
   if (is.null(n_of_series)) {
     n_of_series <- 1
   }
+  
   
   
   fit_arimas_list <- list_along(seq.int(1, n_of_series))
@@ -1357,37 +1376,48 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
       this_order <- this_instruction[["order"]]
       this_seasonal <- this_instruction[["seasonal"]]
       this_constant <- this_instruction[["mean_logical"]]
+      this_log <- this_instruction[["log_logical"]]
       
-      
-      # this_arimax <- try(Arima(training_y, order = y_order,
-      #                          seasonal = y_seasonal,
-      #                          xreg = training_x,
-      #                          method = method))
-      # 
-      # class_this_arimax <- class(this_arimax)[1]
-      # 
-      # 
-      # if (class_this_arimax == "try-error") {
-      #   this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
-      #                       ", ML method failed in Arima. Switched to CSS-ML.")
-      #   warning(this_mssg)
-      #   new_method <-  "CSS-ML"
-      #   this_arimax <- Arima(training_y, order = y_order,
-      #                        seasonal = y_seasonal,
-      #                        xreg = training_x,
-      #                        method = new_method)
-      # }
-      # 
-      
-      fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
-                   include.constant =  this_constant, lambda = my_lambda, 
-                   biasadj = my_biasadj)
-      
+      this_d <- this_order[2]
+      this_D <- this_seasonal[2]
+
+      if ( (this_D + this_d) >= 2) {
+        
+        print(paste("In arima for", this_arima_names[i], ", D+d =", 
+                      this_D + this_d, 
+                      ". Stata's default would introduce a constant, R would not."))
+        
+        if (force_constant) {
+          print("Using Stata default (i.e. include a constant even if D+D >=2) by differencing the series before estimation")
+          sdiff_this_y = diff(this_y, lag = 4)
+          this_seasonal[2] <- this_seasonal[2]-1
+          
+          fit <- Arima(y = sdiff_this_y, order = this_order, seasonal = this_seasonal,
+                       include.constant =  this_constant, lambda = my_lambda, 
+                       biasadj = my_biasadj)
+          
+          
+        } else {
+          
+          print("Using R criteria (i.e. do not include a constant) if D+d >= 2")
+          
+          fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+                       include.constant =  this_constant, lambda = my_lambda, 
+                       biasadj = my_biasadj)
+        }
+      } else {
+        
+        fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+                     include.constant =  this_constant, lambda = my_lambda, 
+                     biasadj = my_biasadj)
+      }
     } else {
+      
       
       fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj,
                         stepwise = do_stepwise, 
-                        approximation = do_approximation
+                        approximation = do_approximation,
+                        parallel = parallel, num.cores = num.cores
                         )
       
     }
@@ -1399,6 +1429,26 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
   names(fit_arimas_list) <- this_arima_names
   
   return(fit_arimas_list)
+  # this_arimax <- try(Arima(training_y, order = y_order,
+  #                          seasonal = y_seasonal,
+  #                          xreg = training_x,
+  #                          method = method))
+  # 
+  # class_this_arimax <- class(this_arimax)[1]
+  # 
+  # 
+  # if (class_this_arimax == "try-error") {
+  #   this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
+  #                       ", ML method failed in Arima. Switched to CSS-ML.")
+  #   warning(this_mssg)
+  #   new_method <-  "CSS-ML"
+  #   this_arimax <- Arima(training_y, order = y_order,
+  #                        seasonal = y_seasonal,
+  #                        xreg = training_x,
+  #                        method = new_method)
+  # }
+  # 
+  
   
 }
 
