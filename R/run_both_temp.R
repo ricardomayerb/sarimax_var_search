@@ -112,7 +112,7 @@ ima_ex_rm <- mdata_ext_r_tsm[, "imacec"]
 ima_ex_sm <- mdata_ext_stata_tsm[, "imacec"]
 two_imam <- na.omit(ts.union(ima_ex_rm, ima_ex_sm))
 two_ima_yoym <- na.omit(ts.union(make_yoy_ts(ima_ex_r, freq = 12), make_yoy_ts(ima_ex_s, freq = 12)))
-autoplot(two_ima_yoy)
+autoplot(two_ima_yoym)
 autoplot(two_imam)
 
 all_ima <- na.omit(ts.union(ima_ex_r, ima_ex_s, ima_ex_r_auto, ima_ex_r_auto_noapp, ima_ex_r_auto_slow))
