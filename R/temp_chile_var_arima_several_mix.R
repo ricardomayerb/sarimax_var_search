@@ -61,6 +61,85 @@ models_tbl_ssel <- models_tbl_ssel %>%
   ) 
 
 
+
+# cv_from_models_tbl <- function(VAR_data, rgdp_ts_in_arima, tbl_of_models_and_rmse,
+#                                h, max_rank_h, test_length = NULL) {
+
+table_of_models_and_rmse <- models_tbl_ssel
+h <-  h_max
+test_length <-  8
+max_rank_h <-  10
+n_cv <- 3
+
+if (is.null(test_length)) {
+  test_length <- h
+}
+
+cv_errors_list = list()
+
+len_var_data <- nrow(VAR_data)
+len_arima_data <- length(rgdp_ts_in_arima)
+
+print("len_arima_data")
+print(len_arima_data)
+print("len_var_data")
+print(len_var_data)
+
+
+for (i in 1:n_cv) {
+  print(paste("cv set number", i))
+  
+  var_train_end <- len_var_data - test_length - i + 1
+  print("var_train_end")
+  print(var_train_end)
+  training_VAR_data <- subset(VAR_data, end = var_train_end)
+  test_VAR_data <- subset(VAR_data, start = var_train_end + 1)
+  print("nrow(training_VAR_data)")
+  print(nrow(training_VAR_data))
+  
+  print("nrow(test_VAR_data)")
+  print(nrow(test_VAR_data))
+  
+  test_VAR_data <- test_VAR_data[, "rgdp"]
+  
+  arima_train_end <- len_arima_data - test_length - i + 1
+  print("arima_train_end")
+  print(arima_train_end)
+  training_arima_data <- subset(rgdp_ts_in_arima, end = arima_train_end) 
+  test_arima_data <- subset(rgdp_ts_in_arima, start = arima_train_end + 1,
+                            end = arima_train_end + test_length)
+  
+  
+  print("length(training_arima_data)")  
+  print(length(training_arima_data))  
+
+  print("length(test_arima_data)")  
+  print(length(test_arima_data))  
+  
+  
+  
+    # comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
+  #                                             h = h_max, extended_x_data_ts = extended_x_data_ts,
+  #                                             rgdp_ts_in_arima = rgdp_ts_in_arima,
+  #                                             max_rank_h = 20, 
+  #                                             VAR_data = training_VAR_data, 
+  #                                             test_rgdp_data =test_rgdp_data)
+  # 
+  # summ_comb_fcs_ssel_best_20 <- comb_fcs_ssel_best_20 %>% 
+  #   group_by(horizon) %>%
+  #   summarise(sum_one_h = reduce(one_model_w_fc, sum))
+  # 
+  # cv_errors <- rgdp_test_data - summ_comb_fcs_ssel_best_20$fcs
+  # 
+  # cv_errors_list[[i]] <- cv_errors 
+  
+}
+
+# return(cv_errors_list)
+# 
+# }
+
+
 ################################### In Sample Accuracy Comparison ################################
 
 # I feel like, before going into the out of sample performance (i.e the forecasts), we should come up
@@ -321,34 +400,6 @@ summ_comb_fcs_all_ssel <- comb_fcs_all_ssel %>%
 
 # for consistency with stata i focus on ssel method
 
-cv_from_models_tbl <- function(VAR_data, rgdp_ts_in_arima, tbl_of_models_and_rmse,
-                               h, max_rank_h) {
-  
-  cv_errors_list = list()
-  
-  for(i in 1:n_cv){
-    training_VAR_data <- bla
-    training_arima_data <- bla 
-    test_rgdp_data <- bla
-    
-    comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                                h = h_max, extended_x_data_ts = extended_x_data_ts,
-                                                rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                                max_rank_h = 20, VAR_data = training_VAR_data, test_rgdp_data)
-    
-    summ_comb_fcs_ssel_best_20 <- comb_fcs_ssel_best_20 %>% 
-      group_by(horizon) %>%
-      summarise(sum_one_h = reduce(one_model_w_fc, sum))
-    
-    cv_errors <- rgdp_test_data - summ_comb_fcs_ssel_best_20$fcs
-    
-    cv_errors_list[[i]] <- cv_errors 
-    
-  }
-  
-  return(cv_errors_list)
-  
-}
 
 # summ_all_20 add an extra row with horizon = 0 and sum_one_h is the last observation of rgdp_var
 summ_comb_fcs_all_ssel <- summ_comb_fcs_all_ssel %>% add_row(horizon = 0, sum_one_h = last(rgdp_var)) %>% arrange(horizon)
