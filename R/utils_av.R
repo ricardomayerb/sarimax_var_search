@@ -1264,8 +1264,36 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
 }
 
 
-
 facet_rmse_all_h <- function(selected_models_tbl) {
+  
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n()) %>% 
+    group_by(horizon) %>% 
+    mutate(id_in_h = 1:n())
+  
+  max_rmse <- max(rmse_table_single_h$rmse)
+  labels <- c(rmse_1 = "RMSE h = 1", rmse_2 = "RMSE h = 2", rmse_3 = "RMSE h = 3" , rmse_4 = "RMSE h = 4",
+              rmse_5 = "RMSE h = 5", rmse_6 = "RMSE h = 6", rmse_7 = "RMSE h = 7", rmse_8 = "RMSE h = 8")
+  
+  p <- ggplot(rmse_table_single_h, aes(x = id_in_h, y = rmse)) + 
+    geom_point(aes(color = model_function), size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    facet_wrap(~ rmse_h, labeller=labeller(rmse_h = labels)) + 
+    theme_bw()  + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank())
+  
+  
+  return(p)
+}
+
+
+facet_rmse_all_h_oldversion <- function(selected_models_tbl) {
   
   rmse_table_single_h <- selected_models_tbl %>% 
     select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
@@ -2522,12 +2550,16 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
   
   if (!is.null(model_type)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(model_function == model_type)
+      filter(model_function == model_type) %>% 
+      group_by(rmse_h) %>% 
+      mutate(rank_h = rank(rmse)) %>% 
+      arrange(rmse_h, rank_h)
   }
   
   if (!is.null(chosen_rmse_h)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(rmse_h == chosen_rmse_h)
+      filter(rmse_h == chosen_rmse_h) %>% 
+      mutate(rank_h )
   }
   
   if (!is.null(max_rank_h)) {
@@ -2854,6 +2886,111 @@ make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
     group_by(rmse_h) %>% 
     mutate(rank_h = rank(rmse)) %>% 
     arrange(rmse_h, rank_h)
+  
+  return(models_rmse_at_each_h)
+}
+
+
+
+
+
+make_models_tbl_rm <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
+                            ave_rmse_sel = FALSE) {
+  
+  # rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
+  # rmse_level_sarimax <- arima_res$compare_rmse
+  # add an id variable to the rmse of the arimax models
+  rmse_yoy_sarimax <- arima_res$compare_rmse_yoy %>% mutate(id = 1:n())
+  rmse_level_sarimax <- arima_res$compare_rmse %>% mutate(id = 1:n())
+  v_lags_order_season <- arima_res$var_lag_order_season 
+  extended_x_data_ts <- arima_res$mdata_ext_ts
+  rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
+  
+  
+  rmse_yoy_sarimax <- rmse_yoy_sarimax %>% 
+    left_join(v_lags_order_season, by = c("variable", "lag"))
+  
+  # cfa110 <- comb_fcs_all[1:10, ] %>% 
+  #   mutate(short_name = map2(variables, lags,
+  #                            ~ make_model_name(variables = .x, lags = .y)),
+  #          long_name = pmap(list(variables, lags, model_function), 
+  #                           ~ make_model_name(variables = ..1, lags = ..2, model_function = ..3))
+  #   )
+  
+  each_h_just_model_and_ave_rmse_var <- models_and_accu %>% 
+    mutate(arima_order = NA, arima_seasonal = NA, model_function = "VAR") %>% 
+    dplyr::select(- starts_with("rank"))
+  
+  each_h_just_model_and_ave_rmse_var <- as_tibble(each_h_just_model_and_ave_rmse_var)
+  
+  
+  each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
+    mutate(model_function = "Arima") %>% 
+    dplyr::select(variable, lag, id, starts_with("yoy"), arima_order, arima_seasonal, 
+                  model_function) %>% 
+    rename(variables = variable, lags = lag) %>% 
+    rename_at(vars(starts_with("yoy_rmse")), funs(sub("yoy_rmse", "rmse", .)))
+  
+  each_h_just_model_and_ave_rmse_sarimax <- as_tibble(each_h_just_model_and_ave_rmse_sarimax)
+  
+  each_h_just_model_and_ave_rmse_sarimax <- each_h_just_model_and_ave_rmse_sarimax %>% 
+    select(-id)
+  
+  # rename(rmse_1 = yoy_rmse_1, rmse_2 = yoy_rmse_2, 
+  #        rmse_3 = yoy_rmse_3, rmse_4 = yoy_rmse_4, rmse_5 = yoy_rmse_5, 
+  #        rmse_6 = yoy_rmse_6)
+  # 
+  if (ave_rmse_sel) {
+    models_rmse_at_each_h_arima  <- each_h_just_model_and_ave_rmse_sarimax %>% 
+      mutate(ave_rmse = rowMeans(select(., starts_with("rmse")))) %>% 
+      group_by(variables) %>%
+      mutate(min_ave_per_variable = min(ave_rmse)) %>% 
+      filter(ave_rmse == min_ave_per_variable) %>% 
+      ungroup() %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-c(ave_rmse, rgdp_rmse, min_ave_per_variable)) %>% 
+      arrange(rmse_h, variables)
+    
+  } else {
+    models_rmse_at_each_h_arima <- each_h_just_model_and_ave_rmse_sarimax %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      arrange(variables) %>% 
+      group_by(rmse_h, variables) %>% 
+      mutate(min_per_variable_and_h = min(rmse)) %>% 
+      filter(rmse == min_per_variable_and_h) %>% 
+      select(-min_per_variable_and_h ) %>%  
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-rgdp_rmse) %>% 
+      arrange(rmse_h, rmse)
+  }
+  
+  # models_rmse_at_each_h_arima <- models_rmse_at_each_h_arima %>%
+  #   mutate(short_name = map2(variables, lags,
+  #                          ~ make_model_name(variables = .x, lags = .y)),
+  #                          long_name = pmap(list(variables, lags, model_function),
+  #                          ~ make_model_name(variables = ..1, lags = ..2,
+  #                                            model_function = ..3))
+  #                          )
+  
+  models_rmse_at_each_h_var <- each_h_just_model_and_ave_rmse_var %>% 
+    gather(key = "rmse_h", value = "rmse", starts_with("rmse"))
+  
+  models_rmse_at_each_h <- rbind(models_rmse_at_each_h_var, 
+                                 models_rmse_at_each_h_arima) %>% 
+    mutate(inv_mse = 1/rmse^2) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse)) %>% 
+    arrange(rmse_h, rank_h)
+  
   
   return(models_rmse_at_each_h)
 }
@@ -3262,8 +3399,28 @@ my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
   # colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
   x_as_y <- xlagmat
   
-  this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
-                       order = y_order, seasonal = y_seasonal)
+  # this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
+  #                      order = y_order, seasonal = y_seasonal,
+  #                      method = "ML")
+  
+  # print("comienzo")
+  this_arimax <- try(Arima(y = y_ts, xreg = x_as_y, 
+                           order = y_order, seasonal = y_seasonal,
+                           method = "ML"))
+  
+  class_this_arimax <- class(this_arimax)[1]
+  
+  if (class_this_arimax == "try-error") {
+    this_mssg <- paste0("For xreg variable ", x_name, 
+                        ", ML method failed in Arima. Switched to CSS-ML.")
+    warning(this_mssg)
+    new_method <-  "CSS-ML"
+    this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
+                         order = y_order, seasonal = y_seasonal,
+                         method = new_method)
+  }
+  
+  # print("final")
   
   return(this_arimax)
   
@@ -3345,7 +3502,7 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       
       this_arimax <- Arima(y = subset(y_ts, start = 5), xreg = diff(x_as_y, lag = 4), 
                            order = y_order, seasonal = y_seasonal,
-                           include.mean = y_include_mean )
+                           include.mean = y_include_mean, method = "ML" )
     } else {
       # print("y_ts")
       # print(y_ts)
@@ -3354,7 +3511,7 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       
       this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
                            order = y_order, seasonal = y_seasonal,
-                           include.mean = y_include_mean )
+                           include.mean = y_include_mean, "ML" )
     }
     
     arimax_list[[x_regressor]] <- this_arimax
@@ -3450,7 +3607,45 @@ read_gather_qm_data <- function(data_path = "./data/pre_r_data/",
 }
 
 
+
 single_plot_rmse_all_h <- function(selected_models_tbl) {
+  
+  rmse_table_single_h <- selected_models_tbl %>% 
+    select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
+    arrange(rmse_h, model_function, rmse) %>% 
+    mutate(idx = 1:n())
+  
+  max_rmse <- max(rmse_table_single_h$rmse)
+  
+  p <- ggplot(rmse_table_single_h, aes(x = idx, y = rmse)) + 
+    geom_point(aes(color = model_function),
+               size = 2.2, alpha = 0.8) + 
+    coord_cartesian(ylim = c(0, 1.1*max_rmse)) + 
+    geom_vline(xintercept =  c(1,31, 61, 91, 121, 151, 181, 211, 241), alpha = 0.3, 
+               linetype = "dashed") +
+    annotate("text", x = 0 + 15, y = 1.1*max_rmse, label = "h = 1", fontface = "bold", colour = "royalblue4") +
+    annotate("text", x = 30 + 15, y = 1.1*max_rmse, label = "h = 2", fontface = "bold", colour = "royalblue4") +
+    annotate("text", x = 60 + 15, y = 1.1*max_rmse, label = "h = 3", fontface = "bold", colour = "royalblue4") +
+    annotate("text", x = 90 + 15, y = 1.1*max_rmse, label = "h = 4", fontface = "bold", colour = "royalblue4") +
+    annotate("text", x = 120 + 15, y = 1.1*max_rmse, label = "h = 5", fontface = "bold", colour = "royalblue4") +
+    annotate("text", x = 150 + 15, y = 1.1*max_rmse, label = "h = 6", fontface = "bold", colour = "royalblue4") +
+    annotate("text", x = 180 + 15, y = 1.1*max_rmse, label = "h = 7", fontface = "bold", colour = "royalblue4") +
+    annotate("text", x = 210 + 15, y = 1.1*max_rmse, label = "h = 8", fontface = "bold", colour = "royalblue4") +
+    theme_tufte() + 
+    theme(
+      axis.text.x = element_blank(),
+      axis.ticks.x = element_blank(),
+      axis.title.x = element_blank(),
+      legend.title = element_blank()) +
+    theme(axis.title = element_text(face = "bold"))
+  
+  # p + annotate("text", x = 2:3, y = 20:21, label = c("my label", "label 2"))
+  
+  return(p)
+}
+
+
+single_plot_rmse_all_h_oldversion <- function(selected_models_tbl) {
   
   rmse_table_single_h <- selected_models_tbl %>% 
     select(variables, lags, model_function, rmse_h, rmse, horizon) %>%
