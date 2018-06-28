@@ -2517,7 +2517,7 @@ logyoy <- function(logfc_ts, log_data_ts) {
 }
 
 indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
-                               rgdp_ts_in_arima, max_rank_h = NULL,
+                               rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL) {
   
   if (!is.null(model_type)) {
