@@ -26,15 +26,174 @@ external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 monthly_names <- colnames(monthly_ts)
 external_monthly_names <- colnames(external_monthly_ts)
 
-fit_arima_rgdp_list_dem <- fit_arimas(
+fit_arima_logrgdp_list_dem <- fit_arimas(
   y_ts = log(rgdp_ts), order_list = demetra_output[["rgdp_order_list"]],
   this_arima_names = "rgdp")
+
+fit_arima_rgdp_list_dem <- fit_arimas(
+  y_ts = rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
+  this_arima_names = "rgdp", my_lambda = 0)
+
+fit_arima_rgdp_list_auto <- fit_arimas(y_ts = rgdp_ts, auto = TRUE,  
+                                       this_arima_names = "rgdp", my_lambda = 0,
+                                       do_approximation = TRUE)
+
+
+fit_arima_rgdp_list_auto_slow <- fit_arimas(y_ts = rgdp_ts, auto = TRUE,  
+                                       this_arima_names = "rgdp", my_lambda = 0,
+                                       do_stepwise = FALSE)
+
+
+rgdp_uncond_fc_auto <- forecast(fit_arima_rgdp_list_auto[["rgdp"]], h = h_max)
+rgdp_uncond_fc_auto_mean <- rgdp_uncond_fc_auto$mean
+
+rgdp_uncond_fc_auto_slow <- forecast(fit_arima_rgdp_list_auto_slow[["rgdp"]], h = h_max)
+rgdp_uncond_fc_auto_slow_mean <- rgdp_uncond_fc_auto_slow$mean
+
 
 rgdp_uncond_fc <- forecast(fit_arima_rgdp_list_dem[["rgdp"]], h = h_max)
 rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
 
+logrgdp_uncond_fc <- forecast(fit_arima_logrgdp_list_dem[["rgdp"]], h = h_max)
+logrgdp_uncond_fc_mean <- logrgdp_uncond_fc$mean
+
+gdp_and_dates <- get_rgdp_and_dates(data_path)
+
 # default: forecast package's criteria about constants and differencing
 # force_constant <-  TRUE
+
+get_extended_monthly_variables <- function(
+  monthly_data_ts, monthly_data_external_ts, final_date, order_list, 
+  order_list_external, gdp_and_dates = gdp_and_dates,
+  do_dm_force_constant = TRUE, do_dm_strict = TRUE, do_auto = TRUE) {
+  
+  monthly_data_names <- colnames(monthly_data_ts)
+  monthly_data_external_names <- colnames(monthly_data_external_ts)
+  
+  
+  if (do_dm_force_constant) {
+
+    fit_arima_monthly_list_demetra_stata_constants <- fit_arimas(
+      y_ts = monthly_data_ts, order_list = order_list[["monthly_order_list"]],
+      this_arima_names = monthly_data_names,  force_constant = TRUE, freq = 12)
+    
+    fit_arima_external_monthly_list_demetra_stata_constants <- fit_arimas(
+      y_ts = monthly_data_external_ts, order_list = order_list_external[["monthly_order_list"]],
+      this_arima_names = monthly_data_external_names,  force_constant = force_constant, freq = 12)
+    
+    mdata_ext_dem_stata <- extend_and_qtr(data_mts = monthly_data_ts, 
+                                          final_horizon_date = final_forecast_horizon , 
+                                          vec_of_names = monthly_data_names, 
+                                          fitted_arima_list = fit_arima_monthly_list_demetra_stata_constants,
+                                          start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                          force_constant = TRUE,
+                                          order_list = order_list[["monthly_order_list"]])
+    
+    mdata_ext_external_dem_stata <- extend_and_qtr(data_mts = monthly_data_external_ts, 
+                                                   final_horizon_date = final_forecast_horizon , 
+                                                   vec_of_names = monthly_data_external_names, 
+                                                   fitted_arima_list = fit_arima_monthly_list_demetra_stata_constants,
+                                                   start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                                   force_constant = TRUE,
+                                                   order_list = order_list_external[["monthly_order_list"]])
+    
+    
+  } else {
+    fit_arima_monthly_list_demetra_stata_constants <- NULL
+    fit_arima_external_monthly_list_demetra_stata_constants <- NULL
+    mdata_ext_dem_stata  <- NULL
+    mdata_ext_external_dem_stata <- NULL
+  }
+  
+  
+  if (do_dm_strict) {
+    fit_arima_monthly_list_demetra_r_constants <- fit_arimas(
+      y_ts = monthly_data_ts, order_list = demetra_output[["monthly_order_list"]],
+      this_arima_names = monthly_data_names,  force_constant = FALSE, freq = 12)
+    
+    fit_arima_external_monthly_list_demetra_r_constants <- fit_arimas(
+      y_ts = monthly_data_external_ts, order_list = demetra_output_external[["monthly_order_list"]],
+      this_arima_names = monthly_data_external_names,  force_constant = force_constant, freq = 12)
+    
+    mdata_ext_dem_r <- extend_and_qtr(data_mts = monthly_data_ts, 
+                                      final_horizon_date = final_forecast_horizon , 
+                                      vec_of_names = monthly_data_names, 
+                                      fitted_arima_list = fit_arima_monthly_list_demetra_r_constants,
+                                      start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                      order_list = order_list[["monthly_order_list"]])
+    
+    mdata_ext_external_dem_r <- extend_and_qtr(data_mts = monthly_data_external_ts, 
+                                               final_horizon_date = final_forecast_horizon , 
+                                               vec_of_names = monthly_data_external_names, 
+                                               fitted_arima_list = fit_arima_external_monthly_list_demetra_r_constants,
+                                               start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                               order_list = order_list_external[["monthly_order_list"]])
+    
+  } else {
+    fit_arima_monthly_list_demetra_r_constants <- NULL
+    fit_arima_external_monthly_list_demetra_r_constants <- NULL
+    mdata_ext_dem_r <- NULL
+    mdata_ext_external_dem_r <- NULL
+  }
+  
+  
+  if (do_auto) {
+    fit_arima_monthly_list_auto <- fit_arimas(
+      y_ts = monthly_data_ts, auto = TRUE, my_lambda = 0, do_approximation = TRUE,
+      freq = 12, this_arima_names = monthly_data_names)
+    
+    fit_arima_external_monthly_list_auto <- fit_arimas(
+      y_ts = monthly_data_external_ts, auto = TRUE, my_lambda = 0, 
+      do_approximation = TRUE, freq = 12, this_arima_names = monthly_data_external_names)
+    
+    mdata_ext_auto_r <- extend_and_qtr(data_mts = monthly_data_ts, 
+                                       final_horizon_date = final_forecast_horizon , 
+                                       vec_of_names = monthly_data_names, 
+                                       fitted_arima_list = fit_arima_monthly_list_auto,
+                                       start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                       order_list = order_list[["monthly_order_list"]])
+    
+    mdata_ext_external_auto_r <- extend_and_qtr(data_mts = monthly_data_external_ts, 
+                                                final_horizon_date = final_forecast_horizon , 
+                                                vec_of_names = monthly_data_external_names, 
+                                                fitted_arima_list = fit_arima_external_monthly_list_auto,
+                                                start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                                order_list = order_list_external[["monthly_order_list"]])
+    
+  } else {
+    fit_arima_external_monthly_list_auto <- NULL
+    fit_arima_monthly_list_auto <- NULL
+    mdata_ext_auto_r <- NULL
+    mdata_ext_external_auto_r <- NULL
+  }
+  
+  
+  return(list(non_external_auto_r = mdata_ext_auto_r,
+              external_auto_r = mdata_ext_external_auto_r,
+              non_external_dm_r = mdata_ext_dem_r,
+              external_dm_r = mdata_ext_external_dem_r,
+              non_external_dm_s = mdata_ext_dem_stata,
+              external_dm_s = mdata_ext_external_dem_stata))
+  
+  
+}
+
+
+foo <- get_extended_monthly_variables(monthly_data_ts = monthly_ts, 
+                               monthly_data_external_ts = external_monthly_ts,
+                               order_list = demetra_output,
+                               order_list_external = demetra_output_external,
+                               gdp_and_dates = gdp_and_dates)
+
+
+
+####### ----------- goi   ---
+
+
+
+
+
+
 fit_arima_monthly_list_demetra_stata_constants <- fit_arimas(
   y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
   this_arima_names = monthly_names,  force_constant = TRUE, freq = 12)
@@ -60,7 +219,7 @@ fit_arima_external_monthly_list_auto <- fit_arimas(
   do_approximation = TRUE, freq = 12, this_arima_names = external_monthly_names)
 
 # gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
-gdp_and_dates <- get_rgdp_and_dates(data_path)
+
 mdata_ext_dem_r <- extend_and_qtr(data_mts = monthly_ts, 
                             final_horizon_date = final_forecast_horizon , 
                             vec_of_names = monthly_names, 
@@ -75,13 +234,6 @@ mdata_ext_dem_stata <- extend_and_qtr(data_mts = monthly_ts,
                               start_date_gdp = gdp_and_dates[["gdp_start"]],
                               force_constant = TRUE,
                               order_list = demetra_output[["monthly_order_list"]])
-
-# mdata_ext_auto_slow_r <- extend_and_qtr(data_mts = monthly_ts, 
-#                                   final_horizon_date = final_forecast_horizon , 
-#                                   vec_of_names = monthly_names, 
-#                                   fitted_arima_list = fit_arima_monthly_list_auto_slow,
-#                                   start_date_gdp = gdp_and_dates[["gdp_start"]],
-#                                   order_list = demetra_output[["monthly_order_list"]])
 
 mdata_ext_auto_r <- extend_and_qtr(data_mts = monthly_ts, 
                                         final_horizon_date = final_forecast_horizon , 
@@ -118,19 +270,21 @@ mdata_ext_stata_tsm <- mdata_ext_dem_stata$monthly_series_ts
 ima_ex_rm <- mdata_ext_r_tsm[, "imacec"]
 ima_ex_sm <- mdata_ext_stata_tsm[, "imacec"]
 two_imam <- na.omit(ts.union(ima_ex_rm, ima_ex_sm))
-two_ima_yoym <- na.omit(ts.union(make_yoy_ts(ima_ex_r, freq = 12), make_yoy_ts(ima_ex_s, freq = 12)))
+two_ima_yoym <- na.omit(ts.union(make_yoy_ts(ima_ex_rm, freq = 12), make_yoy_ts(ima_ex_sm, freq = 12)))
 autoplot(two_ima_yoym)
 autoplot(two_imam)
-
-all_ima <- na.omit(ts.union(ima_ex_r, ima_ex_s, ima_ex_r_auto, ima_ex_r_auto_noapp, ima_ex_r_auto_slow))
-all_ima_yoy <- na.omit(ts.union(make_yoy_ts(ima_ex_r), make_yoy_ts(ima_ex_s), make_yoy_ts(ima_ex_r_auto), make_yoy_ts(ima_ex_r_auto_noapp), make_yoy_ts(ima_ex_r_auto_slow)))
-autoplot(all_ima_yoy)
-autoplot(all_ima)
 
 two_ima <- na.omit(ts.union(ima_ex_r, ima_ex_s))
 two_ima_yoy <- na.omit(ts.union(make_yoy_ts(ima_ex_r), make_yoy_ts(ima_ex_s )))
 autoplot(two_ima_yoy)
 autoplot(two_ima)
+
+three_ima <- na.omit(ts.union(ima_ex_r_auto, ima_ex_r, ima_ex_s))
+three_ima_yoy <- na.omit(ts.union(make_yoy_ts(ima_ex_r_auto), make_yoy_ts(ima_ex_r), make_yoy_ts(ima_ex_s)))
+autoplot(three_ima_yoy)
+autoplot(three_ima)
+
+
 
 three_ima <- na.omit(ts.union(ima_ex_r_auto, ima_ex_r_auto_noapp, ima_ex_r_auto_slow))
 three_ima_yoy <- na.omit(ts.union(make_yoy_ts(ima_ex_r_auto), make_yoy_ts(ima_ex_r_auto_noapp), make_yoy_ts(ima_ex_r_auto_slow)))
