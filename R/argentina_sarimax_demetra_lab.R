@@ -205,7 +205,6 @@ mdata_ext_ts <- ts.union(internal_mdata_ext_ts, external_mdata_ext_ts)
 monthly_names <- c(internal_monthly_names, external_monthly_names)
 colnames(mdata_ext_ts) <- monthly_names
 
-
 name_x_for_test <- "imacec"
 x_for_test_monthly_ts <- na.omit(monthly_ts[, name_x_for_test])
 x_for_test_monthly_ts
