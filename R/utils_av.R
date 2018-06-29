@@ -1193,7 +1193,7 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
       this_D <- this_seasonal[2]
       
       if (this_d + this_D >= 2) {
-        print("Undifferencing monthly estimated data")
+        # print("Undifferencing monthly estimated data")
         # data_mts is undifferenced, is still in levels
         start_ini <- length(na.omit(monthly_series)) - 12 + 1
         this_init_lev <- subset(na.omit(monthly_series), start = start_ini)
@@ -1201,15 +1201,15 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
         unsd_fc <- un_yoy_ts(vec_yoy = fc_mean, init_lev = this_init_lev,
                             freq = 12)
         
-        if(i == 1) {
-          print("fc_mean")
-          print(fc_mean)
-          print("this_init_lev")
-          print(this_init_lev)
-          print("unsd_fc")
-          print(unsd_fc)
-        }
-        
+        # if(i == 1) {
+        #   print("fc_mean")
+        #   print(fc_mean)
+        #   print("this_init_lev")
+        #   print(this_init_lev)
+        #   print("unsd_fc")
+        #   print(unsd_fc)
+        # }
+        # 
         fc_mean <- unsd_fc 
         
       }
