@@ -19,7 +19,6 @@ arima_res <- get_arima_results(country_name = country_name, read_results = TRUE)
 extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
 
-
 ########################## IMPORT ARIMAX AND VAR FILES #############################
 # Automatically imports the data matching the country_name
 path_models_and_accu <- paste("./data/", country_name, "_by_step_12345.rds", sep = "")
@@ -46,7 +45,6 @@ models_tbl <- models_tbl %>%
          short_name = as_factor(unlist(short_name)),
          long_name = as_factor(unlist(long_name))
   ) 
-  
 
 # ssel stands for "stata_selection" and what it does it to imitate stata-style selection 
 models_tbl_ssel <- make_models_tbl(

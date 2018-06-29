@@ -406,8 +406,6 @@ fooarima5 <- cv_from_models_tbl(VAR_data = VAR_data, rgdp_ts_in_arima = rgdp_ts_
                                 training_span = 25, n_cv = 8, model_type = "Arima")
 
 
-
-
 b1r <- as_tibble(rbind(foo1$rmse_all_h,  fooarima1$rmse_all_h,   foovar1$rmse_all_h))
 b1m <- as_tibble(rbind(foo1$mae_all_h,  fooarima1$mae_all_h,   foovar1$mae_all_h))
 
@@ -418,9 +416,6 @@ b1r
 b5r
 b1m
 b5m
-
-
-
 
 
 ################################### In Sample Accuracy Comparison ################################
