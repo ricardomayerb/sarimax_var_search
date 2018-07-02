@@ -46,12 +46,14 @@ logrgdp_uncond_fc_mean <- logrgdp_uncond_fc$mean
 
 gdp_and_dates <- get_rgdp_and_dates(data_path)
 
+gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
+rgdp_order <-  gdp_order[c("p", "d", "q")]
+rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
+
 # default: forecast package's criteria about constants and differencing
 # force_constant <-  TRUE
 
-
 use_dm_force_constant <- TRUE
-
 
 tic()
 extended_data <- get_extended_monthly_variables(monthly_data_ts = monthly_ts, 
@@ -63,300 +65,108 @@ extended_data <- get_extended_monthly_variables(monthly_data_ts = monthly_ts,
                                do_dm_force_constant = use_dm_force_constant)
 toc()
 
-
 internal_mdata_ext <- extended_data$non_external_dm_s
-internal_mdata_ext_ts <- internal_mdata_ext[["series_ts"]]
+internal_mdata_ext_ts <- internal_mdata_ext$quarterly_series_ts
+internal_monthly_names <- colnames(internal_mdata_ext_ts)
 
-internal_mdata_ext_ts <- mdata_ext[["series_ts"]]
-internal_yoy_mdata_ext_ts <- diff(internal_mdata_ext_ts, lag = 4)
-internal_monthly_names <- monthly_names
+external_mdata_ext <- extended_data[["external_dm_s"]]
+external_mdata_ext_ts <- external_mdata_ext$quarterly_series_ts
+external_mdata_ext_ts_monthly <- external_mdata_ext$monthly_series_ts
 
-external_mdata_ext_ts <- external_mdata_ext[["series_ts"]]
-external_yoy_mdata_ext_ts <- diff(external_mdata_ext_ts, lag = 4)
+external_mdata_ext_xts <- external_mdata_ext$quarterly_series_xts
+external_mdata_ext_xts_monthly <- external_mdata_ext$monthly_series_xts
 
-rgdp_order <-  gdp_order[c("p", "d", "q")]
-rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
+
+
+
+external_mdata_ext_r <- extended_data[["external_dm_r"]]
+external_mdata_ext_ts_r <- external_mdata_ext_r$quarterly_series_ts
+
 
 mdata_ext_ts <- ts.union(internal_mdata_ext_ts, external_mdata_ext_ts)
 monthly_names <- c(internal_monthly_names, external_monthly_names)
 colnames(mdata_ext_ts) <- monthly_names
 
-
 ####### ----------- goi   ---
 
-
-
-
-
-
-fit_arima_monthly_list_demetra_stata_constants <- fit_arimas(
-  y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
-  this_arima_names = monthly_names,  force_constant = TRUE, freq = 12)
-
-fit_arima_monthly_list_demetra_r_constants <- fit_arimas(
-  y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
-  this_arima_names = monthly_names,  force_constant = FALSE, freq = 12)
-
-fit_arima_external_monthly_list_demetra_stata_constants <- fit_arimas(
-  y_ts = external_monthly_ts, order_list = demetra_output_external[["monthly_order_list"]],
-  this_arima_names = external_monthly_names,  force_constant = force_constant, freq = 12)
-
-fit_arima_external_monthly_list_demetra_r_constants <- fit_arimas(
-  y_ts = external_monthly_ts, order_list = demetra_output_external[["monthly_order_list"]],
-  this_arima_names = external_monthly_names,  force_constant = force_constant, freq = 12)
-
-fit_arima_monthly_list_auto <- fit_arimas(
-  y_ts = monthly_ts, auto = TRUE, my_lambda = 0, do_approximation = TRUE,
-  freq = 12, this_arima_names = monthly_names)
-
-fit_arima_external_monthly_list_auto <- fit_arimas(
-  y_ts = external_monthly_ts, auto = TRUE, my_lambda = 0, 
-  do_approximation = TRUE, freq = 12, this_arima_names = external_monthly_names)
-
-# gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
-
-mdata_ext_dem_r <- extend_and_qtr(data_mts = monthly_ts, 
-                            final_horizon_date = final_forecast_horizon , 
-                            vec_of_names = monthly_names, 
-                            fitted_arima_list = fit_arima_monthly_list_demetra_r_constants,
-                            start_date_gdp = gdp_and_dates[["gdp_start"]],
-                            order_list = demetra_output[["monthly_order_list"]])
-
-mdata_ext_dem_stata <- extend_and_qtr(data_mts = monthly_ts, 
-                              final_horizon_date = final_forecast_horizon , 
-                              vec_of_names = monthly_names, 
-                              fitted_arima_list = fit_arima_monthly_list_demetra_stata_constants,
-                              start_date_gdp = gdp_and_dates[["gdp_start"]],
-                              force_constant = TRUE,
-                              order_list = demetra_output[["monthly_order_list"]])
-
-mdata_ext_auto_r <- extend_and_qtr(data_mts = monthly_ts, 
-                                        final_horizon_date = final_forecast_horizon , 
-                                        vec_of_names = monthly_names, 
-                                        fitted_arima_list = fit_arima_monthly_list_auto,
-                                        start_date_gdp = gdp_and_dates[["gdp_start"]],
-                                        order_list = demetra_output[["monthly_order_list"]])
-
-# mdata_ext_auto_noapp_r <- extend_and_qtr(data_mts = monthly_ts,
-#                                    final_horizon_date = final_forecast_horizon , 
-#                                    vec_of_names = monthly_names, 
-#                                    fitted_arima_list = fit_arima_monthly_list_auto_noapp,
-#                                    start_date_gdp = gdp_and_dates[["gdp_start"]],
-#                                    order_list = demetra_output[["monthly_order_list"]])
-
-
-# ari_ima_stata <- fit_arima_external_monthly_list_demetra_stata_constants
-
-mdata_ext_r_ts <- mdata_ext_dem_r$quarterly_series_ts
-mdata_ext_stata_ts <- mdata_ext_dem_stata$quarterly_series_ts
-# mdata_ext_r_ts_auto_slow <- mdata_ext_auto_slow_r$quarterly_series_ts
-mdata_ext_r_ts_auto <- mdata_ext_auto_r$quarterly_series_ts
-# mdata_ext_r_ts_auto_noapp <- mdata_ext_auto_noapp_r$quarterly_series_ts
-
-ima_ex_r <- mdata_ext_r_ts[, "imacec"]
-ima_ex_s <- mdata_ext_stata_ts[, "imacec"]
-ima_ex_r_auto <- mdata_ext_r_ts_auto[, "imacec"]
-# ima_ex_r_auto_noapp <- mdata_ext_r_ts_auto_noapp[, "imacec"]
-# ima_ex_r_auto_slow <- mdata_ext_r_ts_auto_slow[, "imacec"]
-
-
-mdata_ext_r_tsm <- mdata_ext_dem_r$monthly_series_ts
-mdata_ext_stata_tsm <- mdata_ext_dem_stata$monthly_series_ts
-ima_ex_rm <- mdata_ext_r_tsm[, "imacec"]
-ima_ex_sm <- mdata_ext_stata_tsm[, "imacec"]
-two_imam <- na.omit(ts.union(ima_ex_rm, ima_ex_sm))
-two_ima_yoym <- na.omit(ts.union(make_yoy_ts(ima_ex_rm, freq = 12), make_yoy_ts(ima_ex_sm, freq = 12)))
-autoplot(two_ima_yoym)
-autoplot(two_imam)
-
-two_ima <- na.omit(ts.union(ima_ex_r, ima_ex_s))
-two_ima_yoy <- na.omit(ts.union(make_yoy_ts(ima_ex_r), make_yoy_ts(ima_ex_s )))
-autoplot(two_ima_yoy)
-autoplot(two_ima)
-
-three_ima <- na.omit(ts.union(ima_ex_r_auto, ima_ex_r, ima_ex_s))
-three_ima_yoy <- na.omit(ts.union(make_yoy_ts(ima_ex_r_auto), make_yoy_ts(ima_ex_r), make_yoy_ts(ima_ex_s)))
-autoplot(three_ima_yoy)
-autoplot(three_ima)
-
-
-
-three_ima <- na.omit(ts.union(ima_ex_r_auto, ima_ex_r_auto_noapp, ima_ex_r_auto_slow))
-three_ima_yoy <- na.omit(ts.union(make_yoy_ts(ima_ex_r_auto), make_yoy_ts(ima_ex_r_auto_noapp), make_yoy_ts(ima_ex_r_auto_slow)))
-autoplot(three_ima_yoy)
-autoplot(three_ima)
-
-
-
-cred_ex_r <- mdata_ext_r_ts[, "cred"]
-cred_ex_s <- mdata_ext_stata_ts[, "cred"]
-cred_ex_r_auto <- mdata_ext_r_ts_auto[, "cred"]
-cred_ex_r_auto_noapp <- mdata_ext_r_ts_auto_noapp[, "cred"]
-cred_ex_r_auto_slow <- mdata_ext_r_ts_auto_slow[, "cred"]
-
-
-all_cred <- na.omit(ts.union(cred_ex_r, cred_ex_s, cred_ex_r_auto, cred_ex_r_auto_noapp, cred_ex_r_auto_slow))
-
-all_cred_yoy <- na.omit(ts.union(make_yoy_ts(cred_ex_r), make_yoy_ts(cred_ex_s), make_yoy_ts(cred_ex_r_auto), make_yoy_ts(cred_ex_r_auto_noapp), make_yoy_ts(cred_ex_r_auto_slow)))
-
-autoplot(all_cred_yoy)
-autoplot(all_cred)
-
-
-
-
-
-imce_ex_r <- mdata_ext_r_ts[, "imce"]
-imce_ex_s <- mdata_ext_stata_ts[, "imce"]
-imce_ex_r_auto <- mdata_ext_r_ts_auto[, "imce"]
-imce_ex_r_auto_noapp <- mdata_ext_r_ts_auto_noapp[, "imce"]
-imce_ex_r_auto_slow <- mdata_ext_r_ts_auto_slow[, "imce"]
-
-
-all_imce <- na.omit(ts.union(imce_ex_r, imce_ex_s, imce_ex_r_auto, imce_ex_r_auto_noapp, imce_ex_r_auto_slow))
-
-all_imce_yoy <- na.omit(ts.union(make_yoy_ts(imce_ex_r), make_yoy_ts(imce_ex_s), make_yoy_ts(imce_ex_r_auto), make_yoy_ts(imce_ex_r_auto_noapp), make_yoy_ts(imce_ex_r_auto_slow)))
-
-autoplot(all_imce_yoy)
-autoplot(all_imce)
-
-
-
-
-#### ----- some experiments ----
-rgdp_uncond_fc_mean
-
-s4logrgdp <- diff(log(rgdp_ts), lag = 4)
-init_logrgdp <- subset(log(rgdp_ts), end = 4)
-uns4logrgdp <- un_yoy_ts(init_lev = init_logrgdp, vec_yoy = s4logrgdp)
-
-fit_s4 <- Arima(y = s4logrgdp, order = c(2,0,0), 
-                 seasonal = c(0,0,0), include.constant = TRUE)
-
-fc_s4 <- forecast(fit_s4, h = h_max)
-
-data_fc_s4 <- ts(c(fit_s4$x, fc_s4$mean), start = start(fit_s4$x),
-                  frequency = 4)
-
-init_fc <- subset(log(rgdp_ts), start = 85)
-
-uns4_fc_s4 <- un_yoy_ts(init_lev = init_fc, vec_yoy = fc_s4$mean)
-
-uns4_data_fc <- ts(c(log(rgdp_ts), uns4_fc_s4), start = start(rgdp_ts),
-                   frequency = 4)
-
-res4 <- diff(uns4_data_fc, lag = 4)
-subset(res4, start = 85)
-
-moo <- un_yoy_ts(vec_yoy = data_fc_foo, init_lev = subset(log(rgdp_ts), end = 4))  
-
-ts.union(log(rgdp_ts), moo)  
-
-
-roo <- un_yoy_ts(vec_yoy = make_yoy_ts(log(rgdp_ts)), 
-                 init_lev = subset(log(rgdp_ts), end = 4))
-
-ts.union(roo, log(rgdp_ts))
-
-if (always_include_constant) {
+get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names, 
+                 test_length = 8, n_cv = 16, training_length = 16, 
+                 method = "ML", max_x_lag = 2, is_log_log = FALSE) {
   
-  fit_arima_monthly_list_dem <- fit_arimas(
-    y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
-    this_arima_names = monthly_names, force_constant = TRUE)
+  list_cv_of_arimax <- list()
   
-} else {
+  for (i in 0:max_x_lag) {
+    this_cv_arimax <- cv_arimax(y_ts = y_ts, xreg_ts = xreg_ts, , n_cv = n_cv,
+                                training_length = train_span, h_max = test_length,
+                                y_order = rgdp_order, y_seasonal = y_seasonal, 
+                                vec_of_names = x_names, method = method,
+                                xreg_lags = 0:i, is_log_log = is_log_log)
+    
+    list_cv_of_arimax[[i]]  <- this_cv_arimax 
+  }
   
-  fit_arima_monthly_list_dem <- fit_arimas(
-    y_ts = monthly_ts, order_list = demetra_output[["monthly_order_list"]],
-    this_arima_names = monthly_names)
+  return(list_cv_of_arimax)
+  
 }
 
+cv_arimax_0_to_2 <- get_cv_of_arimax(y_ts = log(rgdp_ts), xreg_ts = log(mdata_ext_ts), 
+                                     y_order = rgdp_order, y_seasonal = rgdp_seasonal,
+                                     x_names = monthly_names, is_log_log = TRUE
+                                     )
+
+cv0_e_i <- cv_arimax(y_ts = log(rgdp_ts), xreg_ts = log(internal_mdata_ext_ts),  
+                     h_max =  h_max, n_cv = number_of_cv,
+                     training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
+                     method = "ML", s4xreg = FALSE)
+
+foo <- my_arima_one_x(log(rgdp_ts), xreg_lags = 0:0, y_order = rgdp_order,
+                      x_name = "ip_ue", y_seasonal = rgdp_seasonal, 
+                      xreg_data = log(mdata_ext_ts))
+
+cv0_e_e <- cv_arimax(y_ts = log(rgdp_ts), xreg_ts = log(external_mdata_ext_ts), 
+                     h_max =  h_max, n_cv = number_of_cv,
+                     training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, 
+                     vec_of_names = external_monthly_names,  method = "CSS-ML")
+
+cv0_e <- list(cv_errors_all_pairs_yx = c(cv0_e_i$cv_errors_all_pairs_yx,
+                                         cv0_e_e$cv_errors_all_pairs_yx),
+              cv_yoy_errors_all_pairs_yx = c(cv0_e_i$cv_yoy_errors_all_pairs_yx,
+                                             cv0_e_e$cv_yoy_errors_all_pairs_yx)
+)
 
 
-# goo <- tk_tbl(external_monthly_ts)
-# goo
-# goodf <- as_data_frame(goo)
+cv1_e_i <- cv_arimax(y_ts = log(rgdp_ts), xreg_ts = log(internal_mdata_ext_ts),  h_max = h_max,
+                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
+                     method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
 
+cv1_e_e <- cv_arimax(y_ts = log(rgdp_ts), xreg_ts = log(external_mdata_ext_ts),  h_max = h_max,
+                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
+                     method = "ML", s4xreg = FALSE, xreg_lags = 0:1)
 
+cv1_e <- list(cv_errors_all_pairs_yx = c(cv1_e_i$cv_errors_all_pairs_yx,
+                                         cv1_e_e$cv_errors_all_pairs_yx),
+              cv_yoy_errors_all_pairs_yx = c(cv1_e_i$cv_yoy_errors_all_pairs_yx,
+                                             cv1_e_e$cv_yoy_errors_all_pairs_yx)
+)
 
+# using two-lags xregs (k = 2)
+cv2_e_i <- cv_arimax(y_ts = log(rgdp_ts), xreg_ts = log(internal_mdata_ext_ts),  h_max = h_max,
+                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, vec_of_names = internal_monthly_names,
+                     method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
 
-tic()
-univariate_rgpd_obj <- univariate_analysis(rgdp_ts, do_demetra = TRUE, do_auto_lambda = FALSE)
-toc()
+cv2_e_e <- cv_arimax(y_ts = log(rgdp_ts), xreg_ts = log(external_mdata_ext_ts),  h_max = h_max,
+                     n_cv = number_of_cv, training_length = train_span,  y_order = rgdp_order, 
+                     y_seasonal = rgdp_seasonal, vec_of_names = external_monthly_names,
+                     method = "ML", s4xreg = FALSE, xreg_lags = 0:2)
 
-univariate_rgpd_obj$plot_levels
-univariate_rgpd_obj$plot_yoy
-univariate_rgpd_obj$fit_models
-
-univariate_rgpd_obj$yearly_total_y
-
-
-tic()
-univariate_rgpd_obj_da <- univariate_analysis(rgdp_ts, do_demetra = TRUE, do_auto_lambda = TRUE)
-toc()
-
-
-
-
-univariate_rgpd_obj_da_o4 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                 do_auto_lambda = TRUE,
-                                                 n_offset = 4)
-
-univariate_rgpd_obj_da_o8 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                 do_auto_lambda = TRUE,
-                                                 n_offset = 8)
-
-univariate_rgpd_obj_da_o8$yearly_total_y
-univariate_rgpd_obj_da_o8$yearly_average_yoy_growth
-univariate_rgpd_obj_da_o8$growth_of_yearly_total_y
-univariate_rgpd_obj_da_o8$accuracy_measures_training_set
-univariate_rgpd_obj_da_o8$accuracy_measures_test_set
-univariate_rgpd_obj_da_o8$cv_rmse
-univariate_rgpd_obj_da_o8$cv_rmse_no_rolling_window
-univariate_rgpd_obj_da_o8$fit_models
-
-
-univariate_rgpd_obj_da_o12 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                  do_auto_lambda = TRUE,
-                                                  n_offset = 12)
-
-univariate_rgpd_obj_da_o16 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                  do_auto_lambda = TRUE,
-                                                  n_offset = 16)
-
-univariate_rgpd_obj_da_o20 <- univariate_analysis(rgdp_ts, do_demetra = TRUE, 
-                                                  do_auto_lambda = TRUE,
-                                                  n_offset = 20)
-
-# walk(univariate_rgpd_obj_da$fit_models, print)
-
-
-univariate_rgpd_obj_da$plot_levels
-univariate_rgpd_obj_da$plot_yoy
-univariate_rgpd_obj_da_o4$plot_levels
-univariate_rgpd_obj_da_o4$plot_yoy
-univariate_rgpd_obj_da_o8$plot_levels
-univariate_rgpd_obj_da_o8$plot_yoy
-univariate_rgpd_obj_da_o12$plot_levels
-univariate_rgpd_obj_da_o12$plot_yoy
-univariate_rgpd_obj_da_o16$plot_levels
-univariate_rgpd_obj_da_o16$plot_yoy
-univariate_rgpd_obj_da_o20$plot_levels
-univariate_rgpd_obj_da_o20$plot_yoy
-
-
-
-#### -------- foo -------
-
-rgdp_data <- rgdp_ts
-n_offset <- 8
-freq <-  4
-h_max <- 8
-tsCV_win <- 40
-do_auto_lambda = FALSE
-do_demetra = TRUE
-do_auto_biasadj = FALSE
-do_other_auto = FALSE
-do_ets = FALSE
-
+cv2_e <- list(cv_errors_all_pairs_yx = c(cv2_e_i$cv_errors_all_pairs_yx,
+                                         cv2_e_e$cv_errors_all_pairs_yx),
+              cv_yoy_errors_all_pairs_yx = c(cv2_e_i$cv_yoy_errors_all_pairs_yx,
+                                             cv2_e_e$cv_yoy_errors_all_pairs_yx)
+)
 

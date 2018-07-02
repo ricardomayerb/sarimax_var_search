@@ -828,7 +828,8 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                       y_include_mean = FALSE, 
                       vec_of_names = NULL, method = "CSS", 
                       s4xreg = FALSE,
-                      xreg_lags = NULL) {
+                      xreg_lags = NULL,
+                      is_log_log = FALSE) {
   
   i = 1
   y_ts <- na.omit(y_ts)
@@ -934,13 +935,15 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                        start = start_test_index_x,
                        end = end_test_index_x)
       
-      # print("inside cv")
-      # print("training_y")
-      # print(training_y)
-      # print("training_x")
-      # print(training_x)
-      # print("method")
-      # print(method)
+      print("inside cv")
+      print("training_y")
+      print(training_y)
+      print("training_x")
+      print(training_x)
+      print("method")
+      print(method)
+
+      print("vamos al arimax")
 
       
       this_arimax <- try(Arima(training_y, order = y_order,
@@ -962,7 +965,7 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                                  method = new_method)
       }
       
-      # print("pasamos this_arimax")
+      print("pasamos this_arimax")
       
       this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
       
@@ -1972,24 +1975,36 @@ get_extended_monthly_variables <- function(
       print_comments_on_constant = print_comments_on_constant)
     
     fit_arima_external_monthly_list_demetra_stata_constants <- fit_arimas(
-      y_ts = monthly_data_external_ts, order_list = order_list_external[["monthly_order_list"]],
-      this_arima_names = monthly_data_external_names,  force_constant = force_constant, freq = 12)
+      y_ts = monthly_data_external_ts, 
+      order_list = order_list_external[["monthly_order_list"]],
+      this_arima_names = monthly_data_external_names,  
+      force_constant = FALSE, 
+      freq = 12)
     
-    mdata_ext_dem_stata <- extend_and_qtr(data_mts = monthly_data_ts, 
-                                          final_horizon_date = final_forecast_horizon , 
-                                          vec_of_names = monthly_data_names, 
-                                          fitted_arima_list = fit_arima_monthly_list_demetra_stata_constants,
-                                          start_date_gdp = gdp_and_dates[["gdp_start"]],
-                                          force_constant = TRUE,
-                                          order_list = order_list[["monthly_order_list"]])
+    foo <- fit_arima_external_monthly_list_demetra_stata_constants[[3]]
+    foo_x <- foo$x
+    print(foo_x)
+    foo_fc <- forecast(foo, h = 24)
+    print(foo_fc$mean)
     
-    mdata_ext_external_dem_stata <- extend_and_qtr(data_mts = monthly_data_external_ts, 
-                                                   final_horizon_date = final_forecast_horizon , 
-                                                   vec_of_names = monthly_data_external_names, 
-                                                   fitted_arima_list = fit_arima_monthly_list_demetra_stata_constants,
-                                                   start_date_gdp = gdp_and_dates[["gdp_start"]],
-                                                   force_constant = TRUE,
-                                                   order_list = order_list_external[["monthly_order_list"]])
+    
+    mdata_ext_dem_stata <- extend_and_qtr(
+      data_mts = monthly_data_ts, 
+      final_horizon_date = final_forecast_horizon , 
+      vec_of_names = monthly_data_names,
+      fitted_arima_list = fit_arima_monthly_list_demetra_stata_constants,
+      start_date_gdp = gdp_and_dates[["gdp_start"]],
+      force_constant = TRUE,
+      order_list = order_list[["monthly_order_list"]])
+    
+    mdata_ext_external_dem_stata <- extend_and_qtr(
+      data_mts = monthly_data_external_ts,
+      final_horizon_date = final_forecast_horizon,
+      vec_of_names = monthly_data_external_names,
+      fitted_arima_list = fit_arima_external_monthly_list_demetra_stata_constants,
+      start_date_gdp = gdp_and_dates[["gdp_start"]],
+      force_constant = FALSE,
+      order_list = order_list_external[["monthly_order_list"]])
     
     
   } else {

@@ -51,6 +51,13 @@ fit_arima_external_monthly_list_demetra_r_constants <- fit_arimas(
   y_ts = external_monthly_ts, order_list = demetra_output_external[["monthly_order_list"]],
   this_arima_names = external_monthly_names,  force_constant = force_constant, freq = 12)
 
+fit_arima_monthly_list_auto <- fit_arimas(
+  y_ts = monthly_ts, auto = TRUE, my_lambda = 0, do_approximation = TRUE,
+  freq = 12, this_arima_names = monthly_names)
+
+fit_arima_external_monthly_list_auto <- fit_arimas(
+  y_ts = external_monthly_ts, auto = TRUE, my_lambda = 0, 
+  do_approximation = TRUE, freq = 12, this_arima_names = external_monthly_names)
 
 # gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
 gdp_and_dates <- get_rgdp_and_dates(data_path)
@@ -69,12 +76,12 @@ mdata_ext_dem_stata <- extend_and_qtr(data_mts = monthly_ts,
                               force_constant = TRUE,
                               order_list = demetra_output[["monthly_order_list"]])
 
-mdata_ext_auto_slow_r <- extend_and_qtr(data_mts = monthly_ts, 
-                                  final_horizon_date = final_forecast_horizon , 
-                                  vec_of_names = monthly_names, 
-                                  fitted_arima_list = fit_arima_monthly_list_auto_slow,
-                                  start_date_gdp = gdp_and_dates[["gdp_start"]],
-                                  order_list = demetra_output[["monthly_order_list"]])
+# mdata_ext_auto_slow_r <- extend_and_qtr(data_mts = monthly_ts, 
+#                                   final_horizon_date = final_forecast_horizon , 
+#                                   vec_of_names = monthly_names, 
+#                                   fitted_arima_list = fit_arima_monthly_list_auto_slow,
+#                                   start_date_gdp = gdp_and_dates[["gdp_start"]],
+#                                   order_list = demetra_output[["monthly_order_list"]])
 
 mdata_ext_auto_r <- extend_and_qtr(data_mts = monthly_ts, 
                                         final_horizon_date = final_forecast_horizon , 
@@ -83,27 +90,27 @@ mdata_ext_auto_r <- extend_and_qtr(data_mts = monthly_ts,
                                         start_date_gdp = gdp_and_dates[["gdp_start"]],
                                         order_list = demetra_output[["monthly_order_list"]])
 
-mdata_ext_auto_noapp_r <- extend_and_qtr(data_mts = monthly_ts, 
-                                   final_horizon_date = final_forecast_horizon , 
-                                   vec_of_names = monthly_names, 
-                                   fitted_arima_list = fit_arima_monthly_list_auto_noapp,
-                                   start_date_gdp = gdp_and_dates[["gdp_start"]],
-                                   order_list = demetra_output[["monthly_order_list"]])
+# mdata_ext_auto_noapp_r <- extend_and_qtr(data_mts = monthly_ts,
+#                                    final_horizon_date = final_forecast_horizon , 
+#                                    vec_of_names = monthly_names, 
+#                                    fitted_arima_list = fit_arima_monthly_list_auto_noapp,
+#                                    start_date_gdp = gdp_and_dates[["gdp_start"]],
+#                                    order_list = demetra_output[["monthly_order_list"]])
 
 
 # ari_ima_stata <- fit_arima_external_monthly_list_demetra_stata_constants
 
 mdata_ext_r_ts <- mdata_ext_dem_r$quarterly_series_ts
 mdata_ext_stata_ts <- mdata_ext_dem_stata$quarterly_series_ts
-mdata_ext_r_ts_auto_slow <- mdata_ext_auto_slow_r$quarterly_series_ts
+# mdata_ext_r_ts_auto_slow <- mdata_ext_auto_slow_r$quarterly_series_ts
 mdata_ext_r_ts_auto <- mdata_ext_auto_r$quarterly_series_ts
-mdata_ext_r_ts_auto_noapp <- mdata_ext_auto_noapp_r$quarterly_series_ts
+# mdata_ext_r_ts_auto_noapp <- mdata_ext_auto_noapp_r$quarterly_series_ts
 
 ima_ex_r <- mdata_ext_r_ts[, "imacec"]
 ima_ex_s <- mdata_ext_stata_ts[, "imacec"]
 ima_ex_r_auto <- mdata_ext_r_ts_auto[, "imacec"]
-ima_ex_r_auto_noapp <- mdata_ext_r_ts_auto_noapp[, "imacec"]
-ima_ex_r_auto_slow <- mdata_ext_r_ts_auto_slow[, "imacec"]
+# ima_ex_r_auto_noapp <- mdata_ext_r_ts_auto_noapp[, "imacec"]
+# ima_ex_r_auto_slow <- mdata_ext_r_ts_auto_slow[, "imacec"]
 
 
 mdata_ext_r_tsm <- mdata_ext_dem_r$monthly_series_ts
