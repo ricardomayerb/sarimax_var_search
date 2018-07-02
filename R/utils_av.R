@@ -825,7 +825,7 @@ cv_obs_fc_back_from_diff <- function(yoy_ts, diff_ts, training_length,
 
 cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                       y_order, y_seasonal,
-                      y_include_mean = FALSE, 
+                      y_include_drift = TRUE, 
                       vec_of_names = NULL, method = "CSS", 
                       s4xreg = FALSE,
                       xreg_lags = NULL,
@@ -889,10 +889,17 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
         xlagmat <- cbind(xlagmat, lag.xts(x_series, k = i))
       }
       
-      
-      colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
       # print("xlagmat")
       # print(xlagmat)
+      
+      if(is.null(dim(xlagmat))) {
+        dim(xlagmat) <- c(length(xlagmat), 1)
+      }
+      
+      # print("dim(xlagmat)")
+      # print(dim(xlagmat))
+      
+      colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
       
       x_series <- xlagmat
     }
@@ -935,20 +942,21 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                        start = start_test_index_x,
                        end = end_test_index_x)
       
-      print("inside cv")
-      print("training_y")
-      print(training_y)
-      print("training_x")
-      print(training_x)
-      print("method")
-      print(method)
-
-      print("vamos al arimax")
+      # print("inside cv")
+      # print("training_y")
+      # print(training_y)
+      # print("training_x")
+      # print(training_x)
+      # print("method")
+      # print(method)
+      # 
+      # print("vamos al arimax")
 
       
       this_arimax <- try(Arima(training_y, order = y_order,
                            seasonal = y_seasonal,
-                           xreg = training_x,
+                           xreg = training_x, 
+                           include.drift =  y_include_drift,
                            method = method))
       
       class_this_arimax <- class(this_arimax)[1]
@@ -959,13 +967,32 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                             ", ML method failed in Arima. Switched to CSS-ML.")
         warning(this_mssg)
         new_method <-  "CSS-ML"
-        this_arimax <- Arima(training_y, order = y_order,
+        
+        this_arimax <- try(Arima(training_y, order = y_order,
                                  seasonal = y_seasonal,
                                  xreg = training_x,
-                                 method = new_method)
+                                 include.drift = y_include_drift,
+                                 method = new_method))
+        
+        
+        class_this_arimax <- class(this_arimax)[1]
+        
+        if (class_this_arimax == "try-error") {
+          this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
+                              ", CSS-ML method failed in Arima. Switched to CSS")
+          warning(this_mssg)
+          new_new_method <-  "CSS"
+          
+          this_arimax <- try(Arima(training_y, order = y_order,
+                                   seasonal = y_seasonal,
+                                   xreg = training_x,
+                                   include.drift = y_include_drift,
+                                   method = new_new_method))
+          }
+        
       }
       
-      print("pasamos this_arimax")
+      # print("pasamos this_arimax")
       
       this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
       
@@ -1037,7 +1064,8 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
 cv_arima <- function(y_ts,  h_max, n_cv, training_length,
                      y_order, y_seasonal,
                      y_include_mean = FALSE, 
-                     method = "CSS") {
+                     method = "CSS",
+                     y_include_drift = TRUE) {
   
   i = 1
   y_ts <- na.omit(y_ts)
@@ -1074,7 +1102,8 @@ cv_arima <- function(y_ts,  h_max, n_cv, training_length,
     
     this_arima <- Arima(training_y, order = y_order,
                         seasonal = y_seasonal,
-                        method = method)
+                        method = method,
+                        include.drift =  y_include_drift)
     
     this_fc <- forecast(this_arima, h = h_max)
     
@@ -1695,6 +1724,10 @@ forecast_xreg <- function(arimax_list, xreg_mts, h,
         xlagmat <- cbind(xlagmat, lag.xts(this_series, k = thislag))
       }
       
+      if (is.null(dim(xlagmat))) {
+        dim(xlagmat) <- c(length(xlagmat), 1)
+      }
+      
       colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
       this_series <- xlagmat
     }
@@ -1959,13 +1992,15 @@ get_demetra_params <- function(data_path) {
 
 get_extended_monthly_variables <- function(
   monthly_data_ts, monthly_data_external_ts, final_date, order_list, 
-  order_list_external, gdp_and_dates = gdp_and_dates,
+  order_list_external, data_path,
   do_dm_force_constant = TRUE, do_dm_strict = TRUE, do_auto = TRUE,
   print_comments_on_constant = FALSE) {
   
   monthly_data_names <- colnames(monthly_data_ts)
   monthly_data_external_names <- colnames(monthly_data_external_ts)
   
+  gdp_and_dates <- get_rgdp_and_dates(data_path)
+  start_date_gdp <- gdp_and_dates[["gdp_start"]]
   
   if (do_dm_force_constant) {
     
@@ -1981,11 +2016,11 @@ get_extended_monthly_variables <- function(
       force_constant = FALSE, 
       freq = 12)
     
-    foo <- fit_arima_external_monthly_list_demetra_stata_constants[[3]]
-    foo_x <- foo$x
-    print(foo_x)
-    foo_fc <- forecast(foo, h = 24)
-    print(foo_fc$mean)
+    # foo <- fit_arima_external_monthly_list_demetra_stata_constants[[3]]
+    # foo_x <- foo$x
+    # print(foo_x)
+    # foo_fc <- forecast(foo, h = 24)
+    # print(foo_fc$mean)
     
     
     mdata_ext_dem_stata <- extend_and_qtr(
@@ -1993,7 +2028,7 @@ get_extended_monthly_variables <- function(
       final_horizon_date = final_forecast_horizon , 
       vec_of_names = monthly_data_names,
       fitted_arima_list = fit_arima_monthly_list_demetra_stata_constants,
-      start_date_gdp = gdp_and_dates[["gdp_start"]],
+      start_date_gdp = start_date_gdp,
       force_constant = TRUE,
       order_list = order_list[["monthly_order_list"]])
     
@@ -2002,7 +2037,7 @@ get_extended_monthly_variables <- function(
       final_horizon_date = final_forecast_horizon,
       vec_of_names = monthly_data_external_names,
       fitted_arima_list = fit_arima_external_monthly_list_demetra_stata_constants,
-      start_date_gdp = gdp_and_dates[["gdp_start"]],
+      start_date_gdp = start_date_gdp,
       force_constant = FALSE,
       order_list = order_list_external[["monthly_order_list"]])
     
@@ -2029,14 +2064,14 @@ get_extended_monthly_variables <- function(
                                       final_horizon_date = final_forecast_horizon , 
                                       vec_of_names = monthly_data_names, 
                                       fitted_arima_list = fit_arima_monthly_list_demetra_r_constants,
-                                      start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                      start_date_gdp = start_date_gdp,
                                       order_list = order_list[["monthly_order_list"]])
     
     mdata_ext_external_dem_r <- extend_and_qtr(data_mts = monthly_data_external_ts, 
                                                final_horizon_date = final_forecast_horizon , 
                                                vec_of_names = monthly_data_external_names, 
                                                fitted_arima_list = fit_arima_external_monthly_list_demetra_r_constants,
-                                               start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                               start_date_gdp = start_date_gdp,
                                                order_list = order_list_external[["monthly_order_list"]])
     
   } else {
@@ -2060,14 +2095,14 @@ get_extended_monthly_variables <- function(
                                        final_horizon_date = final_forecast_horizon , 
                                        vec_of_names = monthly_data_names, 
                                        fitted_arima_list = fit_arima_monthly_list_auto,
-                                       start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                       start_date_gdp = start_date_gdp,
                                        order_list = order_list[["monthly_order_list"]])
     
     mdata_ext_external_auto_r <- extend_and_qtr(data_mts = monthly_data_external_ts, 
                                                 final_horizon_date = final_forecast_horizon , 
                                                 vec_of_names = monthly_data_external_names, 
                                                 fitted_arima_list = fit_arima_external_monthly_list_auto,
-                                                start_date_gdp = gdp_and_dates[["gdp_start"]],
+                                                start_date_gdp = start_date_gdp,
                                                 order_list = order_list_external[["monthly_order_list"]])
     
   } else {
@@ -3573,12 +3608,13 @@ my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
 
 
 my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
-                      y_include_mean = FALSE, 
+                      y_include_mean = TRUE, 
                       vec_of_names = NULL, s4xreg = FALSE,
-                      xreg_lags = NULL) {
+                      xreg_lags = NULL,
+                      method = "ML") {
   
   i = 1
-  
+
   y_ts <- na.omit(y_ts)
   
   y_time <- time(y_ts)
@@ -3638,25 +3674,45 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
         xlagmat <- cbind(xlagmat, lag.xts(x_as_y, k = i))
       }
       
+      if (is.null(dim(xlagmat))) {
+        dim(xlagmat) <- c(length(xlagmat), 1)
+      }
+      
       colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
       x_as_y <- xlagmat
     }
     
-    if (s4xreg) {
-      
-      this_arimax <- Arima(y = subset(y_ts, start = 5), xreg = diff(x_as_y, lag = 4), 
-                           order = y_order, seasonal = y_seasonal,
-                           include.mean = y_include_mean, method = "ML" )
-    } else {
       # print("y_ts")
       # print(y_ts)
       # print("x_as_y")
       # print(x_as_y)
       
-      this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
-                           order = y_order, seasonal = y_seasonal,
-                           include.mean = y_include_mean, "ML" )
+    # this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
+    #                        order = y_order, seasonal = y_seasonal,
+    #                        include.constant = include.constant, method = "ML" )
+    
+    
+    this_arimax <- try(Arima(y = y_ts, xreg = x_as_y,
+                             order = y_order,
+                             seasonal = y_seasonal,
+                             include.mean = y_include_mean,
+                             method = method))
+    
+    class_this_arimax <- class(this_arimax)[1]
+    
+    
+    if (class_this_arimax == "try-error") {
+      this_mssg <- paste0("For xreg variable ", vec_of_names[x_regressor], 
+                          ", ML method failed in Arima. Switched to CSS-ML.")
+      warning(this_mssg)
+      new_method <-  "CSS-ML"
+      this_arimax <- Arima(y = y_ts, xreg = x_as_y,
+                           order = y_order,
+                           seasonal = y_seasonal,
+                           include.mean = y_include_mean,
+                           method = new_method)
     }
+    
     
     arimax_list[[x_regressor]] <- this_arimax
     
