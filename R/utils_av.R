@@ -2569,7 +2569,13 @@ get_extended_monthly_variables <- function(
               non_external_dm_r = mdata_ext_dem_r,
               external_dm_r = mdata_ext_external_dem_r,
               non_external_dm_s = mdata_ext_dem_stata,
-              external_dm_s = mdata_ext_external_dem_stata))
+              external_dm_s = mdata_ext_external_dem_stata,
+              fit_arima_m_list_dm_s = fit_arima_monthly_list_demetra_stata_constants,
+              fit_arima_e_list_dm_s = fit_arima_external_monthly_list_demetra_stata_constants,
+              fit_arima_m_list_dm_r = fit_arima_monthly_list_demetra_r_constants,
+              fit_arima_e_list_dm_r = fit_arima_external_monthly_list_demetra_r_constants,
+              fit_arima_m_list_auto = fit_arima_monthly_list_auto,
+              fit_arima_e_list_auto = fit_arima_external_monthly_list_auto))
   
   
 }
