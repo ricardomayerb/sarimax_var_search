@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_foo"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Argentina"
+country_name <- "Bolivia"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
