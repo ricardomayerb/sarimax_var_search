@@ -2451,8 +2451,12 @@ get_extended_monthly_variables <- function(
   if (use_demetra) {
     if (do_dm_force_constant) {
        
-      print("names(order_list)")
-      print(names(order_list))
+      # print("names(order_list)")
+      # print(names(order_list))
+      # 
+      # print("order_list[[monthly_order_list]]")
+      # print(order_list[["monthly_order_list"]])
+      
       fit_arima_monthly_list_demetra_stata_constants <- fit_arimas(
         y_ts = monthly_data_ts, order_list = order_list[["monthly_order_list"]],
         this_arima_names = monthly_data_names,  force_constant = TRUE, freq = 12,
