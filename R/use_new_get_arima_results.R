@@ -1,6 +1,6 @@
 source('./R/utils_av.R')
 
-country_name <- "Argentina"
+country_name <- "Ecuador"
 
 # this is the "stata" option (demetra + always include a constant even if D+d = 2). Approx 20 sec in my PC. ARG 30 sec
 tic()
