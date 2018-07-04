@@ -73,8 +73,12 @@ fit_arima_monthly_list_auto <- fit_arimas(
   this_arima_names = monthly_names)
 toc()
 
+<<<<<<< HEAD
+# 
+=======
 
 # 5.34 sec elapsed
+>>>>>>> 88b2c6e018954eba3ae4caafefeb9896b9e639ed
 tic()
 fit_arima_external_monthly_list_auto <- fit_arimas(
   y_ts = external_monthly_ts, auto = TRUE, do_stepwise = TRUE, do_approximation = TRUE,
@@ -145,11 +149,20 @@ toc()
 # toc()
 
 
+<<<<<<< HEAD
+
+# 320.51 sec elapsedsec elapsed
+tic()
+fit_arima_monthly_list_auto_noapp <- fit_arimas(
+  y_ts = monthly_ts, auto = TRUE, do_stepwise = FALSE, do_approximation = TRUE,
+  this_arima_names = monthly_names, parallel)
+=======
 # 183.24 sec elapsed
 tic()
 fit_arima_log_monthly_list_auto_noapp <- fit_arimas(
   y_ts = log(monthly_ts), auto = TRUE, do_stepwise = FALSE, do_approximation = TRUE,
   this_arima_names = monthly_names)
+>>>>>>> 88b2c6e018954eba3ae4caafefeb9896b9e639ed
 toc()
 
 # 5.34 sec elapsed
@@ -168,6 +181,8 @@ fit_arima_monthly_list_auto$imacec
 fit_arima_log_monthly_list_auto_slow$imacec
 fit_arima_log_monthly_list_auto_noapp$imacec
 fit_arima_log_monthly_list_auto$imacec
+
+fit_arima_monthly_list_auto$imacec
 
 
 gdp_order <- get_order_from_arima(fit_arima_rgdp_list_dem)[[1]]
