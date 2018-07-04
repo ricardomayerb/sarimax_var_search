@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_foo"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Argentina"
+country_name <- "Bolivia"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -43,6 +43,17 @@ if (use_demetra) {
   
   this_rgdp_arima <- fit_arima_rgdp_list_dem
   
+  monthly_with_demetra_info <- names(demetra_output[["monthly_order_list"]])
+  log_vec <- internal_monthly_names %in% monthly_with_demetra_info
+  if (any(!log_vec)) {
+    print("At least one of the variables in monthly does not have a DEMETRA line and will not be considered.")
+    print("These variables are:")
+    print(internal_monthly_names[!log_vec])
+    internal_monthly_names <- internal_monthly_names[log_vec]
+    this_internal_monthly_ts <- this_internal_monthly_ts[, internal_monthly_names]
+  }
+  
+  
   if (use_dm_force_constant) {
     this_non_external <- "non_external_dm_s" 
     this_external <- "external_dm_s" 
@@ -74,6 +85,8 @@ if (use_demetra) {
   demetra_output <- NULL
   demetra_output_external <- NULL
 }
+
+monthly_with_demetra_info %in% internal_monthly_names
 
 rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
 rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean

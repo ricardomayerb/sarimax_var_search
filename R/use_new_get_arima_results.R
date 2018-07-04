@@ -2,7 +2,7 @@ source('./R/utils_av.R')
 
 country_name <- "Argentina"
 
-# this is the "stata" option (demetra + always include a constant even if D+d = 2). Approx 20 sec in my PC
+# this is the "stata" option (demetra + always include a constant even if D+d = 2). Approx 20 sec in my PC. ARG 30 sec
 tic()
 arima_res <- get_arima_results(country_name = country_name, 
                                use_demetra = TRUE, 
@@ -22,7 +22,7 @@ arima_res <- get_arima_results(country_name = country_name,
 toc()
 
 
-# this uses auto.arima for everything. Approx 220 sec in my PC
+# this uses auto.arima for everything. Approx 220 sec in my PC, ARG 480 sec.
 tic()
 arima_res <- get_arima_results(country_name = country_name,
                                     use_demetra = FALSE,
