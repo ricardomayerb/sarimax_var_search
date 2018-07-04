@@ -1960,6 +1960,16 @@ get_arima_results <- function(country_name, read_results = FALSE,
       
       this_rgdp_arima <- fit_arima_rgdp_list_dem
       
+      monthly_with_demetra_info <- names(demetra_output[["monthly_order_list"]])
+      log_vec <- internal_monthly_names %in% monthly_with_demetra_info
+      if (any(!log_vec)) {
+        print("At least one of the variables in monthly does not have a DEMETRA line and will not be considered.")
+        print("These variables are:")
+        print(internal_monthly_names[!log_vec])
+        internal_monthly_names <- internal_monthly_names[log_vec]
+        this_internal_monthly_ts <- this_internal_monthly_ts[, internal_monthly_names]
+      }
+      
       if (use_dm_force_constant) {
         this_non_external <- "non_external_dm_s" 
         this_external <- "external_dm_s" 
