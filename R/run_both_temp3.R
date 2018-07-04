@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_foo"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Bolivia"
+country_name <- "Ecuador"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -12,7 +12,7 @@ h_max <-  8 # last rgdp data is 2017 Q4
 test_length <- h_max
 number_of_cv = 8
 train_span = 16
-use_demetra <- TRUE
+use_demetra <- FALSE
 use_dm_force_constant <- TRUE
 is_log_log <- TRUE
 lambda_0_in_auto <- FALSE
@@ -86,7 +86,6 @@ if (use_demetra) {
   demetra_output_external <- NULL
 }
 
-monthly_with_demetra_info %in% internal_monthly_names
 
 rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
 rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
