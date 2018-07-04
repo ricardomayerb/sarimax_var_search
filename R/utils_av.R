@@ -115,11 +115,9 @@ add_column_cv_yoy_errors <- function(data = cv_objects){
     cv_errors_yoy[[i]] <- errors_yoy
     
   }
-  
   data$cv_errors_yoy <- cv_errors_yoy 
   
   return(data)
-  
 }
 
 
@@ -138,15 +136,13 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
                                    mat_cv_rmses_from_x = cv_all_x_rmse_each_h,
                                    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp)
   
-  
   weigthed_fcs[is.nan(weigthed_fcs)] <- rgdp_uncond_fc_mean[is.nan(weigthed_fcs)]
-  
   
   fcs_using_yoy_weights <- get_weighted_fcs(raw_fcs = mat_of_raw_fcs,
                                             mat_cv_rmses_from_x = cv_all_x_rmse_each_h_yoy,
                                             vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_yoy)
   
-  fcs_using_yoy_weights[ is.nan(fcs_using_yoy_weights)] <- rgdp_uncond_fc_mean[ is.nan(fcs_using_yoy_weights)]
+  fcs_using_yoy_weights[is.nan(fcs_using_yoy_weights)] <- rgdp_uncond_fc_mean[is.nan(fcs_using_yoy_weights)]
   
   weigthed_fcs <- ts(weigthed_fcs, 
                      start = stats::start(rgdp_uncond_fc_mean), 
@@ -163,7 +159,6 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   fcs_using_yoy_weights <- ts(fcs_using_yoy_weights, 
                               start = stats::start(rgdp_uncond_fc_mean), 
                               frequency = 4)
-  
   
   final_rgdp_and_w_fc <- ts(c(rgdp_ts, weigthed_fcs), frequency = 4,
                             start = stats::start(rgdp_ts))
@@ -192,7 +187,6 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   names(cv_rmse_yoy_rgdp_conditional_on_x)[1:test_length] <- paste0("yoy_rmse_", 1:test_length)
   names(cv_rmse_yoy_rgdp)[1:test_length] <- paste0("yoy_rmse_", 1:test_length)
   names(cv_rmse_level_rgdp)[1:test_length] <- paste0("level_rmse_", 1:test_length)
-  
   
   compare_rmse <- rbind(cv_rmse_level_rgdp, 
                         cv_rmse_level_rgdp_conditional_on_x) 
@@ -2456,7 +2450,9 @@ get_extended_monthly_variables <- function(
   
   if (use_demetra) {
     if (do_dm_force_constant) {
-      
+       
+      print("names(order_list)")
+      print(names(order_list))
       fit_arima_monthly_list_demetra_stata_constants <- fit_arimas(
         y_ts = monthly_data_ts, order_list = order_list[["monthly_order_list"]],
         this_arima_names = monthly_data_names,  force_constant = TRUE, freq = 12,

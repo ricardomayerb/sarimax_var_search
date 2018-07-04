@@ -1,16 +1,16 @@
 source('./R/utils_av.R')
 
-country_name <- "Chile"
-
+country_name <- "Argentina"
 
 # this is the "stata" option (demetra + always include a constant even if D+d = 2). Approx 20 sec in my PC
 tic()
 arima_res <- get_arima_results(country_name = country_name, 
-                                      use_demetra = TRUE, 
-                                      use_dm_force_constant = TRUE, 
-                                      arima_res_suffix = "_dm_force_const", 
-                                      is_log_log = TRUE)
+                               use_demetra = TRUE, 
+                               use_dm_force_constant = TRUE, 
+                               arima_res_suffix = "_dm_force_const", 
+                               is_log_log = TRUE)
 toc()
+
 
 # this is the "demetra" option (demetra, which does not include a constant when D+d = 2). Approx 20 sec in my PC
 tic()
@@ -24,12 +24,17 @@ toc()
 
 # this uses auto.arima for everything. Approx 220 sec in my PC
 tic()
-arima_res <- get_arima_results(country_name = country_name, 
-                                    use_demetra = FALSE, 
-                                    use_dm_force_constant = FALSE, 
-                                    arima_res_suffix = "_auto_r", 
+arima_res <- get_arima_results(country_name = country_name,
+                                    use_demetra = FALSE,
+                                    use_dm_force_constant = FALSE,
+                                    arima_res_suffix = "_auto_r",
                                     is_log_log = TRUE)
 toc()
+
+
+
+
+
 
 
 # if you are curious these are the default values (h_max, n_cv etc)
