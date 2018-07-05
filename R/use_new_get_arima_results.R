@@ -1,7 +1,11 @@
 source('./R/utils_av.R')
 
 
-country_name <- "Ecuador"
+
+
+
+
+country_name <- "Bolivia"
 
 
 
@@ -11,7 +15,7 @@ arima_res <- get_arima_results(country_name = country_name,
                                use_demetra = TRUE, 
                                use_dm_force_constant = TRUE, 
                                arima_res_suffix = "_dm_force_const", 
-                               is_log_log = TRUE)
+                               data_is_log_log = TRUE)
 toc()
 
 
@@ -21,7 +25,7 @@ arima_res <- get_arima_results(country_name = country_name,
                                use_demetra = TRUE, 
                                use_dm_force_constant = FALSE, 
                                arima_res_suffix = "_dm_do_not_force_const", 
-                               is_log_log = TRUE)
+                               data_is_log_log = TRUE)
 toc()
 
 
@@ -31,7 +35,7 @@ arima_res <- get_arima_results(country_name = country_name,
                                     use_demetra = FALSE,
                                     use_dm_force_constant = FALSE,
                                     arima_res_suffix = "_auto_r",
-                                    is_log_log = TRUE)
+                                    data_is_log_log = TRUE)
 toc()
 
 

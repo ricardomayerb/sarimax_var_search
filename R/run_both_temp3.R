@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_foo"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Bolivia"
+country_name <- "Chile"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -12,17 +12,18 @@ h_max <-  8 # last rgdp data is 2017 Q4
 test_length <- h_max
 number_of_cv = 8
 train_span = 16
-use_demetra <- TRUE
+use_demetra <- FALSE
 
-use_dm_force_constant <- TRUE
-is_log_log <- TRUE
+use_dm_force_constant <- FALSE
+data_is_log_log <- TRUE
 lambda_0_in_auto <- FALSE
-mean_logical_in_auto <- TRUE
+my_lambda_in_auto <- 0 # only if data_is_log_log = FALSE
+# mean_logical_in_auto <- TRUE
 max_x_lag <- 2
 
 all_arima_data <- ts_data_for_arima(data_path = data_path, 
                                     external_data_path = external_data_path,
-                                    all_logs = is_log_log)
+                                    all_logs = data_is_log_log)
 
 this_rgdp_ts <- all_arima_data[["rgdp_ts"]]
 this_internal_monthly_ts <- all_arima_data[["monthly_ts"]]
@@ -66,19 +67,26 @@ if (use_demetra) {
   }
 } else {
   do_auto <- TRUE
-  fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
-                                         this_arima_names = "rgdp", 
-                                         my_lambda = NULL,
-                                         do_approximation = TRUE)
+  if (data_is_log_log) {
+    fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
+                                           this_arima_names = "rgdp", 
+                                           my_lambda = NULL,
+                                           do_approximation = TRUE)
+    
+  } else {
+    fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
+                                           this_arima_names = "rgdp", 
+                                           my_lambda = my_lambda_in_auto,
+                                           do_approximation = TRUE)
+    
+  }
   this_rgdp_arima <- fit_arima_rgdp_list_auto
   
   gdp_order <- get_order_from_arima(this_rgdp_arima)[[1]]
   rgdp_order <-  gdp_order[c("p", "d", "q")]
   rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
   
-  rgdp_order_list <- list(order = rgdp_order, seasonal = rgdp_seasonal,
-                          mean_logical = mean_logical_in_auto,
-                          log_logical = lambda_0_in_auto)
+  rgdp_order_list <- list(order = rgdp_order, seasonal = rgdp_seasonal)
   
   do_dm_strict <-  TRUE
   this_non_external <- "non_external_auto_r" 
@@ -122,7 +130,7 @@ cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               rgdp_order_list = rgdp_order_list,
                               n_cv = number_of_cv, 
                               test_length = test_length,
-                              is_log_log = is_log_log, 
+                              data_is_log_log = data_is_log_log, 
                               training_length = train_span,
                               h_max = h_max)
 toc()
@@ -138,7 +146,8 @@ toc()
 
 tic()
 fcs_aggr_transf <- aggregate_and_transform_fcs(arimax_and_fcs, cv_cond_uncond,
-                                   rgdp_ts = this_rgdp_ts  )
+                                   rgdp_ts = this_rgdp_ts, 
+                                   rgdp_uncond_fc_mean =  rgdp_uncond_fc_mean )
 toc()
 
 arima_res_1 <- fcs_aggr_transf
