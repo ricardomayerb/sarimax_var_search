@@ -1287,6 +1287,9 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
                            fitted_arima_list, start_date_gdp,
                            force_constant = FALSE, order_list = NULL) {
   
+  print("final_horizon_date")
+  print(final_horizon_date)
+  
   fc_list_m <- list() 
   extended_m_ts_list <- list()
   
@@ -1295,17 +1298,34 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   
   final_horizon_decimal <- final_year + final_month/12
   
+  print("final_horizon_decimal")
+  print(final_horizon_decimal)
+  
+  
   for (i in seq_along(vec_of_names)) {
     
     this_arima <- fitted_arima_list[[i]]
     monthly_series <- data_mts[, vec_of_names[i]]
     
     series_date_max <- monthly_series %>% na.omit() %>% time %>% max
-    diff_decimal <- final_horizon_decimal - series_date_max 
-    diff_in_month <- as.integer(12 * diff_decimal)
+    # diff_decimal <- final_horizon_decimal - series_date_max 
+    # diff_in_month <- as.integer(12 * diff_decimal)
+    
+    series_date_max_ym <- yearmon(series_date_max) 
+    final_horizon_decimal_ym <- yearmon(final_horizon_decimal)
+    series_to_final_interval <- lubridate::interval(series_date_max_ym,
+                                           final_horizon_decimal_ym)
+    
+    diff_in_month <- series_to_final_interval %/% months(1)
+    
+    # print("diff_in_month")
+    # print(diff_in_month)
+    # 
     
     this_fc <- forecast(this_arima, h = diff_in_month)
     fc_mean <- this_fc$mean
+    # print("fc_mean")
+    # print(fc_mean)
     
     
     if (force_constant) {
@@ -1321,8 +1341,18 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
       if (this_d + this_D >= 2) {
         # print("Undifferencing monthly estimated data")
         # data_mts is undifferenced, is still in levels
-        start_ini <- length(na.omit(monthly_series)) - 12 + 1
-        this_init_lev <- subset(na.omit(monthly_series), start = start_ini)
+        # start_ini <- length(na.omit(monthly_series)) - 12 + 1
+        ini_start_date <- lubridate::date(series_date_max_ym) - years(1) 
+        ini_year <- year(ini_start_date)
+        ini_month <- month(ini_start_date)
+        this_init_lev <- window(na.omit(monthly_series), 
+                                start = c(ini_year, ini_month))
+        
+        print("fc_mean")
+        print(fc_mean)
+        
+        print("this_init_lev")
+        print(this_init_lev)
         
         unsd_fc <- un_yoy_ts(vec_yoy = fc_mean, init_lev = this_init_lev,
                             freq = 12)
@@ -1373,8 +1403,11 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
                                               mean, na.rm = TRUE)
   ext_series_xts_quarterly <- ext_series_xts_quarterly[start_gdp_str]
   
+  xts_q_start <- min(date(ext_series_xts_quarterly))
+  
   ext_series_ts_quarterly <- tk_ts(ext_series_xts_quarterly, 
-                                   start = c(rgdp_start_year, rgdp_start_quarter), 
+                                   start = c(year(xts_q_start), 
+                                             quarter(xts_q_start)), 
                                    frequency = 4)
   
   
@@ -2433,6 +2466,8 @@ get_extended_monthly_variables <- function(
   print_comments_on_constant = FALSE,
   final_forecast_horizon = c(2019, 12)) {
   
+  # print("final_forecast_horizon")
+  # print(final_forecast_horizon)
   
   
   monthly_data_names <- colnames(monthly_data_ts)
@@ -4419,7 +4454,7 @@ ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
   if (all_logs) {
     monthly_ts  <- log(monthly_ts)
     external_monthly_ts  <- log(external_monthly_ts)
-    log_rgdp_ts <- log(rgdp_ts)
+    rgdp_ts <- log(rgdp_ts)
   }
   
   ret_list <- list(
