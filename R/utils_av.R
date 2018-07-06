@@ -1451,9 +1451,18 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   }
   
   names(fc_list_m) <- vec_of_names
+  
+  # print(vec_of_names)
+  
   names(extended_m_ts_list) <- vec_of_names
   
-  ext_monthly_series_mts <- reduce(extended_m_ts_list, ts.union)
+  if (length(vec_of_names) == 1) {
+    ext_monthly_series_mts <- extended_m_ts_list[[1]]
+    dim(ext_monthly_series_mts) <- c(length(ext_monthly_series_mts), 1)
+  } else {
+    ext_monthly_series_mts <- reduce(extended_m_ts_list, ts.union)
+  }
+  
   colnames(ext_monthly_series_mts) <- vec_of_names
   
   # print("tail(ext_monthly_series_mts)")
@@ -1651,7 +1660,12 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
   
   for (i in seq.int(1, n_of_series)) {
     
-    this_y <- y_ts[, i]
+    if (is.null(dim(y_ts))) {
+      this_y <- y_ts
+    } else {
+      this_y <- y_ts[, i]
+    }
+    
     
     if (!auto) {
       this_instruction <- order_list[[i]]
@@ -2587,7 +2601,7 @@ get_extended_monthly_variables <- function(
         force_constant = FALSE, 
         freq = 12)
       
-      
+
       mdata_ext_dem_stata <- extend_and_qtr(
         data_mts = monthly_data_ts, 
         final_horizon_date = final_forecast_horizon , 
@@ -3745,8 +3759,11 @@ make_models_tbl_rm <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
 make_monthly_ts <- function(data, 
                             names_to_exclude = c("date", "year", "month")) {
   
-  start_year <- min(data$year)
-  start_month <- min(data$month)
+  
+  min_date <- min(date(data$date)) 
+
+  start_year <- year(min_date)
+  start_month <- month(min_date)
   
   all_names <- names(data)
   names_to_keep <- all_names[!str_detect(all_names, names_to_exclude)]
@@ -3756,6 +3773,15 @@ make_monthly_ts <- function(data,
                    silent = TRUE)
   
   data_ts <- data_ts[ , names_to_keep]
+  
+  # print("data_ts")
+  # print(data_ts)
+  
+  if (is.null(dim(data_ts))) {
+    dim(data_ts) <- c(length(data_ts), 1)
+    colnames(data_ts) <- names_to_keep
+  }
+  
   
   return(data_ts)
 }
@@ -4513,13 +4539,16 @@ ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
   
   gdp_and_dates <- get_rgdp_and_dates(data_path)
   
+  
   monthly_data <- get_monthly_variables(data_path = data_path)
   monthly_ts <- make_monthly_ts(monthly_data)
   monthly_names <- colnames(monthly_ts)
   
+  
   external_monthly_data <- get_monthly_variables(data_path = external_data_path)
   external_monthly_ts <- make_monthly_ts(external_monthly_data)
   external_monthly_names <- colnames(external_monthly_ts)
+  
   
   rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
                 start = gdp_and_dates[["gdp_start"]], frequency = 4)
