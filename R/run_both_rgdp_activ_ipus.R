@@ -28,9 +28,6 @@ this_rgdp_ts <- all_arima_data[["rgdp_ts"]]
 this_internal_monthly_ts <- all_arima_data[["monthly_ts"]]
 this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 
-
-
-
 internal_monthly_names <- colnames(this_internal_monthly_ts)
 external_monthly_names <- colnames(this_external_monthly_ts)
 
