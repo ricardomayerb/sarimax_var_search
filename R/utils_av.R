@@ -101,7 +101,6 @@ add_average_fcs <- function(var_fc_tbl, n_ave = c(1, 3, 5)) {
   return(new_just_fcs)
 }
 
-
 add_column_cv_yoy_errors <- function(data = cv_objects){
   
   cv_errors_yoy <- list_along(1:nrow(data))
@@ -119,8 +118,6 @@ add_column_cv_yoy_errors <- function(data = cv_objects){
   
   return(data)
 }
-
-
 
 aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
                                         rgdp_ts, rgdp_uncond_fc_mean, 
@@ -214,8 +211,6 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   ))
   
 }
-
-
 
 bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
                                  number_of_cv = 8, 
@@ -624,7 +619,6 @@ bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
   
 }
 
-
 calc_ee <- function(vec_of_dQ, levQ, cut_1 = 3, cut_2 = 7) {
   ee2_start <- cut_1 + 1
   vec_Q_dQ_ee1 <- c(levQ, vec_of_dQ[1:cut_1])
@@ -637,7 +631,6 @@ calc_ee <- function(vec_of_dQ, levQ, cut_1 = 3, cut_2 = 7) {
   )
 }
 
-
 calc_bp <- function(vec_of_dQ, levQ, cut_1 = 1, cut_2 = 5) {
   bp2_start <- cut_1 + 1
   vec_Q_dQ_bp1 <- c(levQ, vec_of_dQ[1:cut_1])
@@ -649,7 +642,6 @@ calc_bp <- function(vec_of_dQ, levQ, cut_1 = 1, cut_2 = 5) {
     list(bp1 = Q_bp_1, bp2 = Q_bp_2)
   )
 }
-
 
 chop_start_xts <- function(df_xts, start_date){
   subset_string <- paste0(as.Date(start_date), "/")
@@ -668,7 +660,6 @@ chop_start_end_xts <- function(df_xts, start_date, end_date) {
   
   return(new_xts)
 }
-
 
 comb_ndiffs <- function(this_series, return_4_seas = FALSE, 
                         do_other_seas = FALSE, seas_test = "seas") {
@@ -4118,8 +4109,15 @@ make_yoy_xts <- function(df_xts, freq = 4) {
 }
 
 
-make_yoy_ts <- function(df_ts, freq = 4) {
+make_yoy_ts <- function(df_ts, freq = 4, is_log = FALSE) {
+  
+  if (is_log) {
+    df_ts <- exp(df_ts)
+  }
+  
   new_ts <- base::diff(df_ts, lag = freq)/stats::lag(df_ts, k = -freq)
+  
+  return(new_ts)
 }
 
 

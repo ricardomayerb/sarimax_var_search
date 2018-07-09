@@ -15,6 +15,45 @@ knitr::opts_knit$set(root.dir = here::here())
 source('./R/utils_av.R')
 ```
 
+```{r new_functions}
+
+seas_yr_growth <- function(data_ts, freq = 4) {
+  this_rgdp_tsb <- tsibble::as_tsibble(this_rgdp_ts)
+
+  seas_gr  <- this_rgdp_tsb %>% rename(log_rgdp = value) %>% 
+    mutate(difflog_gr =  100 * difference(log_rgdp, lag = 4),
+           gr = 100 * difference(exp(log_rgdp), lag = 4) / 
+                 dplyr::lag(exp(log_rgdp), n = 4),
+         )
+
+  year_gr <- seas_gr %>% index_by(year_index = year(index)) %>% 
+  summarise(y_logdiff = mean(difflog_gr, na.rm = TRUE),
+            y_ave_gr = mean(gr, na.rm = TRUE),
+            y_rgdp = sum(exp(log_rgdp))
+            ) %>% 
+  mutate(y_tot_gr = 100*difference(y_rgdp)/lag(y_rgdp)) 
+  
+  return(list(seasonal_growth = seas_gr, year_growth = year_gr))
+
+}
+
+print_growths <- function(seas_and_yr_gr) {
+  seas_gr <- seas_and_yr_gr[["seasonal_growth"]]
+  year_gr <- seas_and_yr_gr[["year_growth"]]
+
+  a <- knitr::kable(tail(as_tibble(seas_gr) %>% select(-log_rgdp), n = 8), 
+             digits = 1, align = 'lcc')
+
+  b <- knitr::kable(tail(as_tibble(year_gr) %>% select(-y_rgdp), n = 5),
+               digits = 1, align = 'lccc')  
+  
+  walk(list(a,b), print)
+  
+}
+
+```
+
+
 
 ## Initial data
 
@@ -59,29 +98,42 @@ Log transformation applied to all variables. Data obtained from the excel file `
 ### Quarterly real GDP
 
 
-```{r plot_rgdp}
-
+```{r plot_level_rgdp}
 autoplot(this_rgdp_ts) + 
   ggtitle(paste("Quarterly GDP")) 
 
 ```
 
+
+```{r plot_yoy_gr_rgdp}
+
+autoplot(make_yoy_ts(this_rgdp_ts, is_log = TRUE)) + 
+  ggtitle(paste("YoY growth, Quarterly GDP")) 
+```
+
+
+```{r plot_level_e_i}
+autoplot(this_internal_monthly_ts, series = "internal") + 
+  autolayer(this_external_monthly_ts, series = "external")
+
+```
+
+```{r plot_yoy_growth_e_i}
+autoplot(make_yoy_ts(this_internal_monthly_ts, freq = 12, is_log = TRUE),
+         series = "internal") + 
+  autolayer(make_yoy_ts(this_external_monthly_ts, freq = 12, is_log = TRUE),
+            series = "external") 
+  
+
+```
+
+
+
 ```{r gr_rgdp_data}
-this_rgdp_tsb <- tsibble::as_tsibble(this_rgdp_ts)
 
-seas_gr <- this_rgdp_tsb 
+gr_q_y <- seas_yr_growth(this_rgdp_ts)
 
-difflog_gr <- diff.xts(this_rgdp_tsb$value, lag = 4, na.pad = TRUE)
-
-gr  <- diff.xts(exp(this_rgdp_tsb$value), lag = 4, na.pad = TRUE) / lag.xts(exp(this_rgdp_tsb$value), k = 4)
-
-seas_gr$difflog_gr <- difflog_gr 
-seas_gr$gr <- gr 
-
-# seas_gr <- seas_gr %>% 
-#   mutate(d2 = diff(value, lag = 4) )
-
-as_tibble(seas_gr)
+print_growths(gr_q_y)
 
 ```
 
@@ -91,5 +143,5 @@ as_tibble(seas_gr)
 
 ## Forecasting and extending monthly data
 
-### Implied
+### Implied 
 
