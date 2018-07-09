@@ -1,6 +1,8 @@
 ---
 title: "R Notebook"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 
@@ -17,37 +19,100 @@ source('./R/utils_av.R')
 
 ```{r new_functions}
 
-seas_yr_growth <- function(data_ts, freq = 4) {
-  this_rgdp_tsb <- tsibble::as_tsibble(this_rgdp_ts)
-
-  seas_gr  <- this_rgdp_tsb %>% rename(log_rgdp = value) %>% 
-    mutate(difflog_gr =  100 * difference(log_rgdp, lag = 4),
-           gr = 100 * difference(exp(log_rgdp), lag = 4) / 
-                 dplyr::lag(exp(log_rgdp), n = 4),
-         )
-
-  year_gr <- seas_gr %>% index_by(year_index = year(index)) %>% 
-  summarise(y_logdiff = mean(difflog_gr, na.rm = TRUE),
-            y_ave_gr = mean(gr, na.rm = TRUE),
-            y_rgdp = sum(exp(log_rgdp))
-            ) %>% 
-  mutate(y_tot_gr = 100*difference(y_rgdp)/lag(y_rgdp)) 
+seas_yr_growth <- function(data_ts, freq = 4 , is_log = TRUE, 
+                           do_just_log = FALSE) {
   
-  return(list(seasonal_growth = seas_gr, year_growth = year_gr))
+  seas_gr <- tsibble::as_tsibble(data_ts)
+  
+  if (is_log) {
+    seas_gr  <- seas_gr %>% 
+    mutate(difflog_gr =  100 * difference(value, lag = freq))
+    
+    year_gr <- seas_gr %>% index_by(year_index = year(index)) %>%
+      summarise(y_logdiff = mean(difflog_gr, na.rm = TRUE)) 
+    
+    if (freq == 12) {
+      quarter_gr <- seas_gr %>% index_by(quarter_index = yearquarter(index)) %>%
+      summarise(q_logdiff = mean(difflog_gr, na.rm = TRUE)) 
+    }
+    
+      if (! do_just_log) {
+        seas_gr  <-seas_gr  %>% 
+          mutate(gr = 100 * difference(exp(value), lag = freq) / 
+                 dplyr::lag(exp(value), n = freq))
+        
+        year_gr <- seas_gr %>% index_by(year_index = year(index)) %>%
+          summarise(y_logdiff = mean(difflog_gr, na.rm = TRUE),
+                    y_ave_gr = mean(gr, na.rm = TRUE),
+                    y_rgdp = sum(exp(value), na.rm = TRUE))  %>%
+          mutate(y_tot_gr = 100*difference(y_rgdp)/lag(y_rgdp)) 
+        
+        if (freq == 12) {
+          quarter_gr <- seas_gr %>% index_by(quarter_index = yearquarter(index)) %>%
+          summarise(q_logdiff = mean(difflog_gr, na.rm = TRUE),
+                    q_ave_gr = mean(gr, na.rm = TRUE),
+                    q_rgdp = sum(exp(value), na.rm = TRUE))  %>%
+          mutate(q_tot_gr = 100*difference(q_rgdp, lag = 4)/lag(q_rgdp, n = 4))
+          
+        }
+      }
+    
+  } else {
+    seas_gr  <-seas_gr  %>% 
+          mutate(gr = 100 * difference(value, lag = freq) / 
+                 dplyr::lag(value, n = freq))
+    
+    year_gr <- seas_gr %>% index_by(year_index = year(index)) %>% 
+      summarise(y_ave_gr = mean(gr, na.rm = TRUE),
+                y_rgdp = sum(value)) %>%
+      mutate(y_tot_gr = 100*difference(y_rgdp)/lag(y_rgdp))
+    
+    if (freq == 12) {
+      quarter_gr <- seas_gr %>% index_by(quarter_index = yearquarter(index)) %>% 
+      summarise(q_ave_gr = mean(gr, na.rm = TRUE),
+                q_rgdp = sum(value)) %>%
+      mutate(q_tot_gr = 100*difference(q_rgdp, lag = 4)/lag(q_rgdp, n = 4))
+    }
+    
+  }
+
+  
+  if (freq == 4) {
+    return(list(seasonal_growth = seas_gr, year_growth = year_gr))
+  }
+  
+  if (freq == 12) {
+    return(list(seasonal_growth = seas_gr, year_growth = year_gr,
+                quarter_growth = quarter_gr))
+  }
+  
+  
 
 }
 
 print_growths <- function(seas_and_yr_gr) {
   seas_gr <- seas_and_yr_gr[["seasonal_growth"]]
   year_gr <- seas_and_yr_gr[["year_growth"]]
+  quarter_gr <- seas_and_yr_gr[["quarter_growth"]]
 
-  a <- knitr::kable(tail(as_tibble(seas_gr) %>% select(-log_rgdp), n = 8), 
+  seas <- knitr::kable(tail(as_tibble(seas_gr) %>% select(-value), n = 8), 
              digits = 1, align = 'lcc')
 
-  b <- knitr::kable(tail(as_tibble(year_gr) %>% select(-y_rgdp), n = 5),
+  yr <- knitr::kable(tail(as_tibble(year_gr) %>% select(-y_rgdp), n = 5),
                digits = 1, align = 'lccc')  
   
-  walk(list(a,b), print)
+  if (is.null(quarter_gr)) {
+    
+    walk(list(seas, yr), print)
+    
+  } else {
+    
+    qtr <- knitr::kable(tail(as_tibble(quarter_gr) %>% select(-q_rgdp), n = 5),
+               digits = 1, align = 'lccc') 
+    
+    walk(list(seas, yr, qtr), print)
+    
+  }
   
 }
 
@@ -65,18 +130,7 @@ country_name <- "Bolivia_activ"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external_us.xlsx"
-final_forecast_horizon <- c(2019, 12)
-h_max <-  8 # last rgdp data is 2017 Q4
-test_length <- h_max
-number_of_cv = 8
-train_span = 16
-use_demetra <- TRUE
-
-use_dm_force_constant <- TRUE
 is_log_log <- TRUE
-lambda_0_in_auto <- FALSE
-mean_logical_in_auto <- TRUE
-max_x_lag <- 2
 
 all_arima_data <- ts_data_for_arima(data_path = data_path, 
                                     external_data_path = external_data_path,
@@ -116,6 +170,12 @@ autoplot(make_yoy_ts(this_rgdp_ts, is_log = TRUE)) +
 autoplot(this_internal_monthly_ts, series = "internal") + 
   autolayer(this_external_monthly_ts, series = "external")
 
+ei_level_ts  <- ts.union(int = na.omit(this_internal_monthly_ts), 
+                         ext = na.omit(this_external_monthly_ts))
+
+tail_level <- tail(ei_level_ts, n = 12)
+
+tail_level 
 ```
 
 ```{r plot_yoy_growth_e_i}
@@ -123,23 +183,384 @@ autoplot(make_yoy_ts(this_internal_monthly_ts, freq = 12, is_log = TRUE),
          series = "internal") + 
   autolayer(make_yoy_ts(this_external_monthly_ts, freq = 12, is_log = TRUE),
             series = "external") 
+
+
+ei_yoy_gr_ts  <- ts.union(int = na.omit(
+  make_yoy_ts(this_internal_monthly_ts, freq = 12, is_log = TRUE)), 
+                         ext = na.omit(
+  make_yoy_ts(this_external_monthly_ts, freq = 12, is_log = TRUE))
+                           )
+
+tail_yoy <- 100*tail(ei_yoy_gr_ts, n = 14)
+
+
   
+tail_yoy
 
 ```
 
 
+Data availability notes:
 
-```{r gr_rgdp_data}
+- Our key data, real GDP is available up to 2017 Q3
+- The internal variable (monthly activity index) is available only up to May 2017. This is, partially covers 2017 Q2 but none of 2017 Q3.
+- The external variable (monthly US activity index) is available up to February 2018, partially covering 2018 Q1.
 
-gr_q_y <- seas_yr_growth(this_rgdp_ts)
 
-print_growths(gr_q_y)
+
+### Quarterly versions of GDP and monthly data 
+
+In terms of growth rates
+```{r gr_data}
+
+gr_q_y_rgdp <- seas_yr_growth(na.omit(this_rgdp_ts))
+gr_m_y_q_internal <- seas_yr_growth(na.omit(this_internal_monthly_ts), 
+                                    freq = 12)
+gr_m_y_q_external <- seas_yr_growth(na.omit(this_external_monthly_ts),
+                                    freq = 12)
+
+q_r_growth <- gr_q_y_rgdp$seasonal_growth %>% 
+  rename(quarter_index = index, rgdp_growth = gr) %>%
+  select(quarter_index, rgdp_growth)
+  
+q_e_growth <- gr_m_y_q_internal$quarter_growth %>% 
+  rename(dom_growth = q_ave_gr) %>% 
+  select(quarter_index, dom_growth)
+
+q_i_growth <- gr_m_y_q_external$quarter_growth %>% 
+  rename(ext_growth = q_ave_gr) %>% 
+  select(quarter_index, ext_growth)
+
+q_rie_growth <- left_join(q_r_growth, q_i_growth, by = "quarter_index") %>% 
+  left_join(q_e_growth, by = "quarter_index")
+
+
+knitr::kable(tail(q_rie_growth, n = 8), digits = 1)
+
+
+# print_growths(gr_q_y)
+# walk(gr_q_y, ~ print(tail(.)))
+# walk(gr_m_y_q_internal, ~ print(tail(.)))
+# walk(gr_m_y_q_external, ~ print(tail(.)))
+
 
 ```
 
 
 
 ## Initial GDP specification and forecast
+
+
+```{r rgpd_uncond_arimas_dm_force}
+final_forecast_horizon <- c(2019, 12)
+h_max <-  8 # last rgdp data is 2017 Q4
+test_length <- h_max
+number_of_cv = 8
+train_span = 16
+use_demetra <- TRUE
+
+use_dm_force_constant <- TRUE
+
+lambda_0_in_auto <- FALSE
+mean_logical_in_auto <- TRUE
+max_x_lag <- 2
+
+
+if (use_demetra) {
+  do_auto <- FALSE
+  demetra_output <- get_demetra_params(data_path)
+  demetra_output_external <- get_demetra_params(external_data_path)
+  
+  rgdp_order_list <- demetra_output[["rgdp_order_list"]][[1]]
+  
+  fit_arima_rgdp_list_dem <- fit_arimas(
+    y_ts = this_rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
+    this_arima_names = "rgdp")
+  
+  this_rgdp_arima <- fit_arima_rgdp_list_dem
+  
+  monthly_with_demetra_info <- names(demetra_output[["monthly_order_list"]])
+  log_vec <- internal_monthly_names %in% monthly_with_demetra_info
+  if (any(!log_vec)) {
+    print("At least one of the variables in monthly does not have a DEMETRA line and will not be considered.")
+    print("These variables are:")
+    print(internal_monthly_names[!log_vec])
+    internal_monthly_names <- internal_monthly_names[log_vec]
+    this_internal_monthly_ts <- this_internal_monthly_ts[, internal_monthly_names]
+  }
+  
+  
+  if (use_dm_force_constant) {
+    this_non_external <- "non_external_dm_s" 
+    this_external <- "external_dm_s" 
+    do_dm_strict <-  FALSE
+  } else {
+    this_non_external <- "non_external_dm_r" 
+    this_external <- "external_dm_r" 
+    do_dm_strict <-  TRUE
+  }
+} else {
+  do_auto <- TRUE
+  fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
+                                         this_arima_names = "rgdp", 
+                                         my_lambda = NULL,
+                                         do_approximation = TRUE)
+  this_rgdp_arima <- fit_arima_rgdp_list_auto
+  
+  gdp_order <- get_order_from_arima(this_rgdp_arima)[[1]]
+  rgdp_order <-  gdp_order[c("p", "d", "q")]
+  rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
+  
+  rgdp_order_list <- list(order = rgdp_order, seasonal = rgdp_seasonal,
+                          mean_logical = mean_logical_in_auto,
+                          log_logical = lambda_0_in_auto)
+  
+  do_dm_strict <-  TRUE
+  this_non_external <- "non_external_auto_r" 
+  this_external <- "external_auto_r"
+  demetra_output <- NULL
+  demetra_output_external <- NULL
+}
+
+
+rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
+rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
+
+rgdp_and_uncond_fc_dm_f <- ts(data = c(rgdp_uncond_fc$x, 
+                                  rgdp_uncond_fc$mean), 
+                         frequency = 4,
+                         start = start(this_rgdp_ts))
+
+gr_q_y_rgdp_and_unc_fc_dm_f <- seas_yr_growth(na.omit(rgdp_and_uncond_fc_dm_f))
+
+q_rfc_growth_dm_f <- gr_q_y_rgdp_and_unc_fc_dm_f$seasonal_growth %>% 
+  rename(quarter_index = index, rgdp_growth_dm_f = gr) %>%
+  select(quarter_index, rgdp_growth_dm_f)
+
+print(this_rgdp_arima[["rgdp"]])
+
+# pander::pander(this_rgdp_arima[["rgdp"]])
+# 
+# autoplot(rgdp_uncond_fc)
+# 
+# knitr::kable(tail(q_rfc_growth_dm_f, n = 11), digits = 1)
+
+
+```
+
+
+
+```{r rgpd_uncond_arimas_dm_not_force}
+final_forecast_horizon <- c(2019, 12)
+h_max <-  8 # last rgdp data is 2017 Q4
+test_length <- h_max
+number_of_cv = 8
+train_span = 16
+use_demetra <- TRUE
+
+use_dm_force_constant <- FALSE
+
+lambda_0_in_auto <- FALSE
+mean_logical_in_auto <- TRUE
+max_x_lag <- 2
+
+
+if (use_demetra) {
+  do_auto <- FALSE
+  demetra_output <- get_demetra_params(data_path)
+  demetra_output_external <- get_demetra_params(external_data_path)
+  
+  rgdp_order_list <- demetra_output[["rgdp_order_list"]][[1]]
+  
+  fit_arima_rgdp_list_dem <- fit_arimas(
+    y_ts = this_rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
+    this_arima_names = "rgdp")
+  
+  this_rgdp_arima <- fit_arima_rgdp_list_dem
+  
+  monthly_with_demetra_info <- names(demetra_output[["monthly_order_list"]])
+  log_vec <- internal_monthly_names %in% monthly_with_demetra_info
+  if (any(!log_vec)) {
+    print("At least one of the variables in monthly does not have a DEMETRA line and will not be considered.")
+    print("These variables are:")
+    print(internal_monthly_names[!log_vec])
+    internal_monthly_names <- internal_monthly_names[log_vec]
+    this_internal_monthly_ts <- this_internal_monthly_ts[, internal_monthly_names]
+  }
+  
+  
+  if (use_dm_force_constant) {
+    this_non_external <- "non_external_dm_s" 
+    this_external <- "external_dm_s" 
+    do_dm_strict <-  FALSE
+  } else {
+    this_non_external <- "non_external_dm_r" 
+    this_external <- "external_dm_r" 
+    do_dm_strict <-  TRUE
+  }
+} else {
+  do_auto <- TRUE
+  fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
+                                         this_arima_names = "rgdp", 
+                                         my_lambda = NULL,
+                                         do_approximation = TRUE)
+  this_rgdp_arima <- fit_arima_rgdp_list_auto
+  
+  gdp_order <- get_order_from_arima(this_rgdp_arima)[[1]]
+  rgdp_order <-  gdp_order[c("p", "d", "q")]
+  rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
+  
+  rgdp_order_list <- list(order = rgdp_order, seasonal = rgdp_seasonal,
+                          mean_logical = mean_logical_in_auto,
+                          log_logical = lambda_0_in_auto)
+  
+  do_dm_strict <-  TRUE
+  this_non_external <- "non_external_auto_r" 
+  this_external <- "external_auto_r"
+  demetra_output <- NULL
+  demetra_output_external <- NULL
+}
+
+
+rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
+rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
+
+rgdp_and_uncond_fc_dm_nf <- ts(data = c(rgdp_uncond_fc$x, 
+                                  rgdp_uncond_fc$mean), 
+                         frequency = 4,
+                         start = start(this_rgdp_ts))
+
+gr_q_y_rgdp_and_unc_fc_dm_nf <- seas_yr_growth(na.omit(rgdp_and_uncond_fc_dm_nf))
+
+q_rfc_growth_dm_nf <- gr_q_y_rgdp_and_unc_fc_dm_nf$seasonal_growth %>% 
+  rename(quarter_index = index, rgdp_growth_dm_nf = gr) %>%
+  select(quarter_index, rgdp_growth_dm_nf)
+
+print(this_rgdp_arima[["rgdp"]])
+
+# pander::pander(this_rgdp_arima[["rgdp"]])
+
+# autoplot(rgdp_uncond_fc)
+# 
+# knitr::kable(tail(q_rfc_growth, n = 11), digits = 1)
+
+
+```
+
+
+
+```{r rgpd_uncond_arimas_auto}
+final_forecast_horizon <- c(2019, 12)
+h_max <-  8 # last rgdp data is 2017 Q4
+test_length <- h_max
+number_of_cv = 8
+train_span = 16
+use_demetra <- FALSE
+
+use_dm_force_constant <- TRUE
+
+lambda_0_in_auto <- FALSE
+mean_logical_in_auto <- TRUE
+max_x_lag <- 2
+
+
+if (use_demetra) {
+  do_auto <- FALSE
+  demetra_output <- get_demetra_params(data_path)
+  demetra_output_external <- get_demetra_params(external_data_path)
+  
+  rgdp_order_list <- demetra_output[["rgdp_order_list"]][[1]]
+  
+  fit_arima_rgdp_list_dem <- fit_arimas(
+    y_ts = this_rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
+    this_arima_names = "rgdp")
+  
+  this_rgdp_arima <- fit_arima_rgdp_list_dem
+  
+  monthly_with_demetra_info <- names(demetra_output[["monthly_order_list"]])
+  log_vec <- internal_monthly_names %in% monthly_with_demetra_info
+  if (any(!log_vec)) {
+    print("At least one of the variables in monthly does not have a DEMETRA line and will not be considered.")
+    print("These variables are:")
+    print(internal_monthly_names[!log_vec])
+    internal_monthly_names <- internal_monthly_names[log_vec]
+    this_internal_monthly_ts <- this_internal_monthly_ts[, internal_monthly_names]
+  }
+  
+  
+  if (use_dm_force_constant) {
+    this_non_external <- "non_external_dm_s" 
+    this_external <- "external_dm_s" 
+    do_dm_strict <-  FALSE
+  } else {
+    this_non_external <- "non_external_dm_r" 
+    this_external <- "external_dm_r" 
+    do_dm_strict <-  TRUE
+  }
+} else {
+  do_auto <- TRUE
+  fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
+                                         this_arima_names = "rgdp", 
+                                         my_lambda = NULL,
+                                         do_approximation = TRUE)
+  this_rgdp_arima <- fit_arima_rgdp_list_auto
+  
+  gdp_order <- get_order_from_arima(this_rgdp_arima)[[1]]
+  rgdp_order <-  gdp_order[c("p", "d", "q")]
+  rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
+  
+  rgdp_order_list <- list(order = rgdp_order, seasonal = rgdp_seasonal,
+                          mean_logical = mean_logical_in_auto,
+                          log_logical = lambda_0_in_auto)
+  
+  do_dm_strict <-  TRUE
+  this_non_external <- "non_external_auto_r" 
+  this_external <- "external_auto_r"
+  demetra_output <- NULL
+  demetra_output_external <- NULL
+}
+
+
+rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
+rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
+
+rgdp_and_uncond_fc_auto <- ts(data = c(rgdp_uncond_fc$x, 
+                                  rgdp_uncond_fc$mean), 
+                         frequency = 4,
+                         start = start(this_rgdp_ts))
+
+gr_q_y_rgdp_and_unc_fc_auto <- seas_yr_growth(na.omit(rgdp_and_uncond_fc_auto))
+
+q_rfc_growth_auto <- gr_q_y_rgdp_and_unc_fc_auto$seasonal_growth %>% 
+  rename(quarter_index = index, rgdp_growth_auto = gr) %>%
+  select(quarter_index, rgdp_growth_auto)
+
+print(this_rgdp_arima[["rgdp"]])
+
+# pander::pander(this_rgdp_arima[["rgdp"]])
+
+# autoplot(rgdp_uncond_fc)
+# 
+# knitr::kable(tail(q_rfc_growth, n = 11), digits = 1)
+
+
+```
+
+```{r all_3_uncond_arimas}
+
+yoy3 <- 100 * make_yoy_ts(ts.union(rgdp_and_uncond_fc_auto, 
+                             rgdp_and_uncond_fc_dm_nf, 
+                             rgdp_and_uncond_fc_dm_f), is_log = TRUE)
+
+# colnames(yoy3) <- c("auto", "dm_nf", "dm_f")
+
+foo <- tail(yoy3, n = 12)
+
+knitr::kable(foo, digits = 1)
+
+```
+
+
 
 ## Forecasting and extending monthly data
 
