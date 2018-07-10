@@ -273,9 +273,11 @@ if (use_demetra) {
   
   rgdp_order_list <- demetra_output[["rgdp_order_list"]][[1]]
   
+  
+  
   fit_arima_rgdp_list_dem <- fit_arimas(
     y_ts = this_rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
-    this_arima_names = "rgdp")
+    this_arima_names = "rgdp", force_constant = use_dm_force_constant)
   
   this_rgdp_arima <- fit_arima_rgdp_list_dem
   
@@ -294,6 +296,32 @@ if (use_demetra) {
     this_non_external <- "non_external_dm_s" 
     this_external <- "external_dm_s" 
     do_dm_strict <-  FALSE
+    
+    t_for_fit <- seq(1, length(this_rgdp_arima[["rgdp"]]$x))
+    t_for_fit_sq <- t_for_fit^2
+    
+    t_for_fc <- seq(length(this_rgdp_arima[["rgdp"]]$x)+1,
+                    length(this_rgdp_arima[["rgdp"]]$x)+h_max)
+    t_for_fc_sq <- t_for_fc^2
+    
+    rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], 
+                               h = h_max, xreg = t_for_fc_sq)
+    rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
+    
+    print(rgdp_uncond_fc_mean)
+    
+    rgdp_and_uncond_fc_dm_f <- ts(data = c(rgdp_uncond_fc$x, 
+                                  rgdp_uncond_fc$mean), 
+                         frequency = 4,
+                         start = start(this_rgdp_ts))
+
+    gr_q_y_rgdp_and_unc_fc_dm_f <- seas_yr_growth(na.omit(rgdp_and_uncond_fc_dm_f))
+
+    q_rfc_growth_dm_f <- gr_q_y_rgdp_and_unc_fc_dm_f$seasonal_growth %>% 
+    rename(quarter_index = index, rgdp_growth_dm_f = gr) %>%
+    select(quarter_index, rgdp_growth_dm_f)
+    
+    
   } else {
     this_non_external <- "non_external_dm_r" 
     this_external <- "external_dm_r" 
@@ -323,19 +351,9 @@ if (use_demetra) {
 }
 
 
-rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
-rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
 
-rgdp_and_uncond_fc_dm_f <- ts(data = c(rgdp_uncond_fc$x, 
-                                  rgdp_uncond_fc$mean), 
-                         frequency = 4,
-                         start = start(this_rgdp_ts))
 
-gr_q_y_rgdp_and_unc_fc_dm_f <- seas_yr_growth(na.omit(rgdp_and_uncond_fc_dm_f))
 
-q_rfc_growth_dm_f <- gr_q_y_rgdp_and_unc_fc_dm_f$seasonal_growth %>% 
-  rename(quarter_index = index, rgdp_growth_dm_f = gr) %>%
-  select(quarter_index, rgdp_growth_dm_f)
 
 print(this_rgdp_arima[["rgdp"]])
 
@@ -393,6 +411,7 @@ if (use_demetra) {
     this_non_external <- "non_external_dm_s" 
     this_external <- "external_dm_s" 
     do_dm_strict <-  FALSE
+    
   } else {
     this_non_external <- "non_external_dm_r" 
     this_external <- "external_dm_r" 
@@ -473,7 +492,7 @@ if (use_demetra) {
   
   fit_arima_rgdp_list_dem <- fit_arimas(
     y_ts = this_rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
-    this_arima_names = "rgdp")
+    this_arima_names = "rgdp", print_comments_on_constant = TRUE)
   
   this_rgdp_arima <- fit_arima_rgdp_list_dem
   
@@ -502,7 +521,8 @@ if (use_demetra) {
   fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
                                          this_arima_names = "rgdp", 
                                          my_lambda = NULL,
-                                         do_approximation = TRUE)
+                                         do_approximation = TRUE,
+                                         print_comments_on_constant = TRUE)
   this_rgdp_arima <- fit_arima_rgdp_list_auto
   
   gdp_order <- get_order_from_arima(this_rgdp_arima)[[1]]
@@ -560,20 +580,297 @@ re_gr_auto <- rgdp_ext_gr_auto$seasonal_growth %>% select(index, gr) %>%
   rename(auto_gr = gr)
 re_gr_dm_nf <- rgdp_ext_gr_dm_nf$seasonal_growth %>% select(index, gr) %>% 
   rename(dm_nf_gr = gr)
+re_gr_dm_f <- rgdp_ext_gr_dm_f$seasonal_growth %>% select(index, gr) %>% 
+  rename(dm_f_gr = gr)
 
-tail(left_join(re_gr_auto, re_gr_dm_nf, by = "index"), n = 12) 
+knitr::kable(tail(left_join(re_gr_auto, re_gr_dm_nf, by = "index") %>% 
+       left_join(re_gr_dm_f, by = "index"), n = 12), digits = 2)
 
-# colnames(yoy3) <- c("auto", "dm_nf", "dm_f")
 
-foo <- tail(yoy3, n = 12)
-
-knitr::kable(foo, digits = 1)
 
 ```
 
 
 
 ## Forecasting and extending monthly data
+
+
+```{r extending_monthly_dm_s}
+
+tic()
+use_demetra <- TRUE
+use_dm_force_constant <- TRUE
+do_dm_strict <- FALSE
+demetra_output <- get_demetra_params(data_path)
+demetra_output_external <- get_demetra_params(external_data_path)
+this_non_external <- "non_external_dm_s" 
+this_external <- "external_dm_s" 
+
+
+extended_data_dm_s <- get_extended_monthly_variables(
+  do_auto = do_auto,
+  use_demetra = use_demetra,
+  do_dm_strict = do_dm_strict,
+  do_dm_force_constant = use_dm_force_constant,
+  monthly_data_ts = this_internal_monthly_ts,
+  monthly_data_external_ts = this_external_monthly_ts,
+  order_list = demetra_output,
+  order_list_external = demetra_output_external,
+  data_path = data_path,
+  final_forecast_horizon = final_forecast_horizon,
+  print_comments_on_constant = TRUE)
+toc()
+
+internal_mdata_ext_ts_dm_s <- extended_data_dm_s[[this_non_external]][["quarterly_series_ts"]]
+external_mdata_ext_ts_dm_s <- extended_data_dm_s[[this_external]][["quarterly_series_ts"]]
+
+m_internal_mdata_ext_ts_dm_s <- extended_data_dm_s[[this_non_external]][["monthly_series_ts"]]
+m_external_mdata_ext_ts_dm_s <- extended_data_dm_s[[this_external]][["monthly_series_ts"]]
+
+mdata_ext_ts_dm_s <- ts.union(internal_mdata_ext_ts_dm_s, external_mdata_ext_ts_dm_s)
+monthly_names <- c(internal_monthly_names, external_monthly_names)
+colnames(mdata_ext_ts_dm_s) <- monthly_names
+```
+
+```{r manual_ext_monthly_dm_s}
+print(demetra_output$monthly_order_list)
+print(demetra_output_external$monthly_order_list)
+
+dm_internal_order <- c(2, 1, 1)
+dm_internal_seasonal <- c(0, 1, 1)
+
+dm_internal_order <- c(0, 1, 2)
+dm_internal_seasonal <- c(0, 0, 0)
+
+nao_external_ts <- na.omit(this_external_monthly_ts)
+nao_internal_ts <- na.omit(this_internal_monthly_ts)
+n_internal <- length(nao_internal_ts)
+t_internal <- seq(1, n_internal)
+t_internal_sq <- t_internal^2
+
+internal_arima_manual_dm_s <- Arima(y = nao_internal_ts, xreg = t_internal_sq, order = dm_internal_order, seasonal = dm_internal_seasonal, method = "CSS")
+
+t_internal_fc <- seq(n_internal+1, n_internal+31)
+t_internal_fc_sq <- t_internal_fc^2
+
+internal_fc_manual_dm_s <- forecast(internal_arima_manual_dm_s, h = 31, xreg = t_internal_fc_sq)
+internal_fc_manual_dm_s_mean <- internal_fc_manual_dm_s$mean
+manual_ext_int_dm_s <- ts(data=c(nao_internal_ts, internal_fc_manual_dm_s_mean),
+                          start = start(nao_internal_ts), frequency = 12)
+
+internal_arima_manual_dm_s_ml <- Arima(y = nao_internal_ts, xreg = t_internal_sq, order = dm_internal_order, seasonal = dm_internal_seasonal, method = "ML")
+internal_fc_manual_dm_s_ml <- forecast(internal_arima_manual_dm_s_ml, h = 31, xreg = t_internal_fc_sq)
+internal_fc_manual_dm_s_mean_ml <- internal_fc_manual_dm_s_ml$mean
+manual_ext_int_dm_s_ml <- ts(data=c(nao_internal_ts, internal_fc_manual_dm_s_mean_ml),
+                          start = start(nao_internal_ts), frequency = 12)
+
+# print(manual_ext_int_dm_s)
+# print(m_internal_mdata_ext_ts_dm_s)
+
+idms3 <- ts.union(m_internal_mdata_ext_ts_dm_s, manual_ext_int_dm_s, 
+               manual_ext_int_dm_s_ml)
+
+idms3_yoy <- 100 * make_yoy_ts(ts.union(m_internal_mdata_ext_ts_dm_s, manual_ext_int_dm_s, 
+               manual_ext_int_dm_s_ml), freq = 12, is_log = TRUE)
+colnames(idms3_yoy) <- c("myfun", "css", "ml")
+
+print(idms3)
+print(idms3_yoy)
+ei_dm_s_gr <- seas_yr_growth(manual_ext_int_dm_s_ml, freq = 12) 
+q_dm_s_gr <- ei_dm_s_gr$quarter_growth %>% 
+  rename(gr_dm_s = q_ave_gr) %>% select(quarter_index, gr_dm_s)
+
+```
+
+
+
+
+```{r extending_monthly_dm_r}
+
+tic()
+use_demetra <- TRUE
+use_dm_force_constant <- FALSE
+do_dm_strict <- TRUE
+demetra_output <- get_demetra_params(data_path)
+demetra_output_external <- get_demetra_params(external_data_path)
+this_non_external <- "non_external_dm_r" 
+this_external <- "external_dm_r" 
+
+extended_data_dm_r <- get_extended_monthly_variables(
+  do_auto = do_auto,
+  use_demetra = use_demetra,
+  do_dm_strict = do_dm_strict,
+  do_dm_force_constant = use_dm_force_constant,
+  monthly_data_ts = this_internal_monthly_ts,
+  monthly_data_external_ts = this_external_monthly_ts,
+  order_list = demetra_output,
+  order_list_external = demetra_output_external,
+  data_path = data_path,
+  final_forecast_horizon = final_forecast_horizon,
+  print_comments_on_constant = TRUE)
+toc()
+
+internal_mdata_ext_ts_dm_r <- extended_data_dm_r[[this_non_external]][["quarterly_series_ts"]]
+external_mdata_ext_ts_dm_r <- extended_data_dm_r[[this_external]][["quarterly_series_ts"]]
+
+m_internal_mdata_ext_ts_dm_r <- extended_data_dm_r[[this_non_external]][["monthly_series_ts"]]
+m_external_mdata_ext_ts_dm_r <- extended_data_dm_r[[this_external]][["monthly_series_ts"]]
+
+mdata_ext_ts_dm_r <- ts.union(internal_mdata_ext_ts_dm_r, external_mdata_ext_ts_dm_r)
+monthly_names <- c(internal_monthly_names, external_monthly_names)
+colnames(mdata_ext_ts_dm_r) <- monthly_names
+```
+
+
+```{r manual_ext_monthly_dm_r}
+
+internal_arima_manual_dm_r <- Arima(y = nao_internal_ts, order = dm_internal_order, seasonal = dm_internal_seasonal)
+internal_fc_manual_dm_r <- forecast(internal_arima_manual_dm_r, h = 31)
+internal_fc_manual_dm_r_mean <- internal_fc_manual_dm_r$mean
+manual_ext_int_dm_r <- ts(data=c(nao_internal_ts, internal_fc_manual_dm_r_mean),
+                          start = start(nao_internal_ts), frequency = 12)
+
+idmr <- ts.union(m_internal_mdata_ext_ts_dm_r, manual_ext_int_dm_r) 
+colnames(idmr) <- c("myfun", "manual")
+print(idmr)
+
+ei_dm_r_gr <- seas_yr_growth(manual_ext_int_dm_r, freq = 12)
+q_dm_r_gr <- ei_dm_r_gr$quarter_growth %>% 
+  rename(gr_dm_r = q_ave_gr) %>% select(quarter_index, gr_dm_r)
+
+external_arima_manual_dm_r <- Arima(y = nao_external_ts, order = dm_external_order, 
+                                    seasonal = dm_external_seasonal,
+                                    include.constant = TRUE)
+
+external_fc_manual_dm_r <- forecast(internal_arima_manual_dm_r, h = 31)
+external_fc_manual_dm_r_mean <- internal_fc_manual_dm_r$mean
+manual_ext_ext_dm_r <- ts(data=c(nao_internal_ts, internal_fc_manual_dm_r_mean),
+                          start = start(nao_internal_ts), frequency = 12)
+
+
+
+
+```
+
+
+
+```{r extending_monthly_auto}
+
+tic()
+use_demetra <- FALSE
+do_auto <- TRUE
+use_dm_force_constant <- FALSE
+do_dm_strict <- TRUE
+this_non_external <- "non_external_auto_r" 
+this_external <- "external_auto_r"
+
+extended_data_auto <- get_extended_monthly_variables(
+  do_auto = do_auto,
+  use_demetra = use_demetra,
+  do_dm_strict = do_dm_strict,
+  do_dm_force_constant = use_dm_force_constant,
+  monthly_data_ts = this_internal_monthly_ts,
+  monthly_data_external_ts = this_external_monthly_ts,
+  order_list = demetra_output,
+  order_list_external = demetra_output_external,
+  data_path = data_path,
+  final_forecast_horizon = final_forecast_horizon)
+toc()
+
+internal_mdata_ext_ts_auto <- extended_data_auto[[this_non_external]][["quarterly_series_ts"]]
+external_mdata_ext_ts_auto <- extended_data_auto[[this_external]][["quarterly_series_ts"]]
+
+m_internal_mdata_ext_ts_auto <- extended_data_auto[[this_non_external]][["monthly_series_ts"]]
+m_external_mdata_ext_ts_auto <- extended_data_auto[[this_external]][["monthly_series_ts"]]
+
+mdata_ext_ts_auto <- ts.union(internal_mdata_ext_ts_auto, external_mdata_ext_ts_auto)
+monthly_names <- c(internal_monthly_names, external_monthly_names)
+colnames(mdata_ext_ts_auto) <- monthly_names
+```
+
+
+```{r manual_ext_monthly_auto}
+
+internal_arima_manual_auto <- auto.arima(y = nao_internal_ts)
+internal_arima_manual_auto
+
+internal_fc_manual_auto <- forecast(internal_arima_manual_auto, h = 31)
+
+internal_fc_manual_auto_mean <- internal_fc_manual_auto$mean
+
+manual_ext_int_auto <- ts(data=c(nao_internal_ts, internal_fc_manual_auto_mean),
+                          start = start(nao_internal_ts), frequency = 12)
+
+idma <- ts.union(m_internal_mdata_ext_ts_auto, manual_ext_int_auto) 
+colnames(idma) <- c("myfun", "manual")
+print(idma)
+
+ei_dm_auto <- seas_yr_growth(manual_ext_int_auto, freq = 12) 
+
+q_auto_gr <- ei_auto_gr$quarter_growth %>% 
+  rename(gr_auto = q_ave_gr) %>% select(quarter_index, gr_auto)
+
+```
+
+
+
+
+
+```{r temp}
+
+ext_int3  <- ts.union(manual_ext_int_dm_s_ml, manual_ext_int_dm_r, 
+                      manual_ext_int_auto)
+
+ext_int3_yoy <- 100 * make_yoy_ts(ext_int3, freq = 12, is_log = TRUE)
+colnames(ext_int3_yoy) <- c("dm_s", "dm_r", "auto")
+ext_int3_yoy
+
+autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2016,2020)) 
+
+autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2016,2020))
+
+ei_dm_s_gr <- seas_yr_growth(manual_ext_int_dm_s_ml, freq = 12) 
+ei_dm_r_gr <- seas_yr_growth(manual_ext_int_dm_r, freq = 12) 
+ei_auto_gr <- seas_yr_growth(manual_ext_int_auto, freq = 12) 
+
+q_dm_s_gr <- ei_dm_s_gr$quarter_growth %>% 
+  rename(gr_dm_s = q_ave_gr) %>% select(quarter_index, gr_dm_s)
+
+q_dm_r_gr <- ei_dm_r_gr$quarter_growth %>% 
+  rename(gr_dm_r = q_ave_gr) %>% select(quarter_index, gr_dm_r)
+
+q_auto_gr <- ei_auto_gr$quarter_growth %>% 
+  rename(gr_auto = q_ave_gr) %>% select(quarter_index, gr_auto)
+
+q_ars_gr <- left_join(q_auto_gr, q_dm_r_gr, by = "quarter_index") %>% 
+  left_join(q_dm_s_gr, by = "quarter_index")
+
+tail(q_ars_gr, n = 12)
+
+```
+
+
+
+
+```{r summ_ext_monthly}
+fooi <- ts.union(internal_mdata_ext_ts_auto, internal_mdata_ext_ts_dm_s,
+                 internal_mdata_ext_ts_dm_r)
+fooi_yoy <- 100 * make_yoy_ts(fooi)
+colnames(fooi_yoy) <- c("auto", "dm_s", "dm_r")
+fooi_yoy
+
+fooe <- ts.union(external_mdata_ext_ts_auto, external_mdata_ext_ts_dm_s,
+                 external_mdata_ext_ts_dm_r)
+fooe_yoy <- 100 * make_yoy_ts(fooe)
+colnames(fooe_yoy) <- c("auto", "dm_s", "dm_r")
+fooe_yoy
+
+
+```
+
+
+
+
 
 ### Implied 
 

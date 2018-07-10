@@ -1368,8 +1368,7 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
     # print(diff_in_month)
     # 
     
-    this_fc <- forecast(this_arima, h = diff_in_month)
-    fc_mean <- this_fc$mean
+    
     # print("fc_mean")
     # print(fc_mean)
     
@@ -1385,43 +1384,20 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
       this_D <- this_seasonal[2]
       
       if (this_d + this_D >= 2) {
-        # print("Undifferencing monthly estimated data")
-        # data_mts is undifferenced, is still in levels
-        # start_ini <- length(na.omit(monthly_series)) - 12 + 1
-        ini_start_date <- lubridate::date(series_date_max_ym) - years(1) 
-        ini_year <- year(ini_start_date)
-        ini_month <- month(ini_start_date)
-        this_init_lev <- window(na.omit(monthly_series), 
-                                start = c(ini_year, ini_month))
+        t <- seq(1, length(this_arima$x) + diff_in_month)
+        t_sq <- t^2
         
-        # print("Twice differenced")
-        # print("this_init_lev")
-        # print(this_init_lev)
-        # 
-        # print("fc_mean")
-        # print(fc_mean)
+        t_fc <- seq(length(this_arima$x) + 1, length(this_arima$x) + diff_in_month)
+        t_fc_sq <- t_fc^2
         
+        this_fc <- forecast(this_arima, h = diff_in_month, xreg = t_fc_sq)
+        fc_mean <- this_fc$mean  
 
-        
-        unsd_fc <- un_yoy_ts(vec_yoy = fc_mean, init_lev = this_init_lev,
-                            freq = 12)
-        
-        # print("unsd_fc")
-        # print(unsd_fc)
-        
-        # if(i == 1) {
-        #   print("fc_mean")
-        #   print(fc_mean)
-        #   print("this_init_lev")
-        #   print(this_init_lev)
-        #   print("unsd_fc")
-        #   print(unsd_fc)
-        # }
-        # 
-        fc_mean <- unsd_fc 
-        
       }
       
+    } else {
+      this_fc <- forecast(this_arima, h = diff_in_month)
+      fc_mean <- this_fc$mean
     }
     
     # extended_monthly_series <- glue_x_mean(monthly_series, fc_mean)
@@ -1637,7 +1613,8 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
                        include.constant = FALSE, do_stepwise = TRUE, 
                        do_approximation = FALSE,  force_constant = FALSE, 
                        take_log_before = FALSE, freq = 4, parallel = FALSE, 
-                       num.cores = 2, print_comments_on_constant = FALSE) {
+                       num.cores = 2, print_comments_on_constant = FALSE,
+                       method = "ML") {
   
   n_of_series <- ncol(y_ts)
   
@@ -1657,6 +1634,8 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
       this_y <- y_ts[, i]
     }
     
+    this_y <- na.omit(this_y)
+    
     
     if (!auto) {
       this_instruction <- order_list[[i]]
@@ -1665,18 +1644,7 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
       this_constant <- this_instruction[["mean_logical"]]
       is_log <- this_instruction[["log_logical"]]
       
-      # if (is_log) {
-      #   my_lambda <- 1
-      # }
-      # 
-      # if (is.null(my_lambda)) {
-      #   if (is_log) {
-      #     my_lambda <- 1
-      #   } else {
-      #     my_lambda <- NULL
-      #   }
-      # }
-      
+
       this_d <- this_order[2]
       this_D <- this_seasonal[2]
 
@@ -1692,14 +1660,20 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
         if (force_constant) {
           if (print_comments_on_constant) {
             print("Using Stata default (i.e. include a constant even if D+D >=2) by differencing the series before estimation")
+            print("This constant is included by way of specifying a vector of t^2 as xreg")
           }
-         
-          sdiff_this_y = diff(this_y, lag = freq)
-          this_seasonal[2] <- this_seasonal[2]-1
           
-          fit <- Arima(y = sdiff_this_y, order = this_order, seasonal = this_seasonal,
-                       include.constant =  TRUE, lambda = my_lambda, 
-                       biasadj = my_biasadj, method = "ML")
+          t <- seq(1, length(this_y))
+          # print(t)
+          t_sq <- t^2
+          # print(t_sq)
+          
+          # sdiff_this_y = diff(this_y, lag = freq)
+          # this_seasonal[2] <- this_seasonal[2]-1
+          
+          fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+                       include.constant =  FALSE, lambda = my_lambda, 
+                       biasadj = my_biasadj, method = method, xreg = t_sq)
           
           
         } else {
@@ -1716,7 +1690,7 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
         
         fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
                      include.constant =  this_constant, lambda = my_lambda, 
-                     biasadj = my_biasadj)
+                     biasadj = my_biasadj, method = method)
       }
     } else {
       
@@ -2542,7 +2516,7 @@ get_extended_monthly_variables <- function(
   order_list_external, data_path, use_demetra = TRUE,
   do_dm_force_constant = FALSE, do_dm_strict = TRUE, do_auto = FALSE,
   print_comments_on_constant = FALSE,
-  final_forecast_horizon = c(2019, 12)) {
+  final_forecast_horizon = c(2019, 12), method = "ML") {
   
   # print("final_forecast_horizon")
   # print(final_forecast_horizon)
@@ -2577,20 +2551,26 @@ get_extended_monthly_variables <- function(
       # print("names(order_list)")
       # print(names(order_list))
       # 
-      # print("order_list[[monthly_order_list]]")
-      # print(order_list[["monthly_order_list"]])
+      print("order_list[[monthly_order_list]]")
+      print(order_list[["monthly_order_list"]])
+      print("method")
+      print(method)
       
       fit_arima_monthly_list_demetra_stata_constants <- fit_arimas(
         y_ts = monthly_data_ts, order_list = order_list[["monthly_order_list"]],
         this_arima_names = monthly_data_names,  force_constant = TRUE, freq = 12,
-        print_comments_on_constant = print_comments_on_constant)
+        print_comments_on_constant = print_comments_on_constant, method = method)
+      
+      # print("fit_arima_monthly_list_demetra_stata_constants")
+      # print(fit_arima_monthly_list_demetra_stata_constants)
+      
       
       fit_arima_external_monthly_list_demetra_stata_constants <- fit_arimas(
         y_ts = monthly_data_external_ts, 
         order_list = order_list_external[["monthly_order_list"]],
         this_arima_names = monthly_data_external_names,  
         force_constant = FALSE, 
-        freq = 12)
+        freq = 12, method = method, include.constant = TRUE)
       
 
       mdata_ext_dem_stata <- extend_and_qtr(
@@ -2619,13 +2599,13 @@ get_extended_monthly_variables <- function(
       fit_arima_monthly_list_demetra_r_constants <- fit_arimas(
         y_ts = monthly_data_ts, order_list = order_list[["monthly_order_list"]],
         this_arima_names = monthly_data_names,  force_constant = FALSE, freq = 12,
-        print_comments_on_constant = print_comments_on_constant)
+        print_comments_on_constant = print_comments_on_constant, include.constant = TRUE)
       
       fit_arima_external_monthly_list_demetra_r_constants <- fit_arimas(
         y_ts = monthly_data_external_ts, 
         order_list = order_list_external[["monthly_order_list"]],
         this_arima_names = monthly_data_external_names,  
-        force_constant = force_constant, freq = 12)
+        force_constant = force_constant, freq = 12, include.constant = TRUE)
       
       mdata_ext_dem_r <- extend_and_qtr(
         data_mts = monthly_data_ts, 
