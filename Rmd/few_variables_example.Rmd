@@ -639,11 +639,12 @@ print(demetra_output_external$monthly_order_list)
 dm_internal_order <- c(2, 1, 1)
 dm_internal_seasonal <- c(0, 1, 1)
 
-dm_internal_order <- c(0, 1, 2)
-dm_internal_seasonal <- c(0, 0, 0)
+dm_external_order <- c(0, 1, 2)
+dm_external_seasonal <- c(0, 0, 0)
 
 nao_external_ts <- na.omit(this_external_monthly_ts)
 nao_internal_ts <- na.omit(this_internal_monthly_ts)
+
 n_internal <- length(nao_internal_ts)
 t_internal <- seq(1, n_internal)
 t_internal_sq <- t_internal^2
@@ -742,13 +743,13 @@ external_arima_manual_dm_r <- Arima(y = nao_external_ts, order = dm_external_ord
                                     seasonal = dm_external_seasonal,
                                     include.constant = TRUE)
 
-external_fc_manual_dm_r <- forecast(internal_arima_manual_dm_r, h = 31)
-external_fc_manual_dm_r_mean <- internal_fc_manual_dm_r$mean
-manual_ext_ext_dm_r <- ts(data=c(nao_internal_ts, internal_fc_manual_dm_r_mean),
-                          start = start(nao_internal_ts), frequency = 12)
+external_fc_manual_dm_r <- forecast(external_arima_manual_dm_r, h = 22)
+external_fc_manual_dm_r_mean <- external_fc_manual_dm_r$mean
+manual_ext_ext_dm_r <- ts(data=c(nao_external_ts, external_fc_manual_dm_r_mean),
+                          start = start(nao_external_ts), frequency = 12)
 
-
-
+yoy_ex_dm_r <- 100 * make_yoy_ts(manual_ext_ext_dm_r, freq = 12, is_log = TRUE)
+yoy_ex_dm_r
 
 ```
 
