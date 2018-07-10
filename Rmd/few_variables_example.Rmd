@@ -552,6 +552,17 @@ yoy3 <- 100 * make_yoy_ts(ts.union(rgdp_and_uncond_fc_auto,
                              rgdp_and_uncond_fc_dm_nf, 
                              rgdp_and_uncond_fc_dm_f), is_log = TRUE)
 
+rgdp_ext_gr_auto <- seas_yr_growth(rgdp_and_uncond_fc_auto)
+rgdp_ext_gr_dm_f <- seas_yr_growth(rgdp_and_uncond_fc_dm_f)
+rgdp_ext_gr_dm_nf <- seas_yr_growth(rgdp_and_uncond_fc_dm_nf)
+
+re_gr_auto <- rgdp_ext_gr_auto$seasonal_growth %>% select(index, gr) %>% 
+  rename(auto_gr = gr)
+re_gr_dm_nf <- rgdp_ext_gr_dm_nf$seasonal_growth %>% select(index, gr) %>% 
+  rename(dm_nf_gr = gr)
+
+tail(left_join(re_gr_auto, re_gr_dm_nf, by = "index"), n = 12) 
+
 # colnames(yoy3) <- c("auto", "dm_nf", "dm_f")
 
 foo <- tail(yoy3, n = 12)
