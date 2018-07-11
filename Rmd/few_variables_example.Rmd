@@ -728,7 +728,7 @@ colnames(mdata_ext_ts_dm_r) <- monthly_names
 internal_arima_manual_dm_r <- Arima(y = nao_internal_ts, order = dm_internal_order, seasonal = dm_internal_seasonal)
 internal_fc_manual_dm_r <- forecast(internal_arima_manual_dm_r, h = 31)
 internal_fc_manual_dm_r_mean <- internal_fc_manual_dm_r$mean
-manual_ext_int_dm_r <- ts(data=c(nao_internal_ts, internal_fc_manual_dm_r_mean),
+manual_ext_int_dm_r <- ts(data = c(nao_internal_ts, internal_fc_manual_dm_r_mean),
                           start = start(nao_internal_ts), frequency = 12)
 
 idmr <- ts.union(m_internal_mdata_ext_ts_dm_r, manual_ext_int_dm_r) 
@@ -745,11 +745,23 @@ external_arima_manual_dm_r <- Arima(y = nao_external_ts, order = dm_external_ord
 
 external_fc_manual_dm_r <- forecast(external_arima_manual_dm_r, h = 22)
 external_fc_manual_dm_r_mean <- external_fc_manual_dm_r$mean
-manual_ext_ext_dm_r <- ts(data=c(nao_external_ts, external_fc_manual_dm_r_mean),
+manual_ext_ext_dm_r <- ts(data = c(nao_external_ts, external_fc_manual_dm_r_mean),
                           start = start(nao_external_ts), frequency = 12)
 
-yoy_ex_dm_r <- 100 * make_yoy_ts(manual_ext_ext_dm_r, freq = 12, is_log = TRUE)
-yoy_ex_dm_r
+edmr <- ts.union(m_external_mdata_ext_ts_dm_r, manual_ext_ext_dm_r) 
+colnames(edmr) <- c("myfun", "manual")
+print(tail(edmr))
+
+ee_dm_r_gr <- seas_yr_growth(manual_ext_ext_dm_r, freq = 12)
+eq_dm_r_gr <- ee_dm_r_gr$quarter_growth %>% 
+  rename(gr_dm_r = q_ave_gr) %>% select(quarter_index, gr_dm_r)
+
+
+
+yoy_manual_ex_dm_r <- 100 * make_yoy_ts(manual_ext_ext_dm_r, freq = 12, is_log = TRUE)
+yoy_myfun_ex_dm_r <- 100 * make_yoy_ts(m_external_mdata_ext_ts_dm_r, freq = 12, is_log = TRUE)
+
+tail(ts.union(yoy_manual_ex_dm_r, yoy_myfun_ex_dm_r), n = 24)
 
 ```
 
@@ -794,22 +806,52 @@ colnames(mdata_ext_ts_auto) <- monthly_names
 
 internal_arima_manual_auto <- auto.arima(y = nao_internal_ts)
 internal_arima_manual_auto
-
 internal_fc_manual_auto <- forecast(internal_arima_manual_auto, h = 31)
-
 internal_fc_manual_auto_mean <- internal_fc_manual_auto$mean
-
-manual_ext_int_auto <- ts(data=c(nao_internal_ts, internal_fc_manual_auto_mean),
+manual_ext_int_auto <- ts(data = c(nao_internal_ts, internal_fc_manual_auto_mean),
                           start = start(nao_internal_ts), frequency = 12)
 
 idma <- ts.union(m_internal_mdata_ext_ts_auto, manual_ext_int_auto) 
 colnames(idma) <- c("myfun", "manual")
 print(idma)
 
-ei_dm_auto <- seas_yr_growth(manual_ext_int_auto, freq = 12) 
-
+ei_auto_gr <- seas_yr_growth(manual_ext_int_auto, freq = 12) 
 q_auto_gr <- ei_auto_gr$quarter_growth %>% 
   rename(gr_auto = q_ave_gr) %>% select(quarter_index, gr_auto)
+
+
+external_arima_manual_auto_slow <- auto.arima(y = nao_external_ts, stepwise = FALSE, approximation = FALSE)
+external_arima_manual_auto_slow
+
+# external_arima_manual_auto_slow_P0 <- auto.arima(y = nao_external_ts, stepwise = FALSE, approximation = FALSE, max.P = 0, start.P = 0, max.Q = 0, start.Q = 0)
+# external_arima_manual_auto_slow_P0
+
+external_arima_manual_auto <- auto.arima(y = nao_external_ts)
+external_arima_manual_auto
+
+external_fc_manual_auto <- forecast(external_arima_manual_auto, h = 22)
+external_fc_manual_auto_mean <- external_fc_manual_auto$mean
+manual_ext_ext_auto <- ts(data = c(nao_external_ts, external_fc_manual_auto_mean),
+                          start = start(nao_external_ts), frequency = 12)
+
+external_fc_manual_auto_slow <- forecast(external_arima_manual_auto_slow, h = 22)
+external_fc_manual_auto_mean_slow <- external_fc_manual_auto_slow$mean
+manual_ext_ext_auto_slow <- ts(data = c(nao_external_ts, external_fc_manual_auto_mean_slow),
+                          start = start(nao_external_ts), frequency = 12)
+
+edma <- ts.union(m_external_mdata_ext_ts_auto, manual_ext_ext_auto,
+                 manual_ext_ext_auto_slow, manual_ext_ext_dm_r) 
+colnames(edma) <- c("myfun", "manual", "manual_slow", "manual_dm_r")
+print(edma)
+
+edma_yoy <- 100 * make_yoy_ts(edma, freq = 12, is_log = TRUE)
+colnames(edma_yoy) <- c("myfun", "manual", "manual_slow", "manual_dm_r")
+print(edma_yoy)
+
+
+autoplot(edma, facets = FALSE) +  coord_cartesian(xlim = c(2010, 2020))
+autoplot(edma_yoy, facets = FALSE) +  coord_cartesian(xlim = c(2010, 2020))
+
 
 ```
 
@@ -821,14 +863,27 @@ q_auto_gr <- ei_auto_gr$quarter_growth %>%
 
 ext_int3  <- ts.union(manual_ext_int_dm_s_ml, manual_ext_int_dm_r, 
                       manual_ext_int_auto)
-
 ext_int3_yoy <- 100 * make_yoy_ts(ext_int3, freq = 12, is_log = TRUE)
 colnames(ext_int3_yoy) <- c("dm_s", "dm_r", "auto")
 ext_int3_yoy
 
-autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2016,2020)) 
+autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2012,2020)) 
+autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2012,2020))
 
-autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2016,2020))
+
+ext_ext3  <- ts.union(manual_ext_ext_dm_r, 
+                      manual_ext_int_auto)
+ext_ext3_yoy <- 100 * make_yoy_ts(ext_ext3, freq = 12, is_log = TRUE)
+colnames(ext_ext3_yoy) <- c("dm_r", "auto")
+ext_ext3_yoy
+
+autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2012,2020)) 
+autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2012,2020))
+
+
+
+
+
 
 ei_dm_s_gr <- seas_yr_growth(manual_ext_int_dm_s_ml, freq = 12) 
 ei_dm_r_gr <- seas_yr_growth(manual_ext_int_dm_r, freq = 12) 

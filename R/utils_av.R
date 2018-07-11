@@ -1608,9 +1608,10 @@ fcs_accu <- function(fc_mat, test_data_mat) {
   return(mean_rmse)
 }
 
-fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
+fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, 
+                       my_lambda = NULL,
                        my_biasadj = FALSE, this_arima_names = NULL,
-                       include.constant = FALSE, do_stepwise = TRUE, 
+                       include.constant = TRUE, do_stepwise = TRUE, 
                        do_approximation = FALSE,  force_constant = FALSE, 
                        take_log_before = FALSE, freq = 4, parallel = FALSE, 
                        num.cores = 2, print_comments_on_constant = FALSE,
@@ -1668,28 +1669,25 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL, my_lambda = NULL,
           t_sq <- t^2
           # print(t_sq)
           
-          # sdiff_this_y = diff(this_y, lag = freq)
-          # this_seasonal[2] <- this_seasonal[2]-1
-          
           fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
                        include.constant =  FALSE, lambda = my_lambda, 
                        biasadj = my_biasadj, method = method, xreg = t_sq)
           
           
         } else {
-          if(print_comments_on_constant) {
+          if (print_comments_on_constant) {
             print("Using R criteria (i.e. do not include a constant) if D+d >= 2")
           }
           
           
           fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
-                       include.constant =  this_constant, lambda = my_lambda, 
-                       biasadj = my_biasadj)
+                       lambda = my_lambda, biasadj = my_biasadj,
+                       include.constant = include.constant)
         }
       } else {
         
         fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
-                     include.constant =  this_constant, lambda = my_lambda, 
+                     include.constant =  include.constant, lambda = my_lambda, 
                      biasadj = my_biasadj, method = method)
       }
     } else {
@@ -2605,7 +2603,9 @@ get_extended_monthly_variables <- function(
         y_ts = monthly_data_external_ts, 
         order_list = order_list_external[["monthly_order_list"]],
         this_arima_names = monthly_data_external_names,  
-        force_constant = force_constant, freq = 12, include.constant = TRUE)
+        force_constant = FALSE, freq = 12, include.constant = TRUE)
+      
+
       
       mdata_ext_dem_r <- extend_and_qtr(
         data_mts = monthly_data_ts, 
@@ -2637,6 +2637,9 @@ get_extended_monthly_variables <- function(
       y_ts = monthly_data_external_ts, auto = TRUE, my_lambda = NULL, 
       do_approximation = TRUE, freq = 12, 
       this_arima_names = monthly_data_external_names)
+    
+    print("fit_arima_external_monthly_list_auto")
+    print(fit_arima_external_monthly_list_auto)
     
     mdata_ext_auto_r <- extend_and_qtr(
       data_mts = monthly_data_ts, 
