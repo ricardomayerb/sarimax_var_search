@@ -12,6 +12,7 @@ library(haven)
 library(tictoc)
 library(tidyverse)
 library(tsibble)
+library(broom)
 library(sweep)
 library(gridExtra)
 
@@ -1656,8 +1657,7 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
                       this_D + this_d, 
                       ". Stata's default would introduce a constant, R would not."))
         }
-        
-        
+  
         if (force_constant) {
           if (print_comments_on_constant) {
             print("Using Stata default (i.e. include a constant even if D+D >=2) by differencing the series before estimation")
@@ -1693,10 +1693,11 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
     } else {
       
       
-      fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj,
+      fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj, max.d = 1,
+                        max.D = 1,
                         stepwise = do_stepwise, 
                         approximation = do_approximation,
-                        parallel = parallel, num.cores = num.cores
+                        parallel = parallel, num.cores = num.cores,
                         )
       
     }
@@ -2638,8 +2639,8 @@ get_extended_monthly_variables <- function(
       do_approximation = TRUE, freq = 12, 
       this_arima_names = monthly_data_external_names)
     
-    print("fit_arima_external_monthly_list_auto")
-    print(fit_arima_external_monthly_list_auto)
+    # print("fit_arima_external_monthly_list_auto")
+    # print(fit_arima_external_monthly_list_auto)
     
     mdata_ext_auto_r <- extend_and_qtr(
       data_mts = monthly_data_ts, 
@@ -2672,8 +2673,6 @@ get_extended_monthly_variables <- function(
               fit_arima_e_list_dm_r = fit_arima_external_monthly_list_demetra_r_constants,
               fit_arima_m_list_auto = fit_arima_monthly_list_auto,
               fit_arima_e_list_auto = fit_arima_external_monthly_list_auto))
-  
-  
 }
 
 

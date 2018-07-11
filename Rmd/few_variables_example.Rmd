@@ -272,12 +272,14 @@ if (use_demetra) {
   demetra_output_external <- get_demetra_params(external_data_path)
   
   rgdp_order_list <- demetra_output[["rgdp_order_list"]][[1]]
+  rgdp_order_list_dm_s <- rgdp_order_list
+  rgdp_order_list_dm_r <- rgdp_order_list
   
   
   
   fit_arima_rgdp_list_dem <- fit_arimas(
     y_ts = this_rgdp_ts, order_list = demetra_output[["rgdp_order_list"]],
-    this_arima_names = "rgdp", force_constant = use_dm_force_constant)
+    this_arima_names = "rgdp", force_constant = use_dm_force_constant, print_comments_on_constant = TRUE)
   
   this_rgdp_arima <- fit_arima_rgdp_list_dem
   
@@ -343,6 +345,8 @@ if (use_demetra) {
                           mean_logical = mean_logical_in_auto,
                           log_logical = lambda_0_in_auto)
   
+  rgdp_order_list_auto <- rgdp_order_list
+  
   do_dm_strict <-  TRUE
   this_non_external <- "non_external_auto_r" 
   this_external <- "external_auto_r"
@@ -352,7 +356,7 @@ if (use_demetra) {
 
 
 
-
+this_rgdp_arima_dm_s <- this_rgdp_arima
 
 
 print(this_rgdp_arima[["rgdp"]])
@@ -457,6 +461,8 @@ q_rfc_growth_dm_nf <- gr_q_y_rgdp_and_unc_fc_dm_nf$seasonal_growth %>%
 
 print(this_rgdp_arima[["rgdp"]])
 
+this_rgdp_arima_dm_r <- this_rgdp_arima
+
 # pander::pander(this_rgdp_arima[["rgdp"]])
 
 # autoplot(rgdp_uncond_fc)
@@ -521,7 +527,8 @@ if (use_demetra) {
   fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
                                          this_arima_names = "rgdp", 
                                          my_lambda = NULL,
-                                         do_approximation = TRUE,
+                                         do_stepwise = FALSE,
+                                         do_approximation = FALSE,
                                          print_comments_on_constant = TRUE)
   this_rgdp_arima <- fit_arima_rgdp_list_auto
   
@@ -532,6 +539,8 @@ if (use_demetra) {
   rgdp_order_list <- list(order = rgdp_order, seasonal = rgdp_seasonal,
                           mean_logical = mean_logical_in_auto,
                           log_logical = lambda_0_in_auto)
+  
+  rgdp_order_list_auto <- rgdp_order_list
   
   do_dm_strict <-  TRUE
   this_non_external <- "non_external_auto_r" 
@@ -556,6 +565,9 @@ q_rfc_growth_auto <- gr_q_y_rgdp_and_unc_fc_auto$seasonal_growth %>%
   select(quarter_index, rgdp_growth_auto)
 
 print(this_rgdp_arima[["rgdp"]])
+
+
+this_rgdp_arima_auto <- this_rgdp_arima
 
 # pander::pander(this_rgdp_arima[["rgdp"]])
 
@@ -675,8 +687,8 @@ idms3_yoy <- 100 * make_yoy_ts(ts.union(m_internal_mdata_ext_ts_dm_s, manual_ext
                manual_ext_int_dm_s_ml), freq = 12, is_log = TRUE)
 colnames(idms3_yoy) <- c("myfun", "css", "ml")
 
-print(idms3)
-print(idms3_yoy)
+# print(idms3)
+# print(idms3_yoy)
 ei_dm_s_gr <- seas_yr_growth(manual_ext_int_dm_s_ml, freq = 12) 
 q_dm_s_gr <- ei_dm_s_gr$quarter_growth %>% 
   rename(gr_dm_s = q_ave_gr) %>% select(quarter_index, gr_dm_s)
@@ -733,7 +745,7 @@ manual_ext_int_dm_r <- ts(data = c(nao_internal_ts, internal_fc_manual_dm_r_mean
 
 idmr <- ts.union(m_internal_mdata_ext_ts_dm_r, manual_ext_int_dm_r) 
 colnames(idmr) <- c("myfun", "manual")
-print(idmr)
+# print(idmr)
 
 ei_dm_r_gr <- seas_yr_growth(manual_ext_int_dm_r, freq = 12)
 q_dm_r_gr <- ei_dm_r_gr$quarter_growth %>% 
@@ -750,7 +762,7 @@ manual_ext_ext_dm_r <- ts(data = c(nao_external_ts, external_fc_manual_dm_r_mean
 
 edmr <- ts.union(m_external_mdata_ext_ts_dm_r, manual_ext_ext_dm_r) 
 colnames(edmr) <- c("myfun", "manual")
-print(tail(edmr))
+# print(tail(edmr))
 
 ee_dm_r_gr <- seas_yr_growth(manual_ext_ext_dm_r, freq = 12)
 eq_dm_r_gr <- ee_dm_r_gr$quarter_growth %>% 
@@ -761,7 +773,7 @@ eq_dm_r_gr <- ee_dm_r_gr$quarter_growth %>%
 yoy_manual_ex_dm_r <- 100 * make_yoy_ts(manual_ext_ext_dm_r, freq = 12, is_log = TRUE)
 yoy_myfun_ex_dm_r <- 100 * make_yoy_ts(m_external_mdata_ext_ts_dm_r, freq = 12, is_log = TRUE)
 
-tail(ts.union(yoy_manual_ex_dm_r, yoy_myfun_ex_dm_r), n = 24)
+# tail(ts.union(yoy_manual_ex_dm_r, yoy_myfun_ex_dm_r), n = 24)
 
 ```
 
@@ -843,23 +855,113 @@ external_fc_manual_auto_mean_slow <- external_fc_manual_auto_slow$mean
 manual_ext_ext_auto_slow <- ts(data = c(nao_external_ts, external_fc_manual_auto_mean_slow),
                           start = start(nao_external_ts), frequency = 12)
 
-edma <- ts.union(m_external_mdata_ext_ts_auto, manual_ext_ext_auto,
+edma <- ts.union(m_external_mdata_ext_ts_auto, 
                  manual_ext_ext_auto_slow, manual_ext_ext_dm_r) 
-colnames(edma) <- c("myfun", "manual", "manual_slow", "manual_dm_r")
-print(edma)
+colnames(edma) <- c("myfun",  "manual_slow", "manual_dm_r")
+# print(tail(edma))
 
 edma_yoy <- 100 * make_yoy_ts(edma, freq = 12, is_log = TRUE)
-colnames(edma_yoy) <- c("myfun", "manual", "manual_slow", "manual_dm_r")
-print(edma_yoy)
+colnames(edma_yoy) <- c("myfun", "manual_slow", "manual_dm_r")
+# print(edma_yoy)
 
 
-autoplot(edma, facets = FALSE) +  coord_cartesian(xlim = c(2010, 2020))
-autoplot(edma_yoy, facets = FALSE) +  coord_cartesian(xlim = c(2010, 2020))
+# autoplot(edma, facets = FALSE) +  coord_cartesian(xlim = c(2010, 2020))
+# autoplot(edma_yoy, facets = FALSE) +  coord_cartesian(xlim = c(2010, 2020))
 
 
 ```
 
 
+```{r growth_of_extended_variables}
+
+# monthly
+imgr_auto <- seas_yr_growth(m_internal_mdata_ext_ts_auto, freq = 12)
+emgr_auto <- seas_yr_growth(m_external_mdata_ext_ts_auto, freq = 12)
+imgr_dm_r <- seas_yr_growth(m_internal_mdata_ext_ts_dm_r, freq = 12)
+emgr_dm_r <- seas_yr_growth(m_external_mdata_ext_ts_dm_r, freq = 12)
+imgr_dm_s <- seas_yr_growth(m_internal_mdata_ext_ts_dm_s, freq = 12)
+emgr_dm_s <- seas_yr_growth(m_external_mdata_ext_ts_dm_s, freq = 12)
+
+# quarterly
+iqgr_auto <- seas_yr_growth(internal_mdata_ext_ts_auto, freq = 4)
+eqgr_auto <- seas_yr_growth(external_mdata_ext_ts_auto, freq = 4)
+iqgr_dm_r <- seas_yr_growth(internal_mdata_ext_ts_dm_r, freq = 4)
+eqgr_dm_r <- seas_yr_growth(external_mdata_ext_ts_dm_r, freq = 4)
+iqgr_dm_s <- seas_yr_growth(internal_mdata_ext_ts_dm_s, freq = 4)
+eqgr_dm_s <- seas_yr_growth(external_mdata_ext_ts_dm_s, freq = 4)
+
+
+im_gr <- left_join(
+  imgr_auto$seasonal_growth %>% select(index, gr) %>% rename(m_auto = gr),
+  imgr_dm_r$seasonal_growth %>% select(index, gr) %>% rename(m_dm_r = gr),
+  by = "index") %>% left_join(
+    imgr_dm_s$seasonal_growth %>% select(index, gr) %>% rename(m_dm_s = gr),
+    by = "index")
+
+em_gr <- left_join(
+  emgr_auto$seasonal_growth %>% select(index, gr) %>% rename(m_auto = gr),
+  emgr_dm_r$seasonal_growth %>% select(index, gr) %>% rename(m_dm_r = gr),
+  by = "index") %>% left_join(
+    emgr_dm_s$seasonal_growth %>% select(index, gr) %>% rename(m_dm_s = gr),
+    by = "index")
+
+iq_gr <- left_join(
+  iqgr_auto$seasonal_growth %>% select(index, gr) %>% rename(q_auto = gr),
+  iqgr_dm_r$seasonal_growth %>% select(index, gr) %>% rename(q_dm_r = gr),
+  by = "index") %>% left_join(
+    iqgr_dm_s$seasonal_growth %>% select(index, gr) %>% rename(q_dm_s = gr),
+    by = "index")
+
+eq_gr <- left_join(
+  eqgr_auto$seasonal_growth %>% select(index, gr) %>% rename(q_auto = gr),
+  eqgr_dm_r$seasonal_growth %>% select(index, gr) %>% rename(q_dm_r = gr),
+  by = "index") %>% left_join(
+    eqgr_dm_s$seasonal_growth %>% select(index, gr) %>% rename(q_dm_s = gr),
+    by = "index")
+
+imq_gr <- left_join(
+  imgr_auto$quarter_growth %>% select(quarter_index, q_ave_gr) %>% rename(mq_auto = q_ave_gr),
+  imgr_dm_r$quarter_growth %>% select(quarter_index, q_ave_gr) %>% rename(mq_dm_r = q_ave_gr),
+  by = "quarter_index") %>% left_join(
+    imgr_dm_s$quarter_growth %>% select(quarter_index, q_ave_gr) %>% rename(mq_dm_s = q_ave_gr),
+    by = "quarter_index")
+
+emq_gr <- left_join(
+  emgr_auto$quarter_growth %>% select(quarter_index, q_ave_gr) %>% rename(mq_auto = q_ave_gr),
+  emgr_dm_r$quarter_growth %>% select(quarter_index, q_ave_gr) %>% rename(mq_dm_r = q_ave_gr),
+  by = "quarter_index") %>% left_join(
+    emgr_dm_s$quarter_growth %>% select(quarter_index, q_ave_gr) %>% rename(mq_dm_s = q_ave_gr),
+    by = "quarter_index")
+
+iy_gr <- left_join(
+  iqgr_auto$year_growth %>% select(year_index, y_ave_gr) %>% rename(y_auto = y_ave_gr),
+  iqgr_dm_r$year_growth %>% select(year_index, y_ave_gr) %>% rename(y_dm_r = y_ave_gr),
+  by = "year_index") %>% left_join(
+    iqgr_dm_s$year_growth %>% select(year_index, y_ave_gr) %>% rename(y_dm_s = y_ave_gr),
+    by = "year_index")
+
+ey_gr <- left_join(
+  eqgr_auto$year_growth %>% select(year_index, y_ave_gr) %>% rename(y_auto = y_ave_gr),
+  eqgr_dm_r$year_growth %>% select(year_index, y_ave_gr) %>% rename(y_dm_r = y_ave_gr),
+  by = "year_index") %>% left_join(
+    eqgr_dm_s$year_growth %>% select(year_index, y_ave_gr) %>% rename(y_dm_s = y_ave_gr),
+    by = "year_index")
+
+
+tail(im_gr, n = 24)
+tail(iq_gr, n = 8)
+tail(imq_gr, n = 8)
+tail(iy_gr)
+
+
+tail(em_gr, n = 24)
+tail(eq_gr, n = 8)
+tail(emq_gr, n = 8)
+tail(ey_gr)
+
+
+
+```
 
 
 
@@ -869,25 +971,20 @@ ext_int3  <- ts.union(manual_ext_int_dm_s_ml, manual_ext_int_dm_r,
                       manual_ext_int_auto)
 ext_int3_yoy <- 100 * make_yoy_ts(ext_int3, freq = 12, is_log = TRUE)
 colnames(ext_int3_yoy) <- c("dm_s", "dm_r", "auto")
-ext_int3_yoy
+# ext_int3_yoy
 
-autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2012,2020)) 
-autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2012,2020))
+# autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2012,2020)) 
+# autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2012,2020))
 
 
 ext_ext3  <- ts.union(manual_ext_ext_dm_r, 
                       manual_ext_int_auto)
 ext_ext3_yoy <- 100 * make_yoy_ts(ext_ext3, freq = 12, is_log = TRUE)
 colnames(ext_ext3_yoy) <- c("dm_r", "auto")
-ext_ext3_yoy
-
-autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2012,2020)) 
-autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2012,2020))
-
-
-
-
-
+# ext_ext3_yoy
+# 
+# autoplot(ext_int3, facets = FALSE) + coord_cartesian(xlim = c(2012,2020)) 
+# autoplot(ext_int3_yoy, facets = FALSE) + coord_cartesian(xlim = c(2012,2020))
 
 ei_dm_s_gr <- seas_yr_growth(manual_ext_int_dm_s_ml, freq = 12) 
 ei_dm_r_gr <- seas_yr_growth(manual_ext_int_dm_r, freq = 12) 
@@ -905,25 +1002,23 @@ q_auto_gr <- ei_auto_gr$quarter_growth %>%
 q_ars_gr <- left_join(q_auto_gr, q_dm_r_gr, by = "quarter_index") %>% 
   left_join(q_dm_s_gr, by = "quarter_index")
 
-tail(q_ars_gr, n = 12)
+# tail(q_ars_gr, n = 12)
 
 ```
 
 
 
 
-```{r summ_ext_monthly}
-fooi <- ts.union(internal_mdata_ext_ts_auto, internal_mdata_ext_ts_dm_s,
-                 internal_mdata_ext_ts_dm_r)
-fooi_yoy <- 100 * make_yoy_ts(fooi)
-colnames(fooi_yoy) <- c("auto", "dm_s", "dm_r")
-fooi_yoy
+### Implied quarterly growth
 
-fooe <- ts.union(external_mdata_ext_ts_auto, external_mdata_ext_ts_dm_s,
-                 external_mdata_ext_ts_dm_r)
-fooe_yoy <- 100 * make_yoy_ts(fooe)
-colnames(fooe_yoy) <- c("auto", "dm_s", "dm_r")
-fooe_yoy
+```{r table_q_y_gr_of_monthly}
+
+tail(iq_gr, n = 8)
+tail(iy_gr)
+
+
+tail(eq_gr, n = 8)
+tail(ey_gr)
 
 
 ```
@@ -931,6 +1026,218 @@ fooe_yoy
 
 
 
+```{r}
+ggplot(eq_gr, aes(x = index, y = q_auto)) + 
+  geom_line() + 
+  geom_line(aes(y = q_dm_r)) + 
+  geom_line(aes(y = q_dm_s))  
+  
+ggplot(ey_gr, aes(x = year_index, y = y_auto)) + 
+  geom_line() + 
+  geom_line(aes(y = y_dm_r)) + 
+  geom_line(aes(y = y_dm_s))  
 
-### Implied 
+```
+
+## Conditional forecasting of GDP
+
+```{r full_sample_arimax_dm_s}
+# this_rgdp_arima_dm_s
+# this_rgdp_arima_dm_r
+# this_rgdp_arima_auto
+
+tic()
+arimax_and_fcs_dm_s <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
+                          xreg_ts = mdata_ext_ts_dm_s,
+                          rgdp_arima = this_rgdp_arima_dm_s,
+                          max_x_lag = max_x_lag,
+                          rgdp_order_list = rgdp_order_list_dm_s,
+                          h_max = h_max)
+toc()
+
+gla_s <- map_dfr(arimax_and_fcs_dm_s$all_arimax$arimax, sw_glance)
+gla_s$model.desc <- NULL
+gla_s$xvar <- arimax_and_fcs_dm_s$all_arimax$id_fc
+gla_s$lag <- arimax_and_fcs_dm_s$all_arimax$lag
+gla_s <- gla_s %>%  
+  select(c(xvar, lag, logLik, AIC, BIC, RMSE, MAE, MASE, ACF1)) %>% 
+  arrange(xvar, AIC)
+gla_s 
+
+
+gla_s <- map_dfr(arimax_and_fcs_dm_s$all_arimax$arimax, sw_glance)
+gla_s$model.desc <- NULL
+gla_s$xvar <- arimax_and_fcs_dm_s$all_arimax$id_fc
+gla_s$lag <- arimax_and_fcs_dm_s$all_arimax$lag
+gla_s <- gla_s %>%  
+  select(c(xvar, lag, logLik, AIC, BIC, RMSE, MAE, MASE, ACF1)) %>% 
+  arrange(xvar, AIC)
+gla_s 
+
+swe_s <-  map2(arimax_and_fcs_dm_s$all_arimax$arimax,
+               arimax_and_fcs_dm_s$all_arimax$id_fc,
+               ~ tidy(.x,  conf.int = TRUE) %>% mutate(id = .y))  %>% 
+  reduce(rbind)
+
+
+swe_s
+
+mfcyoy_s <- reduce(arimax_and_fcs_dm_s$all_fcs$yoy_raw_rgdp_fc, ts.union)
+colnames(mfcyoy_s) <- paste("model", 1:ncol(mfcyoy_s), sep = "_")
+
+mrfcyoy_s <- ts.union(make_yoy_ts(rgdp_and_uncond_fc_dm_f, is_log = TRUE), mfcyoy_s)
+colnames(mrfcyoy_s) <- c("uncond", colnames(mfcyoy_s))
+mrfcyoy_s
+autoplot(mrfcyoy_s)
+
+
+mfc_s <- reduce(arimax_and_fcs_dm_s$all_fcs$raw_rgdp_fc, ts.union)
+colnames(mfc_s) <- paste("model", 1:ncol(mfc_s), sep = "_")
+
+mrfc_s <- ts.union(rgdp_and_uncond_fc_dm_f, mfc_s)
+colnames(mrfc_s) <- c("uncond", colnames(mfc_s))
+mrfc_s
+autoplot(mrfc_s)
+
+
+tsb_mfc_s <- as_tsibble(mfc_s)
+tsb_mfc_s
+
+
+
+```
+
+
+
+```{r full_sample_arimax_dm_r}
+
+tic()
+arimax_and_fcs_dm_r <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
+                          xreg_ts = mdata_ext_ts_dm_r,
+                          rgdp_arima = this_rgdp_arima_dm_r,
+                          max_x_lag = max_x_lag,
+                          rgdp_order_list = rgdp_order_list_dm_r,
+                          h_max = h_max)
+toc()
+
+gla_s <- map_dfr(arimax_and_fcs_dm_r$all_arimax$arimax, sw_glance)
+gla_s$model.desc <- NULL
+gla_s$xvar <- arimax_and_fcs_dm_r$all_arimax$id_fc
+gla_s$lag <- arimax_and_fcs_dm_r$all_arimax$lag
+gla_s <- gla_s %>%  
+  select(c(xvar, lag, logLik, AIC, BIC, RMSE, MAE, MASE, ACF1)) %>% 
+  arrange(xvar, AIC)
+gla_s 
+
+
+gla_s <- map_dfr(arimax_and_fcs_dm_r$all_arimax$arimax, sw_glance)
+gla_s$model.desc <- NULL
+gla_s$xvar <- arimax_and_fcs_dm_r$all_arimax$id_fc
+gla_s$lag <- arimax_and_fcs_dm_r$all_arimax$lag
+gla_s <- gla_s %>%  
+  select(c(xvar, lag, logLik, AIC, BIC, RMSE, MAE, MASE, ACF1)) %>% 
+  arrange(xvar, AIC)
+gla_s 
+
+swe_s <-  map2(arimax_and_fcs_dm_r$all_arimax$arimax,
+               arimax_and_fcs_dm_r$all_arimax$id_fc,
+               ~ tidy(.x,  conf.int = TRUE) %>% mutate(id = .y))  %>% 
+  reduce(rbind)
+
+
+swe_s
+
+mfcyoy_s <- reduce(arimax_and_fcs_dm_r$all_fcs$yoy_raw_rgdp_fc, ts.union)
+colnames(mfcyoy_s) <- paste("model", 1:ncol(mfcyoy_s), sep = "_")
+
+mrfcyoy_s <- ts.union(make_yoy_ts(rgdp_and_uncond_fc_dm_nf, is_log = TRUE), mfcyoy_s)
+colnames(mrfcyoy_s) <- c("uncond", colnames(mfcyoy_s))
+mrfcyoy_s
+autoplot(mrfcyoy_s)
+
+
+mfc_s <- reduce(arimax_and_fcs_dm_s$all_fcs$raw_rgdp_fc, ts.union)
+colnames(mfc_s) <- paste("model", 1:ncol(mfc_s), sep = "_")
+
+mrfc_s <- ts.union(rgdp_and_uncond_fc_dm_nf, mfc_s)
+colnames(mrfc_s) <- c("uncond", colnames(mfc_s))
+mrfc_s
+autoplot(mrfc_s)
+
+
+tsb_mfc_s <- as_tsibble(mfc_s)
+tsb_mfc_s
+
+
+
+```
+
+
+
+```{r full_sample_arimax_auto}
+# this_rgdp_arima_dm_s
+# this_rgdp_arima_dm_r
+# this_rgdp_arima_auto
+
+tic()
+arimax_and_fcs_auto <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
+                          xreg_ts = mdata_ext_ts_auto,
+                          rgdp_arima = this_rgdp_arima_auto,
+                          max_x_lag = max_x_lag,
+                          rgdp_order_list = rgdp_order_list_auto,
+                          h_max = h_max)
+toc()
+
+gla_s <- map_dfr(arimax_and_fcs_auto$all_arimax$arimax, sw_glance)
+gla_s$model.desc <- NULL
+gla_s$xvar <- arimax_and_fcs_auto$all_arimax$id_fc
+gla_s$lag <- arimax_and_fcs_auto$all_arimax$lag
+gla_s <- gla_s %>%  
+  select(c(xvar, lag, logLik, AIC, BIC, RMSE, MAE, MASE, ACF1)) %>% 
+  arrange(xvar, AIC)
+gla_s 
+
+
+gla_s <- map_dfr(arimax_and_fcs_auto$all_arimax$arimax, sw_glance)
+gla_s$model.desc <- NULL
+gla_s$xvar <- arimax_and_fcs_auto$all_arimax$id_fc
+gla_s$lag <- arimax_and_fcs_auto$all_arimax$lag
+gla_s <- gla_s %>%  
+  select(c(xvar, lag, logLik, AIC, BIC, RMSE, MAE, MASE, ACF1)) %>% 
+  arrange(xvar, AIC)
+gla_s 
+
+swe_s <-  map2(arimax_and_fcs_auto$all_arimax$arimax,
+               arimax_and_fcs_auto$all_arimax$id_fc,
+               ~ tidy(.x,  conf.int = TRUE) %>% mutate(id = .y))  %>% 
+  reduce(rbind)
+
+
+swe_s
+
+mfcyoy_s <- reduce(arimax_and_fcs_auto$all_fcs$yoy_raw_rgdp_fc, ts.union)
+colnames(mfcyoy_s) <- paste("model", 1:ncol(mfcyoy_s), sep = "_")
+
+mrfcyoy_s <- ts.union(make_yoy_ts(rgdp_and_uncond_fc_auto, is_log = TRUE), mfcyoy_s)
+colnames(mrfcyoy_s) <- c("uncond", colnames(mfcyoy_s))
+mrfcyoy_s
+autoplot(mrfcyoy_s)
+
+
+mfc_s <- reduce(arimax_and_fcs_auto$all_fcs$raw_rgdp_fc, ts.union)
+colnames(mfc_s) <- paste("model", 1:ncol(mfc_s), sep = "_")
+
+mrfc_s <- ts.union(rgdp_and_uncond_fc_auto, mfc_s)
+colnames(mrfc_s) <- c("uncond", colnames(mfc_s))
+mrfc_s
+autoplot(mrfc_s)
+
+
+tsb_mfc_s <- as_tsibble(mfc_s)
+tsb_mfc_s
+
+
+
+```
+
 
