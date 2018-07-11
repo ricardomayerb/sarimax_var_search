@@ -823,6 +823,10 @@ q_auto_gr <- ei_auto_gr$quarter_growth %>%
 external_arima_manual_auto_slow <- auto.arima(y = nao_external_ts, stepwise = FALSE, approximation = FALSE)
 external_arima_manual_auto_slow
 
+
+external_arima_manual_auto_slow <- auto.arima(y = nao_external_ts, stepwise = FALSE, approximation = FALSE, max.d = 1)
+external_arima_manual_auto_slow
+
 # external_arima_manual_auto_slow_P0 <- auto.arima(y = nao_external_ts, stepwise = FALSE, approximation = FALSE, max.P = 0, start.P = 0, max.Q = 0, start.Q = 0)
 # external_arima_manual_auto_slow_P0
 
