@@ -1235,7 +1235,27 @@ autoplot(mrfc_s)
 
 tsb_mfc_s <- as_tsibble(mfc_s)
 tsb_mfc_s
+```
 
+```{r manual_arimax_igae_dm_r}
+y_start <-  stats::start(this_rgdp_ts)
+y_end <-  stats::end(this_rgdp_ts)
+x_start <-  stats::start(internal_mdata_ext_ts_dm_r)
+x_end <-  stats::end(internal_mdata_ext_ts_dm_r)
+
+if (time(y_start) > time(x_start)) {
+  max_start <- y_start
+  } else {
+    max_start <- x_start
+  } 
+
+if (time(y_end) < time(x_end)) {
+  min_end <- y_end
+  } else {
+    min_end <- x_end
+  } 
+
+manu_arimax_igae0 <- Arima(y = this_rgdp_ts, xreg = )
 
 
 ```
