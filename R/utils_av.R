@@ -4208,9 +4208,9 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
   for (x_regressor in 1:number_of_xregs) {
     
     if (is.null(ncol(xreg_ts))) {
-      x_series <-  xreg_ts
+      x_series <-  na.omit(xreg_ts)
     } else {
-      x_series <-  xreg_ts[ , x_regressor]
+      x_series <-  na.omit(xreg_ts[ , x_regressor])
     }
     
     x_time <- time(x_series)
@@ -4227,11 +4227,10 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       earliest_end <- stats::end(y_ts)
     }
     
-    y_ts <- ts(y_ts, start = latest_start, end = earliest_end, frequency = 4)
+    y_ts <- window(y_ts, start = latest_start, end = earliest_end, frequency = 4)
     
     
-    x_as_y <- window(x_series, start = stats::start(y_ts),
-                     end = stats::end(y_ts),
+    x_as_y <- window(x_series, start = latest_start, end = earliest_end,
                      frequency = 4)
     
     n_x <- length(x_as_y)
@@ -4262,6 +4261,8 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     #                        order = y_order, seasonal = y_seasonal,
     #                        include.constant = include.constant, method = "ML" )
     
+    # print("method")
+    # print(method)
     
     this_arimax <- try(Arima(y = y_ts, xreg = x_as_y,
                              order = y_order,

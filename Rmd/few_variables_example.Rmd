@@ -1238,10 +1238,14 @@ tsb_mfc_s
 ```
 
 ```{r manual_arimax_igae_dm_r}
+
+
+this_xvar <- internal_mdata_ext_ts_dm_r
+
 y_start <-  stats::start(this_rgdp_ts)
 y_end <-  stats::end(this_rgdp_ts)
-x_start <-  stats::start(internal_mdata_ext_ts_dm_r)
-x_end <-  stats::end(internal_mdata_ext_ts_dm_r)
+x_start <-  stats::start(this_xvar)
+x_end <-  stats::end(this_xvar)
 
 if (time(y_start) > time(x_start)) {
   max_start <- y_start
@@ -1255,16 +1259,490 @@ if (time(y_end) < time(x_end)) {
     min_end <- x_end
   } 
 
-procrustean_y <- window(this_rgdp_ts, start = max_start, end = min_end)
-procrustean_x <- window(internal_mdata_ext_ts_dm_r,
-                        start = max_start, end = min_end)
+ix0 <- map(seq(0,0), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix0) <- paste(colnames(this_xvar), seq(0,0), sep = "_")
 
-manu_arimax_igae0 <- Arima(y = procrustean_y, xreg = procrustean_x,
+ix1 <- map(seq(0,1), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix1) <- paste(colnames(this_xvar), seq(0,1), sep = "_")
+
+ix2 <- map(seq(0,2), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix2) <- paste(colnames(this_xvar), seq(0,2), sep = "_")
+
+procrustean_y <- window(this_rgdp_ts, start = max_start, end = min_end)
+procrustean_x0 <- window(ix0, start = max_start, end = min_end)
+procrustean_x1 <- window(ix1, start = max_start, end = min_end)
+procrustean_x2 <- window(ix2, start = max_start, end = min_end)
+
+manu_arimax_igae0 <- Arima(y = procrustean_y, xreg = procrustean_x0,
                            order = rgdp_order_list_dm_r$order,
                            seasonal = rgdp_order_list_dm_r$seasonal,
-                           include.constant = TRUE)
+                           include.constant = rgdp_order_list_dm_r$mean_logical,
+                           method = "ML")
 
+manu_arimax_igae1 <- Arima(y = procrustean_y, xreg = procrustean_x1,
+                           order = rgdp_order_list_dm_r$order,
+                           seasonal = rgdp_order_list_dm_r$seasonal,
+                           include.constant = rgdp_order_list_dm_r$mean_logical,
+                           method = "ML")
+
+
+manu_arimax_igae2 <- Arima(y = procrustean_y, xreg = procrustean_x2,
+                           order = rgdp_order_list_dm_r$order,
+                           seasonal = rgdp_order_list_dm_r$seasonal,
+                           include.constant = rgdp_order_list_dm_r$mean_logical,
+                           method = "ML")
+
+fc_start = stats::start(rgdp_uncond_fc_mean)
+ix0_fc <- window(ix0, start = fc_start)
+ix1_fc <- window(ix1, start = fc_start)
+ix2_fc <- window(ix2, start = fc_start)
+
+manu_fc_igae0 <- forecast(manu_arimax_igae0, h = 9, xreg = ix0_fc)
+manu_fc_igae1 <- forecast(manu_arimax_igae1, h = 9, xreg = ix1_fc)
+manu_fc_igae2 <- forecast(manu_arimax_igae2, h = 9, xreg = ix2_fc)
+
+foo <- autoplot(manu_fc_igae0, PI = FALSE) + 
+  autolayer(manu_fc_igae1, PI = FALSE) + 
+  autolayer(manu_fc_igae2, PI = FALSE) + 
+  autolayer(rgdp_and_uncond_fc_dm_nf) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+fc_igae0_and_data <- ts(c(manu_fc_igae0$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae0$x))
+fc_yoy_igae0_and_data <- make_yoy_ts(fc_igae0_and_data , is_log = TRUE)
+
+fc_igae1_and_data <- ts(c(manu_fc_igae1$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae1$x))
+fc_yoy_igae1_and_data <- make_yoy_ts(fc_igae1_and_data , is_log = TRUE)
+
+fc_igae2_and_data <- ts(c(manu_fc_igae2$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae2$x))
+fc_yoy_igae2_and_data <- make_yoy_ts(fc_igae2_and_data , is_log = TRUE)
+
+
+igae0_gr <- seas_yr_growth(fc_igae0_and_data, is_log = TRUE, freq = 4)
+igae1_gr <- seas_yr_growth(fc_igae1_and_data, is_log = TRUE, freq = 4)
+igae2_gr <- seas_yr_growth(fc_igae2_and_data, is_log = TRUE, freq = 4)
+
+q_igae0_gr <- igae0_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae0_gr = gr)
+q_igae1_gr <- igae1_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae1_gr = gr) 
+q_igae2_gr <- igae2_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae2_gr = gr) 
+q_rgdp_gr <- rgdp_ext_gr_dm_nf$seasonal_growth  %>% select(index, gr) %>% 
+  rename(rgdp_gr = gr)
+
+y_igae0_gr <- igae0_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae0_gr = y_ave_gr) 
+y_igae1_gr <- igae1_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae1_gr = y_ave_gr) 
+y_igae2_gr <- igae2_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae2_gr = y_ave_gr) 
+y_rgdp_gr <- rgdp_ext_gr_dm_nf$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(rgdp_gr = y_ave_gr)
+
+quarter_gr_un_con_dm_r <- left_join(q_rgdp_gr, q_igae0_gr, by = "index") %>% 
+  left_join(q_igae1_gr, by = "index") %>% 
+  left_join(q_igae2_gr, by = "index") 
+
+tail(quarter_gr_un_con_dm_r, n = 12)
+
+# rgdp_ext_gr_auto
+# rgdp_ext_gr_dm_f
+# rgdp_ext_gr_dm_nf
+
+
+fooyoy <- autoplot(fc_yoy_igae0_and_data, series = "igae0") + 
+  autolayer(fc_yoy_igae1_and_data) + 
+  autolayer(fc_yoy_igae2_and_data) + 
+  autolayer(make_yoy_ts(rgdp_and_uncond_fc_dm_nf, is_log = TRUE)) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+fooyoy2 <- autoplot(fc_yoy_igae0_and_data, series = "igae0") + 
+  autolayer(make_yoy_ts(rgdp_and_uncond_fc_dm_nf, is_log = TRUE)) + 
+  coord_cartesian(xlim = c(2016, 2020))
+# 
+# manu_arimax_igae0
+# manu_arimax_igae1
+# manu_arimax_igae2
+# 
+# ix0_fc
+# ix1_fc
+# ix2_fc
+# 
+# 
+# 
+# ix0
+# ix1
+# ix2
 
 ```
+
+
+```{r manual_arimax_igae_auto}
+
+
+this_xvar <- internal_mdata_ext_ts_auto
+
+y_start <-  stats::start(this_rgdp_ts)
+y_end <-  stats::end(this_rgdp_ts)
+x_start <-  stats::start(this_xvar)
+x_end <-  stats::end(this_xvar)
+
+if (time(y_start) > time(x_start)) {
+  max_start <- y_start
+  } else {
+    max_start <- x_start
+  } 
+
+if (time(y_end) < time(x_end)) {
+  min_end <- y_end
+  } else {
+    min_end <- x_end
+  } 
+
+ix0 <- map(seq(0,0), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix0) <- paste(colnames(this_xvar), seq(0,0), sep = "_")
+
+ix1 <- map(seq(0,1), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix1) <- paste(colnames(this_xvar), seq(0,1), sep = "_")
+
+ix2 <- map(seq(0,2), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix2) <- paste(colnames(this_xvar), seq(0,2), sep = "_")
+
+procrustean_y <- window(this_rgdp_ts, start = max_start, end = min_end)
+procrustean_x0 <- window(ix0, start = max_start, end = min_end)
+procrustean_x1 <- window(ix1, start = max_start, end = min_end)
+procrustean_x2 <- window(ix2, start = max_start, end = min_end)
+
+manu_arimax_igae0 <- Arima(y = procrustean_y, xreg = procrustean_x0,
+                           order = rgdp_order_list_auto$order,
+                           seasonal = rgdp_order_list_auto$seasonal,
+                           include.constant = rgdp_order_list_auto$mean_logical,
+                           method = "ML")
+
+manu_arimax_igae1 <- Arima(y = procrustean_y, xreg = procrustean_x1,
+                           order = rgdp_order_list_auto$order,
+                           seasonal = rgdp_order_list_auto$seasonal,
+                           include.constant = rgdp_order_list_auto$mean_logical,
+                           method = "ML")
+
+
+manu_arimax_igae2 <- Arima(y = procrustean_y, xreg = procrustean_x2,
+                           order = rgdp_order_list_auto$order,
+                           seasonal = rgdp_order_list_auto$seasonal,
+                           include.constant = rgdp_order_list_auto$mean_logical,
+                           method = "ML")
+# 
+# 
+# manu_arimax_igae0
+# manu_arimax_igae1
+# manu_arimax_igae2
+
+
+fc_start = stats::start(rgdp_uncond_fc_mean)
+ix0_fc <- window(ix0, start = fc_start)
+ix1_fc <- window(ix1, start = fc_start)
+ix2_fc <- window(ix2, start = fc_start)
+
+manu_fc_igae0 <- forecast(manu_arimax_igae0, h = 9, xreg = ix0_fc)
+manu_fc_igae1 <- forecast(manu_arimax_igae1, h = 9, xreg = ix1_fc)
+manu_fc_igae2 <- forecast(manu_arimax_igae2, h = 9, xreg = ix2_fc)
+
+foo <- autoplot(manu_fc_igae0, PI = FALSE) + 
+  autolayer(manu_fc_igae1, PI = FALSE) + 
+  autolayer(manu_fc_igae2, PI = FALSE) + 
+  autolayer(rgdp_and_uncond_fc_auto) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+fc_igae0_and_data <- ts(c(manu_fc_igae0$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae0$x))
+fc_yoy_igae0_and_data <- make_yoy_ts(fc_igae0_and_data , is_log = TRUE)
+
+fc_igae1_and_data <- ts(c(manu_fc_igae1$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae1$x))
+fc_yoy_igae1_and_data <- make_yoy_ts(fc_igae1_and_data , is_log = TRUE)
+
+fc_igae2_and_data <- ts(c(manu_fc_igae2$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae2$x))
+fc_yoy_igae2_and_data <- make_yoy_ts(fc_igae2_and_data , is_log = TRUE)
+
+
+igae0_gr <- seas_yr_growth(fc_igae0_and_data, is_log = TRUE, freq = 4)
+igae1_gr <- seas_yr_growth(fc_igae1_and_data, is_log = TRUE, freq = 4)
+igae2_gr <- seas_yr_growth(fc_igae2_and_data, is_log = TRUE, freq = 4)
+
+q_igae0_gr <- igae0_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae0_gr = gr)
+q_igae1_gr <- igae1_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae1_gr = gr) 
+q_igae2_gr <- igae2_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae2_gr = gr) 
+q_rgdp_gr <- rgdp_ext_gr_auto$seasonal_growth  %>% select(index, gr) %>% 
+  rename(rgdp_gr = gr)
+
+y_igae0_gr <- igae0_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae0_gr = y_ave_gr) 
+y_igae1_gr <- igae1_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae1_gr = y_ave_gr) 
+y_igae2_gr <- igae2_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae2_gr = y_ave_gr) 
+y_rgdp_gr <- rgdp_ext_gr_auto$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(rgdp_gr = y_ave_gr)
+
+quarter_gr_un_con_auto <- left_join(q_rgdp_gr, q_igae0_gr, by = "index") %>% 
+  left_join(q_igae1_gr, by = "index") %>% 
+  left_join(q_igae2_gr, by = "index") 
+
+tail(quarter_gr_un_con_auto, n = 12)
+
+# rgdp_ext_gr_auto
+# rgdp_ext_gr_dm_f
+# rgdp_ext_gr_dm_nf
+
+
+fooyoy <- autoplot(fc_yoy_igae0_and_data, series = "igae0") + 
+  autolayer(fc_yoy_igae1_and_data) + 
+  autolayer(fc_yoy_igae2_and_data) + 
+  autolayer(make_yoy_ts(rgdp_and_uncond_fc_dm_nf, is_log = TRUE)) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+fooyoy2 <- autoplot(fc_yoy_igae0_and_data, series = "igae0") + 
+  autolayer(make_yoy_ts(rgdp_and_uncond_fc_dm_nf, is_log = TRUE)) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+
+# ix0_fc
+# ix1_fc
+# ix2_fc
+
+# 
+# 
+# ix0
+# ix1
+# ix2
+
+```
+
+
+```{r manual_arimax_igae_dm_s}
+
+
+this_xvar <- internal_mdata_ext_ts_dm_s
+
+y_start <-  stats::start(this_rgdp_ts)
+y_end <-  stats::end(this_rgdp_ts)
+x_start <-  stats::start(this_xvar)
+x_end <-  stats::end(this_xvar)
+
+if (time(y_start) > time(x_start)) {
+  max_start <- y_start
+  } else {
+    max_start <- x_start
+  } 
+
+if (time(y_end) < time(x_end)) {
+  min_end <- y_end
+  } else {
+    min_end <- x_end
+  } 
+
+xtrend <- seq(1, length(procrustean_y))^2
+
+
+ix0 <- map(seq(0,0), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix0) <- paste(colnames(this_xvar), seq(0,0), sep = "_")
+
+ix1 <- map(seq(0,1), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix1) <- paste(colnames(this_xvar), seq(0,1), sep = "_")
+
+ix2 <- map(seq(0,2), ~ lag.xts(this_xvar, k = .)) %>% 
+  reduce(ts.union)
+colnames(ix2) <- paste(colnames(this_xvar), seq(0,2), sep = "_")
+
+
+
+
+
+procrustean_y <- window(this_rgdp_ts, start = max_start, end = min_end)
+procrustean_x0 <- window(ix0, start = max_start, end = min_end)
+procrustean_x1 <- window(ix1, start = max_start, end = min_end)
+procrustean_x2 <- window(ix2, start = max_start, end = min_end)
+
+procrustean_x0_and_trend <- ts.union(procrustean_x0, xtrend)
+colnames(procrustean_x0_and_trend) <- c(colnames(procrustean_x0), "trend")
+
+procrustean_x1_and_trend <- ts.union(procrustean_x1, xtrend)
+colnames(procrustean_x1_and_trend) <- c(colnames(procrustean_x1), "trend")
+
+procrustean_x2_and_trend <- ts.union(procrustean_x2, xtrend)
+colnames(procrustean_x2_and_trend) <- c(colnames(procrustean_x2), "trend")
+
+manu_arimax_igae0 <- Arima(y = procrustean_y, xreg = procrustean_x0_and_trend,
+                           order = rgdp_order_list_auto$order,
+                           seasonal = rgdp_order_list_auto$seasonal,
+                           include.constant = rgdp_order_list_auto$mean_logical,
+                           method = "CSS-ML")
+
+manu_arimax_igae1 <- Arima(y = procrustean_y, xreg = procrustean_x1_and_trend,
+                           order = rgdp_order_list_auto$order,
+                           seasonal = rgdp_order_list_auto$seasonal,
+                           include.constant = rgdp_order_list_auto$mean_logical,
+                           method = "CSS-ML")
+
+
+manu_arimax_igae2 <- Arima(y = procrustean_y, xreg = procrustean_x2_and_trend,
+                           order = rgdp_order_list_auto$order,
+                           seasonal = rgdp_order_list_auto$seasonal,
+                           include.constant = rgdp_order_list_auto$mean_logical,
+                           method = "CSS-ML")
+
+
+manu_arimax_igae0
+manu_arimax_igae1
+manu_arimax_igae2
+
+
+fc_start = stats::start(rgdp_uncond_fc_mean)
+ix0_fc <- window(ix0, start = fc_start)
+ix1_fc <- window(ix1, start = fc_start)
+ix2_fc <- window(ix2, start = fc_start)
+xtrend_fc <- seq(length(procrustean_y) + 1, 
+                 length(procrustean_y) + length(ix0_fc))^2
+
+ix0_fc_and_trend <- ts.union(ix0_fc, xtrend_fc)
+ix1_fc_and_trend <- ts.union(ix1_fc, xtrend_fc)
+ix2_fc_and_trend <- ts.union(ix2_fc, xtrend_fc)
+
+
+manu_fc_igae0 <- forecast(manu_arimax_igae0, h = 9, xreg = ix0_fc_and_trend)
+manu_fc_igae1 <- forecast(manu_arimax_igae1, h = 9, xreg = ix1_fc_and_trend)
+manu_fc_igae2 <- forecast(manu_arimax_igae2, h = 9, xreg = ix2_fc_and_trend)
+
+foo <- autoplot(manu_fc_igae0, PI = FALSE) + 
+  autolayer(manu_fc_igae1, PI = FALSE) + 
+  autolayer(manu_fc_igae2, PI = FALSE) + 
+  autolayer(rgdp_and_uncond_fc_auto) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+fc_igae0_and_data <- ts(c(manu_fc_igae0$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae0$x))
+fc_yoy_igae0_and_data <- make_yoy_ts(fc_igae0_and_data , is_log = TRUE)
+
+fc_igae1_and_data <- ts(c(manu_fc_igae1$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae1$x))
+fc_yoy_igae1_and_data <- make_yoy_ts(fc_igae1_and_data , is_log = TRUE)
+
+fc_igae2_and_data <- ts(c(manu_fc_igae2$x, manu_fc_igae0$mean), frequency = 4,
+                        start = stats::start(manu_fc_igae2$x))
+fc_yoy_igae2_and_data <- make_yoy_ts(fc_igae2_and_data , is_log = TRUE)
+
+
+igae0_gr <- seas_yr_growth(fc_igae0_and_data, is_log = TRUE, freq = 4)
+igae1_gr <- seas_yr_growth(fc_igae1_and_data, is_log = TRUE, freq = 4)
+igae2_gr <- seas_yr_growth(fc_igae2_and_data, is_log = TRUE, freq = 4)
+
+q_igae0_gr <- igae0_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae0_gr = gr)
+q_igae1_gr <- igae1_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae1_gr = gr) 
+q_igae2_gr <- igae2_gr$seasonal_growth  %>% select(index, gr) %>% 
+  rename(igae2_gr = gr) 
+q_rgdp_gr <- rgdp_ext_gr_dm_f$seasonal_growth  %>% select(index, gr) %>% 
+  rename(rgdp_gr = gr)
+
+y_igae0_gr <- igae0_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae0_gr = y_ave_gr) 
+y_igae1_gr <- igae1_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae1_gr = y_ave_gr) 
+y_igae2_gr <- igae2_gr$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(igae2_gr = y_ave_gr) 
+y_rgdp_gr <- rgdp_ext_gr_dm_f$year_growth  %>% select(year_index, y_ave_gr) %>% 
+  rename(rgdp_gr = y_ave_gr)
+
+quarter_gr_un_con_dm_s <- left_join(q_rgdp_gr, q_igae0_gr, by = "index") %>% 
+  left_join(q_igae1_gr, by = "index") %>% 
+  left_join(q_igae2_gr, by = "index") 
+
+tail(quarter_gr_un_con_dm_s, n = 12)
+
+# rgdp_ext_gr_auto
+# rgdp_ext_gr_dm_f
+# rgdp_ext_gr_dm_nf
+
+
+fooyoy <- autoplot(fc_yoy_igae0_and_data, series = "igae0") + 
+  autolayer(fc_yoy_igae1_and_data) + 
+  autolayer(fc_yoy_igae2_and_data) + 
+  autolayer(make_yoy_ts(rgdp_and_uncond_fc_dm_nf, is_log = TRUE)) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+fooyoy2 <- autoplot(fc_yoy_igae0_and_data, series = "igae0") + 
+  autolayer(make_yoy_ts(rgdp_and_uncond_fc_dm_nf, is_log = TRUE)) + 
+  coord_cartesian(xlim = c(2016, 2020))
+
+
+# ix0_fc
+# ix1_fc
+# ix2_fc
+
+
+# 
+# ix0
+# ix1
+# ix2
+
+```
+
+
+```{r comparing_full_size_manual_arimax}
+tail(quarter_gr_un_con_dm_s, n = 12)
+tail(quarter_gr_un_con_dm_r, n = 12)
+tail(quarter_gr_un_con_auto, n = 12)
+```
+
+```{r arimax_fun_dm_r}
+
+tic()
+arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
+                          xreg_ts = mdata_ext_ts_dm_r,
+                          rgdp_arima = this_rgdp_arima_dm_r,
+                          max_x_lag = max_x_lag,
+                          rgdp_order_list = rgdp_order_list_dm_r,
+                          h_max = h_max)
+toc()
+
+all_arimax_tbl <- arimax_and_fcs$all_arimax
+
+# igae_0
+all_arimax_tbl$arimax[[1]]
+manu_arimax_igae0
+
+all_arimax_tbl$arimax[[1]]$x
+manu_arimax_igae0$x
+
+all_arimax_tbl$arimax[[1]]$xreg
+manu_arimax_igae0$xreg
+
+all_arimax_tbl$arimax[[1]]$arma
+manu_arimax_igae0$arma
+
+all_arimax_tbl$arimax[[1]]$call
+manu_arimax_igae0$call
+
+```
+
+
+
+
 
 
