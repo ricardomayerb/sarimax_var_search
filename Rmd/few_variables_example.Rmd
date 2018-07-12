@@ -1255,7 +1255,14 @@ if (time(y_end) < time(x_end)) {
     min_end <- x_end
   } 
 
-manu_arimax_igae0 <- Arima(y = this_rgdp_ts, xreg = )
+procrustean_y <- window(this_rgdp_ts, start = max_start, end = min_end)
+procrustean_x <- window(internal_mdata_ext_ts_dm_r,
+                        start = max_start, end = min_end)
+
+manu_arimax_igae0 <- Arima(y = procrustean_y, xreg = procrustean_x,
+                           order = rgdp_order_list_dm_r$order,
+                           seasonal = rgdp_order_list_dm_r$seasonal,
+                           include.constant = TRUE)
 
 
 ```
