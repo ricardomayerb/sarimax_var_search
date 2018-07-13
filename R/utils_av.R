@@ -4227,6 +4227,15 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       earliest_end <- stats::end(y_ts)
     }
     
+    
+    print("latest_start")
+    print(latest_start)
+    
+    print("earliest_end")
+    print(earliest_end)
+    
+    
+    
     y_ts <- window(y_ts, start = latest_start, end = earliest_end, frequency = 4)
     
     
@@ -4252,17 +4261,11 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       x_as_y <- xlagmat
     }
     
-      # print("y_ts")
-      # print(y_ts)
-      # print("x_as_y")
-      # print(x_as_y)
-      
-    # this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
-    #                        order = y_order, seasonal = y_seasonal,
-    #                        include.constant = include.constant, method = "ML" )
+    print("nrow(x_as_y)2")
+    print(nrow(x_as_y))
+    print("nrow(y_ts)2")
+    print(nrow(y_ts))
     
-    # print("method")
-    # print(method)
     
     this_arimax <- try(Arima(y = y_ts, xreg = x_as_y,
                              order = y_order,
@@ -4271,6 +4274,7 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
                              method = method))
     
     class_this_arimax <- class(this_arimax)[1]
+    
     
     
     if (class_this_arimax == "try-error") {
