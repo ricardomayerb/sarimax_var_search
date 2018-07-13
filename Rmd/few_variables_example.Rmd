@@ -1052,7 +1052,8 @@ arimax_and_fcs_dm_s <- get_arimax_and_fcs(y_ts = this_rgdp_ts,
                           rgdp_arima = this_rgdp_arima_dm_s,
                           max_x_lag = max_x_lag,
                           rgdp_order_list = rgdp_order_list_dm_s,
-                          h_max = h_max)
+                          h_max = h_max,
+                          force.constant = TRUE)
 toc()
 
 gla_s <- map_dfr(arimax_and_fcs_dm_s$all_arimax$arimax, sw_glance)
