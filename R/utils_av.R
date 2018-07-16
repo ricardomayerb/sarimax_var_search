@@ -917,9 +917,7 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                           data_is_log_log = FALSE,
                           force.constant = FALSE) {
   
-  # print("in cv_arimax xrelags is")
-  # print(xreg_lags)
-  
+
   i = 1
   y_ts <- na.omit(y_ts)
   # xreg_ts <- na.omit(xreg_ts)
@@ -1031,7 +1029,7 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
       # print(names(this_arimax_list))
       
       this_arimax <- this_arimax_list[[names(this_arimax_list)]]
-  
+
 
       # this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
       # print(test_x)
@@ -1039,7 +1037,9 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                                h = length(test_y), 
                                xreg_mts = x_series,
                                xreg_lags = xreg_lags, 
-                               vec_of_names = this_arima_name)
+                               vec_of_names = this_arima_name, 
+                               force.constant = force.constant
+                               )
       
       this_fc <- this_fc_list[[this_arima_name]]
       
@@ -1139,7 +1139,8 @@ cv_arima <- function(y_ts,  h_max, n_cv, training_length,
                      y_include_mean = FALSE, 
                      method = "CSS",
                      y_include_drift = TRUE,
-                     data_is_log_log = FALSE) {
+                     data_is_log_log = FALSE,
+                     force.constant = FALSE) {
   
   i = 1
   y_ts <- na.omit(y_ts)
@@ -1176,12 +1177,38 @@ cv_arima <- function(y_ts,  h_max, n_cv, training_length,
                      start = start_test_index_y,
                      end = end_test_index_y)
     
-    this_arima <- Arima(training_y, order = y_order,
-                        seasonal = y_seasonal,
-                        method = method,
-                        include.drift =  y_include_drift)
+    this_d <- y_order[2]
+    this_D <- y_seasonal[2]
     
-    this_fc <- forecast(this_arima, h = h_max)
+    if (force.constant & (this_d + this_D >= 2)) {
+      
+      sq_trend <- seq(1, length(training_y))^2
+      
+      this_arima <- Arima(training_y, order = y_order,
+                          seasonal = y_seasonal,
+                          method = method,
+                          include.drift =  y_include_drift,
+                          xreg = sq_trend)
+      
+      sq_trend_for_fc <- seq(length(training_y) + 1, 
+                             length(training_y) + length(test_y))^2
+      
+      this_fc <- forecast(this_arima, h = h_max, xreg = sq_trend_for_fc)
+      
+      
+    } else {
+      
+      this_arima <- Arima(training_y, order = y_order,
+                          seasonal = y_seasonal,
+                          method = method,
+                          include.drift =  y_include_drift)
+      
+      this_fc <- forecast(this_arima, h = h_max)
+      
+    }
+    
+    
+    
     
     train_rgdp_and_fc <- c(training_y, this_fc$mean)
     train_rgdp_and_fc <- ts(data = train_rgdp_and_fc,
@@ -2345,7 +2372,8 @@ get_arimax_and_fcs <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
 get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names, 
                              test_length = 8, n_cv = 8, training_length = 16, 
                              method = "ML", max_x_lag = 2, data_is_log_log = FALSE,
-                             y_include_drift = TRUE, rgdp_order_list = NULL) {
+                             y_include_drift = TRUE, rgdp_order_list = NULL,
+                             force.constant = FALSE) {
   
   # demetra_rgdp_mean_logical <-  rgdp_order_list[["mean_logical"]]
   
@@ -2366,7 +2394,8 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names,
                                 method = method,
                                 xreg_lags = 0:i, 
                                 data_is_log_log = data_is_log_log, 
-                                y_include_drift = y_include_drift)
+                                y_include_drift = y_include_drift,
+                                force.constant = force.constant)
     
     list_cv_of_arimax[[i + 1]]  <- this_cv_arimax
   }
@@ -2379,7 +2408,8 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names,
 
 get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag, 
                                    rgdp_order_list, n_cv, test_length, 
-                                   data_is_log_log, training_length, h_max) {
+                                   data_is_log_log, training_length, h_max,
+                                   force.constant = FALSE) {
   
   gdp_order <- get_order_from_arima(rgdp_arima)[[1]]
   rgdp_order <-  gdp_order[c("p", "d", "q")]
@@ -2393,14 +2423,16 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
     training_length = training_length, test_length = test_length,
     y_seasonal = rgdp_seasonal, x_names = monthly_names, 
     data_is_log_log = data_is_log_log, n_cv = n_cv,
-    max_x_lag = max_x_lag, y_include_drift = rgdp_mean_logical
+    max_x_lag = max_x_lag, y_include_drift = rgdp_mean_logical, 
+    force.constant = force.constant
   )
   
   cv_rgdp_e <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
                         training_length = training_length, y_order = rgdp_order, 
                         y_seasonal = rgdp_seasonal, method = "ML",  
                         y_include_drift = rgdp_mean_logical, 
-                        data_is_log_log = data_is_log_log)
+                        data_is_log_log = data_is_log_log,
+                        force.constant = force.constant)
   
   cv_rgdp_e_yoy <- cv_rgdp_e[["cv_yoy_errors"]]
   cv_rgdp_e <- cv_rgdp_e[["cv_errors"]]

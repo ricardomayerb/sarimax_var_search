@@ -1825,3 +1825,37 @@ toc()
 ```
 
 
+```{r cv_fun_dm_r}
+
+tic()
+cv_cond_uncond_dm_r <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
+                              xreg_ts = mdata_ext_ts_dm_r,
+                              rgdp_arima = this_rgdp_arima_dm_r,
+                              max_x_lag = max_x_lag,
+                              rgdp_order_list = rgdp_order_list_dm_r,
+                              n_cv = number_of_cv, 
+                              test_length = test_length,
+                              training_length = train_span,
+                              h_max = h_max, data_is_log_log = TRUE)
+toc()
+
+```
+
+
+```{r cv_fun_dm_s}
+
+tic()
+cv_cond_uncond_dm_s <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
+                              xreg_ts = mdata_ext_ts_dm_s,
+                              rgdp_arima = this_rgdp_arima_dm_s,
+                              max_x_lag = max_x_lag,
+                              rgdp_order_list = rgdp_order_list_dm_s,
+                              n_cv = number_of_cv, 
+                              test_length = test_length,
+                              training_length = train_span,
+                              h_max = h_max, data_is_log_log = TRUE, 
+                              force.constant = TRUE)
+toc()
+
+```
+
