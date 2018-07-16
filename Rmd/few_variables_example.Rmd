@@ -1109,7 +1109,6 @@ tsb_mfc_s
 ```
 
 
-
 ```{r full_sample_arimax_dm_r}
 
 tic()
@@ -1172,7 +1171,6 @@ tsb_mfc_s
 
 
 ```
-
 
 
 ```{r full_sample_arimax_auto}
@@ -1272,25 +1270,25 @@ ix2 <- map(seq(0,2), ~ lag.xts(this_xvar, k = .)) %>%
   reduce(ts.union)
 colnames(ix2) <- paste(colnames(this_xvar), seq(0,2), sep = "_")
 
-procrustean_y <- window(this_rgdp_ts, start = max_start, end = min_end)
+procrustean_ym <- window(this_rgdp_ts, start = max_start, end = min_end)
 procrustean_x0 <- window(ix0, start = max_start, end = min_end)
 procrustean_x1 <- window(ix1, start = max_start, end = min_end)
 procrustean_x2 <- window(ix2, start = max_start, end = min_end)
 
-manu_arimax_igae0 <- Arima(y = procrustean_y, xreg = procrustean_x0,
+manu_arimax_igae0 <- Arima(y = procrustean_ym, xreg = procrustean_x0,
                            order = rgdp_order_list_dm_r$order,
                            seasonal = rgdp_order_list_dm_r$seasonal,
                            include.constant = rgdp_order_list_dm_r$mean_logical,
                            method = "ML")
 
-manu_arimax_igae1 <- Arima(y = procrustean_y, xreg = procrustean_x1,
+manu_arimax_igae1 <- Arima(y = procrustean_ym, xreg = procrustean_x1,
                            order = rgdp_order_list_dm_r$order,
                            seasonal = rgdp_order_list_dm_r$seasonal,
                            include.constant = rgdp_order_list_dm_r$mean_logical,
                            method = "ML")
 
 
-manu_arimax_igae2 <- Arima(y = procrustean_y, xreg = procrustean_x2,
+manu_arimax_igae2 <- Arima(y = procrustean_ym, xreg = procrustean_x2,
                            order = rgdp_order_list_dm_r$order,
                            seasonal = rgdp_order_list_dm_r$seasonal,
                            include.constant = rgdp_order_list_dm_r$mean_logical,
@@ -1555,8 +1553,6 @@ if (time(y_end) < time(x_end)) {
     min_end <- x_end
   } 
 
-xtrend <- seq(1, length(procrustean_y))^2
-
 
 ix0 <- map(seq(0,0), ~ lag.xts(this_xvar, k = .)) %>% 
   reduce(ts.union)
@@ -1574,10 +1570,14 @@ colnames(ix2) <- paste(colnames(this_xvar), seq(0,2), sep = "_")
 
 
 
-procrustean_y <- window(this_rgdp_ts, start = max_start, end = min_end)
+procrustean_ym <- window(this_rgdp_ts, start = max_start, end = min_end)
 procrustean_x0 <- window(ix0, start = max_start, end = min_end)
 procrustean_x1 <- window(ix1, start = max_start, end = min_end)
 procrustean_x2 <- window(ix2, start = max_start, end = min_end)
+
+
+xtrend <- seq(1, length(procrustean_ym))^2
+
 
 procrustean_x0_and_trend <- ts.union(procrustean_x0, xtrend)
 colnames(procrustean_x0_and_trend) <- c(colnames(procrustean_x0), "trend")
@@ -1588,24 +1588,24 @@ colnames(procrustean_x1_and_trend) <- c(colnames(procrustean_x1), "trend")
 procrustean_x2_and_trend <- ts.union(procrustean_x2, xtrend)
 colnames(procrustean_x2_and_trend) <- c(colnames(procrustean_x2), "trend")
 
-manu_arimax_igae0 <- Arima(y = procrustean_y, xreg = procrustean_x0_and_trend,
+manu_arimax_igae0 <- Arima(y = procrustean_ym, xreg = procrustean_x0_and_trend,
                            order = rgdp_order_list_auto$order,
                            seasonal = rgdp_order_list_auto$seasonal,
                            include.constant = rgdp_order_list_auto$mean_logical,
-                           method = "CSS-ML")
+                           method = "ML")
 
-manu_arimax_igae1 <- Arima(y = procrustean_y, xreg = procrustean_x1_and_trend,
+manu_arimax_igae1 <- Arima(y = procrustean_ym, xreg = procrustean_x1_and_trend,
                            order = rgdp_order_list_auto$order,
                            seasonal = rgdp_order_list_auto$seasonal,
                            include.constant = rgdp_order_list_auto$mean_logical,
-                           method = "CSS-ML")
+                           method = "ML")
 
 
-manu_arimax_igae2 <- Arima(y = procrustean_y, xreg = procrustean_x2_and_trend,
+manu_arimax_igae2 <- Arima(y = procrustean_ym, xreg = procrustean_x2_and_trend,
                            order = rgdp_order_list_auto$order,
                            seasonal = rgdp_order_list_auto$seasonal,
                            include.constant = rgdp_order_list_auto$mean_logical,
-                           method = "CSS-ML")
+                           method = "ML")
 
 
 manu_arimax_igae0
@@ -1742,8 +1742,86 @@ manu_arimax_igae0$call
 
 ```
 
+```{r arimax_fun_dm_s}
+
+tic()
+arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
+                          xreg_ts = mdata_ext_ts_dm_s,
+                          rgdp_arima = this_rgdp_arima_dm_s,
+                          max_x_lag = max_x_lag,
+                          rgdp_order_list = rgdp_order_list_dm_s,
+                          h_max = h_max, force.constant = TRUE)
+toc()
+
+all_arimax_tbl <- arimax_and_fcs$all_arimax
+
+# igae_0
+all_arimax_tbl$arimax[[1]]
+manu_arimax_igae0
+
+all_arimax_tbl$arimax[[1]]$x
+manu_arimax_igae0$x
+
+all_arimax_tbl$arimax[[1]]$xreg
+manu_arimax_igae0$xreg
+
+all_arimax_tbl$arimax[[1]]$arma
+manu_arimax_igae0$arma
+
+all_arimax_tbl$arimax[[1]]$call
+manu_arimax_igae0$call
+
+```
 
 
+```{r arimax_fun_auto}
 
+tic()
+arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
+                          xreg_ts = mdata_ext_ts_auto,
+                          rgdp_arima = this_rgdp_arima_auto,
+                          max_x_lag = max_x_lag,
+                          rgdp_order_list = rgdp_order_list_auto,
+                          h_max = h_max)
+toc()
+
+all_arimax_tbl <- arimax_and_fcs$all_arimax
+
+# igae_0
+all_arimax_tbl$arimax[[1]]
+manu_arimax_igae0
+
+all_arimax_tbl$arimax[[1]]$x
+manu_arimax_igae0$x
+
+all_arimax_tbl$arimax[[1]]$xreg
+manu_arimax_igae0$xreg
+
+all_arimax_tbl$arimax[[1]]$arma
+manu_arimax_igae0$arma
+
+all_arimax_tbl$arimax[[1]]$call
+manu_arimax_igae0$call
+
+```
+
+
+## Cross Validation
+
+```{r cv_fun_auto}
+
+tic()
+cv_cond_uncond_auto <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
+                              xreg_ts = mdata_ext_ts_auto,
+                              rgdp_arima = this_rgdp_arima_auto,
+                              max_x_lag = max_x_lag,
+                              rgdp_order_list = rgdp_order_list_auto,
+                              n_cv = number_of_cv, 
+                              test_length = test_length,
+                              training_length = train_span,
+                              h_max = h_max, data_is_log_log = TRUE)
+toc()
+
+```
 
 

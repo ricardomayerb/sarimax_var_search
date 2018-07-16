@@ -908,112 +908,371 @@ cv_obs_fc_back_from_diff <- function(yoy_ts, diff_ts, training_length,
 }
 
 
+# 
+# cv_arimax_old <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
+#                       y_order, y_seasonal,
+#                       y_include_drift = TRUE, 
+#                       vec_of_names = NULL, method = "CSS", 
+#                       s4xreg = FALSE,
+#                       xreg_lags = NULL,
+#                       data_is_log_log = FALSE) {
+#   
+#   print("y_ts")
+#   print(y_ts)
+#   
+#   
+#   print("xreg_ts")
+#   print(xreg_ts)
+#   i = 1
+#   y_ts <- na.omit(y_ts)
+#   xreg_ts <- na.omit(xreg_ts)
+#   
+#   
+#   y_start_year_quarter <- stats::start(y_ts)
+#   y_end_year_quarter <- stats::end(y_ts)
+#   
+#   
+#   n <- length(y_ts)
+#   
+#   print("stats::start(y_ts)")
+#   print(stats::start(y_ts))
+#   
+#  
+#   print("stats::start(xreg_ts)")
+#   print(stats::start(xreg_ts))
+#   
+#   xreg_as_y <- window(xreg_ts, start = y_start_year_quarter,
+#                       end = y_end_year_quarter, frequency = 4)
+#   
+#   
+#   x_length_of_y <- window(xreg_ts, start = y_start_year_quarter,
+#                       end = y_end_year_quarter, frequency = 4)
+#   
+#   # print("xreg_as_y")
+#   # print(xreg_as_y)
+#   
+#   # if (s4xreg) {
+#   #   xreg_as_y <- diff(xreg_as_y, lag = 4)
+#   #   y_ts <- subset(y_ts, start = 5)
+#   # }
+#   
+#   number_of_xregs <- ncol(as.matrix(xreg_ts))
+#   # print("number_of_xregs")
+#   # print(number_of_xregs)
+#   
+#   cv_errors_all_pairs_yx <- list_along(seq.int(1, number_of_xregs)) 
+#   cv_yoy_errors_all_pairs_yx <- list_along(seq.int(1, number_of_xregs)) 
+#   
+#   for (x in 1:number_of_xregs) {
+#     # print(paste("x =", x))
+#     
+#     if (is.null(ncol(xreg_as_y))) {
+#       x_series <-  xreg_as_y
+#       
+#     } else {
+#       x_series <-  xreg_as_y[ , x]
+#     }
+#     
+#     n_x <- length(x_series)
+#     
+#     if (!is.null(xreg_lags)) {
+#       
+#       max_xreg_lag <- max(xreg_lags)
+#       xlagmat <- c()
+#       
+#       for (i in 0:max_xreg_lag) {
+#         # print(paste("i =", i))
+#         xlagmat <- cbind(xlagmat, lag.xts(x_series, k = i))
+#       }
+#       
+#       # print("xlagmat")
+#       # print(xlagmat)
+#       
+#       if(is.null(dim(xlagmat))) {
+#         dim(xlagmat) <- c(length(xlagmat), 1)
+#       }
+#       
+#       # print("dim(xlagmat)")
+#       # print(dim(xlagmat))
+#       
+#       colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
+#       
+#       x_series <- xlagmat
+#     }
+#     
+#     # print("x_series")
+#     # print(x_series)
+#     
+#     cv_errors_this_x <- list_along(1:n_cv)
+#     cv_yoy_errors_this_x  <- list_along(1:n_cv)
+#     
+#     
+#     for (i in seq_along(1:n_cv)) {
+#       
+#       train_plus_test_plus_im1 <- training_length + h_max + (i - 1)
+#       start_training_index_y <-  n - train_plus_test_plus_im1 + 1
+#       end_training_index_y <-  start_training_index_y + training_length - 1
+#       start_test_index_y <- end_training_index_y + 1
+#       end_test_index_y <- start_test_index_y + h_max - 1
+#       
+#       start_training_index_x <-  n_x - train_plus_test_plus_im1 + 1
+#       end_training_index_x <-  start_training_index_x + training_length - 1
+#       start_test_index_x <- end_training_index_x + 1
+#       end_test_index_x <- start_test_index_x + h_max - 1
+#       
+#       
+#       training_y <- subset(y_ts, 
+#                            start = start_training_index_y,
+#                            end = end_training_index_y)
+#       
+#       
+#       training_x <- subset(x_series,
+#                            start = start_training_index_x,
+#                            end = end_training_index_x)
+#       
+#       test_y <- subset(y_ts, 
+#                        start = start_test_index_y,
+#                        end = end_test_index_y)
+#       
+#       test_x <- subset(x_series,
+#                        start = start_test_index_x,
+#                        end = end_test_index_x)
+#       
+#       # print("inside cv")
+#       # print("training_y")
+#       # print(training_y)
+#       # print("training_x")
+#       # print(training_x)
+#       # print("method")
+#       # print(method)
+#       # 
+#       # print("vamos al arimax")
+# 
+#       
+#       this_arimax <- try(Arima(training_y, order = y_order,
+#                            seasonal = y_seasonal,
+#                            xreg = training_x, 
+#                            include.drift =  y_include_drift,
+#                            method = method))
+#       
+#       class_this_arimax <- class(this_arimax)[1]
+# 
+#       
+#       if (class_this_arimax == "try-error") {
+#         this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
+#                             ", ML method failed in Arima. Switched to CSS-ML.")
+#         warning(this_mssg)
+#         new_method <-  "CSS-ML"
+#         
+#         this_arimax <- try(Arima(training_y, order = y_order,
+#                                  seasonal = y_seasonal,
+#                                  xreg = training_x,
+#                                  include.drift = y_include_drift,
+#                                  method = new_method))
+#         
+#         
+#         class_this_arimax <- class(this_arimax)[1]
+#         
+#         if (class_this_arimax == "try-error") {
+#           this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
+#                               ", CSS-ML method failed in Arima. Switched to CSS")
+#           warning(this_mssg)
+#           
+#           print("In new new methods domain!")
+#           
+#           new_new_method <-  "CSS"
+#           
+#           # print("training_y")
+#           # print(training_y)
+#           # 
+#           # print("training_x")
+#           # print(training_x)
+#           # 
+#           # print("y_order")
+#           # print(y_order)
+#           # 
+#           # print("y_seasonal")
+#           # print(y_seasonal)
+#           
+#           # this_arimax <- try(Arima(training_y, order = y_order,
+#           #                          seasonal = y_seasonal,
+#           #                          xreg = training_x,
+#           #                          include.drift = y_include_drift,
+#           #                          method = new_new_method))
+#           
+#           # this_arimax <- try(Arima(training_y, order = y_order,
+#           #                          seasonal = y_seasonal,
+#           #                          xreg = training_x,
+#           #                          method = new_new_method))
+#           
+#           
+#           this_arimax <- try(auto.arima(training_y, 
+#                                    xreg = training_x))
+#           
+#           print("vec_of_names[x]")
+#           print(vec_of_names[x])
+#           
+#           print("this_arimax")
+#           print(this_arimax)
+#           
+#           }
+#         
+#       }
+#       
+#       # print("pasamos this_arimax")
+#       
+# 
+#       
+#       # print("this_arimax$fitted")
+#       # print(this_arimax$fitted)
+#       # 
+#       # print("this_arimax$x")
+#       # print(this_arimax$x)
+#       # 
+#       # print("this_arimax$xreg")
+#       # print(this_arimax$xreg)
+#       
+#       this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
+#       
+#       train_rgdp_and_fc <- c(training_y, this_fc$mean)
+#       train_rgdp_and_fc <- ts(data = train_rgdp_and_fc,
+#                               frequency = 4,
+#                               start = stats::start(training_y))
+#       
+#       train_rgdp_and_fc_yoy <- diff(train_rgdp_and_fc, lag = 4)
+#       
+#       len_tf_yoy <- length(train_rgdp_and_fc_yoy)
+#       
+#       fc_rgdp_yoy <- train_rgdp_and_fc_yoy[(len_tf_yoy - h_max + 1):len_tf_yoy]
+#       
+#       train_and_test_yoy <- diff(c(training_y, test_y), lag = 4)
+#       
+#       len_tt_yoy <- length(train_and_test_yoy)
+#       
+#       
+#       test_y_yoy <- train_and_test_yoy[(len_tt_yoy - h_max + 1):len_tt_yoy]
+#       
+#       fc_error_of_yoy <- test_y_yoy - fc_rgdp_yoy
+#       
+#       cv_yoy_errors_this_x[[i]] <- fc_error_of_yoy
+#       
+#       fc_error <- test_y - this_fc$mean
+#       cv_errors_this_x[[i]] <- fc_error
+#       
+#       # print("test_y_yoy")
+#       # print(test_y_yoy)
+#       # 
+#       # print("test_y")
+#       # print(test_y)
+#       # 
+#       # print("fc_rgdp_yoy")
+#       # print(fc_rgdp_yoy)
+#       # 
+#       # print("this_fc$mean")
+#       # print(this_fc$mean)
+#       #       
+#       # print("fc_error_of_yoy")
+#       # print(fc_error_of_yoy)
+#       # 
+#       # print("fc_error")
+#       # print(fc_error)
+#       
+#     }
+#     
+#     # print("cv_yoy_errors_this_x")
+#     # print(cv_yoy_errors_this_x)
+#     
+#     cv_errors_all_pairs_yx[[x]] <- cv_errors_this_x
+#     cv_yoy_errors_all_pairs_yx[[x]] <- cv_yoy_errors_this_x
+#   }
+#   
+#   cv_errors_all_pairs_yx <- map(cv_errors_all_pairs_yx, reduce, rbind)
+#   names(cv_errors_all_pairs_yx) <- vec_of_names
+#   
+#   
+#   cv_yoy_errors_all_pairs_yx <- map(cv_yoy_errors_all_pairs_yx, reduce, rbind)
+#   names(cv_yoy_errors_all_pairs_yx) <- vec_of_names
+#   
+#   
+#   return(list(cv_errors_all_pairs_yx = cv_errors_all_pairs_yx,
+#               cv_yoy_errors_all_pairs_yx = cv_yoy_errors_all_pairs_yx))
+# }
+
 
 cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
-                      y_order, y_seasonal,
-                      y_include_drift = TRUE, 
-                      vec_of_names = NULL, method = "CSS", 
-                      s4xreg = FALSE,
-                      xreg_lags = NULL,
-                      data_is_log_log = FALSE) {
+                          y_order, y_seasonal,
+                          y_include_drift = TRUE, 
+                          vec_of_names = NULL, method = "ML", 
+                          s4xreg = FALSE,
+                          xreg_lags = NULL,
+                          data_is_log_log = FALSE,
+                      force.constant = FALSE) {
+  
+  print("in cv_arimax xrelags is")
+  print(xreg_lags)
   
   i = 1
   y_ts <- na.omit(y_ts)
-  
-  y_time <- time(y_ts)
-  y_yqrt <- as.yearqtr(y_time)
-  
-  y_end_year <- year(max( y_yqrt ))
-  y_end_quarter <- quarter(max( y_yqrt ))
-  
-  y_start_year <- year(min( y_yqrt ))
-  y_start_quarter <- quarter(min( y_yqrt ))
-  
+  # xreg_ts <- na.omit(xreg_ts)
+
   y_start_year_quarter <- stats::start(y_ts)
   y_end_year_quarter <- stats::end(y_ts)
-  
-  
-  n <- length(y_ts)
-  
-  # print("y_start_year_quarter")
-  # print(y_start_year_quarter)
-  # 
-  # print("y_end_year_quarter")
-  # print(y_end_year_quarter)
-  # 
-  # print("stats::start(xreg_ts)")
-  # print(stats::start(xreg_ts))
-  
-  xreg_as_y <- window(xreg_ts, start = y_start_year_quarter,
-                      end = y_end_year_quarter, frequency = 4)
-  
-  
-  xreg_as_y <- window(xreg_ts, start = y_start_year_quarter,
-                      end = y_end_year_quarter, frequency = 4)
-  
-  # print("xreg_as_y")
-  # print(xreg_as_y)
-  
-  # if (s4xreg) {
-  #   xreg_as_y <- diff(xreg_as_y, lag = 4)
-  #   y_ts <- subset(y_ts, start = 5)
-  # }
-  
+
   number_of_xregs <- ncol(as.matrix(xreg_ts))
-  # print("number_of_xregs")
-  # print(number_of_xregs)
-  
+
   cv_errors_all_pairs_yx <- list_along(seq.int(1, number_of_xregs)) 
   cv_yoy_errors_all_pairs_yx <- list_along(seq.int(1, number_of_xregs)) 
   
   for (x in 1:number_of_xregs) {
     # print(paste("x =", x))
     
-    if (is.null(ncol(xreg_as_y))) {
-      x_series <-  xreg_as_y
+    this_arima_name <- vec_of_names[x]
+    print("this_arima_name")
+    print(this_arima_name)
+    
+    
+    if (is.null(ncol(xreg_ts))) {
+      x_series <-  xreg_ts
+      dim(x_series) <- c(length(x_series), 1)
       
     } else {
-      x_series <-  xreg_as_y[ , x]
+      x_series <-  xreg_ts[ , x]
     }
     
-    n_x <- length(x_series)
+    x_time <- time(x_series)
+    y_time <- time(y_ts)
     
-    if (!is.null(xreg_lags)) {
-      
-      max_xreg_lag <- max(xreg_lags)
-      xlagmat <- c()
-      
-      for (i in 0:max_xreg_lag) {
-        # print(paste("i =", i))
-        xlagmat <- cbind(xlagmat, lag.xts(x_series, k = i))
-      }
-      
-      # print("xlagmat")
-      # print(xlagmat)
-      
-      if(is.null(dim(xlagmat))) {
-        dim(xlagmat) <- c(length(xlagmat), 1)
-      }
-      
-      # print("dim(xlagmat)")
-      # print(dim(xlagmat))
-      
-      colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
-      
-      x_series <- xlagmat
+    if (min(x_time) > min(y_time)) {
+      latest_start <- stats::start(x_series)
+    } else {
+      latest_start <- stats::start(y_ts)
     }
     
-    # print("x_series")
-    # print(x_series)
+    if (max(x_time) < max(y_time)) {
+      earliest_end <- stats::end(x_series)
+    } else {
+      earliest_end <- stats::end(y_ts)
+    }
+
+    procrustean_y <- window(y_ts, start = latest_start, end = earliest_end, 
+                            frequency = 4)
+
+    procrustean_x <- window(x_series, start = latest_start, end = earliest_end,
+                            frequency = 4)
     
+    n_x <- length(procrustean_x)
+    n_y <- length(procrustean_y)
+    
+    print("n_x == n_y")
+    print(n_x == n_y)
+
     cv_errors_this_x <- list_along(1:n_cv)
     cv_yoy_errors_this_x  <- list_along(1:n_cv)
-    
-    
+
     for (i in seq_along(1:n_cv)) {
       
       train_plus_test_plus_im1 <- training_length + h_max + (i - 1)
-      start_training_index_y <-  n - train_plus_test_plus_im1 + 1
+      start_training_index_y <-  n_y - train_plus_test_plus_im1 + 1
       end_training_index_y <-  start_training_index_y + training_length - 1
       start_test_index_y <- end_training_index_y + 1
       end_test_index_y <- start_test_index_y + h_max - 1
@@ -1041,101 +1300,61 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                        start = start_test_index_x,
                        end = end_test_index_x)
       
-      # print("inside cv")
-      # print("training_y")
-      # print(training_y)
-      # print("training_x")
-      # print(training_x)
-      # print("method")
-      # print(method)
-      # 
-      # print("vamos al arimax")
-
+      this_arimax_list <- my_arimax(y_ts = procrustean_y, xreg_ts = procrustean_x, 
+                               y_order = y_order, y_seasonal = y_seasonal,
+                               vec_of_names = this_arima_name, xreg_lags = xreg_lags,
+                               method = method, force.constant = force.constant,
+                               y_include_mean = y_include_drift
+                               )
       
-      this_arimax <- try(Arima(training_y, order = y_order,
-                           seasonal = y_seasonal,
-                           xreg = training_x, 
-                           include.drift =  y_include_drift,
-                           method = method))
+      # print("names(this_arimax_list)") 
+      # print(names(this_arimax_list))
       
-      class_this_arimax <- class(this_arimax)[1]
-
+      this_arimax <- this_arimax_list[[names(this_arimax_list)]]
+  
+      # print("names(this_arimax)") 
+      # print(names(this_arimax))
       
-      if (class_this_arimax == "try-error") {
-        this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
-                            ", ML method failed in Arima. Switched to CSS-ML.")
-        warning(this_mssg)
-        new_method <-  "CSS-ML"
-        
-        this_arimax <- try(Arima(training_y, order = y_order,
-                                 seasonal = y_seasonal,
-                                 xreg = training_x,
-                                 include.drift = y_include_drift,
-                                 method = new_method))
-        
-        
-        class_this_arimax <- class(this_arimax)[1]
-        
-        if (class_this_arimax == "try-error") {
-          this_mssg <- paste0("For xreg variable ", vec_of_names[x], 
-                              ", CSS-ML method failed in Arima. Switched to CSS")
-          warning(this_mssg)
-          
-          print("In new new methods domain!")
-          
-          new_new_method <-  "CSS"
-          
-          # print("training_y")
-          # print(training_y)
-          # 
-          # print("training_x")
-          # print(training_x)
-          # 
-          # print("y_order")
-          # print(y_order)
-          # 
-          # print("y_seasonal")
-          # print(y_seasonal)
-          
-          # this_arimax <- try(Arima(training_y, order = y_order,
-          #                          seasonal = y_seasonal,
-          #                          xreg = training_x,
-          #                          include.drift = y_include_drift,
-          #                          method = new_new_method))
-          
-          # this_arimax <- try(Arima(training_y, order = y_order,
-          #                          seasonal = y_seasonal,
-          #                          xreg = training_x,
-          #                          method = new_new_method))
-          
-          
-          this_arimax <- try(auto.arima(training_y, 
-                                   xreg = training_x))
-          
-          print("vec_of_names[x]")
-          print(vec_of_names[x])
-          
-          print("this_arimax")
-          print(this_arimax)
-          
-          }
-        
-      }
       
-      # print("pasamos this_arimax")
       
-
+      # forecast_xreg <- function(arimax_list, xreg_mts, h, 
+      #                           vec_of_names = NULL, xreg_lags = NULL,
+      #                           force.constant = FALSE)
       
-      # print("this_arimax$fitted")
-      # print(this_arimax$fitted)
-      # 
-      # print("this_arimax$x")
-      # print(this_arimax$x)
-      # 
-      # print("this_arimax$xreg")
-      # print(this_arimax$xreg)
+      # this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
+      # print(test_x)
+      this_fc_list <- forecast_xreg(arimax_list = this_arimax_list, 
+                               h = length(test_y), 
+                               xreg_mts = x_series,
+                               xreg_lags = xreg_lags, vec_of_names = this_arima_name)
       
-      this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
+      print( "this_fc_list")
+      print( this_fc_list)
+      
+      print("class(this_fc_list)")
+      print(class(this_fc_list))
+      
+      print("names(this_fc_list)")
+      print(names(this_fc_list))
+      
+      
+      this_fc <- this_fc_list[[this_arima_name]]
+      
+      print("class(this_fc)")
+      print(class(this_fc))
+      
+      print("training_y")
+      print(training_y)
+      
+      print("this_fc$mean")
+      print(this_fc$mean)
+      
+      print("test_y")
+      print(test_y)
+      
+      print("this_fc$x")
+      print(this_fc$x)
+      
       
       train_rgdp_and_fc <- c(training_y, this_fc$mean)
       train_rgdp_and_fc <- ts(data = train_rgdp_and_fc,
@@ -1886,12 +2105,17 @@ forecast_xreg <- function(arimax_list, xreg_mts, h,
   
   n_vars <- length(arimax_list)
   
-  # print("xreg_lags")
-  # print(xreg_lags)
-  # 
-  # print("vec_of_names")
-  # print(vec_of_names)
-  # 
+  print("xreg_lags")
+  print(xreg_lags)
+  print("vec_of_names in forecast_xreg")
+  print(vec_of_names)
+  print("h")
+  print(h)
+  # print("xreg_mts")
+  # print(xreg_mts)
+  print("force.constant")
+  print(force.constant)
+  
   
   if(is.null(dim(xreg_mts))) {
     dim(xreg_mts) <- c(length(xreg_mts), 1)
@@ -2330,12 +2554,21 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names,
   
   list_cv_of_arimax <- list()
   
+  print("in get_cv_of_arimax max_x_lag is")
+  print(max_x_lag)
+  
   for (i in 0:max_x_lag) {
-    this_cv_arimax <- cv_arimax(y_ts = y_ts, xreg_ts = xreg_ts, n_cv = n_cv,
-                                training_length = training_length, h_max = test_length,
-                                y_order = y_order, y_seasonal = y_seasonal, 
-                                vec_of_names = x_names, method = method,
-                                xreg_lags = 0:i, data_is_log_log = data_is_log_log, 
+    this_cv_arimax <- cv_arimax(y_ts = y_ts, 
+                                xreg_ts = xreg_ts,
+                                n_cv = n_cv,
+                                training_length = training_length, 
+                                h_max = test_length,
+                                y_order = y_order, 
+                                y_seasonal = y_seasonal, 
+                                vec_of_names = x_names, 
+                                method = method,
+                                xreg_lags = 0:i, 
+                                data_is_log_log = data_is_log_log, 
                                 y_include_drift = y_include_drift)
     
     list_cv_of_arimax[[i + 1]]  <- this_cv_arimax
@@ -4385,6 +4618,7 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     
   }
   
+              
   names(arimax_list) <- vec_of_names
   
   return(arimax_list)
