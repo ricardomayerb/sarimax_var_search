@@ -2028,13 +2028,13 @@ py_auto <- autoplot(yoy_fc_unc, series = "uncond") +
 
 fc_unc <- fcs_aggr_transf_auto$rgdp_data_and_uncond_fc
 fc_ldw <- fcs_aggr_transf_auto$fcs_using_logdiff_weights
-fc_lvw <- fcs_aggr_transf_auto$
-fc_yw <- fcs_aggr_transf_auto$yoy_fc_using_accu_yoy_weights
+fc_lvw <- fcs_aggr_transf_auto$weigthed_fcs
+fc_yw <- fcs_aggr_transf_auto$fcs_using_yoy_weights
 
-pl_auto <- autoplot(yoy_fc_unc, series = "uncond") + 
-  autolayer(yoy_fc_ldw) + 
-  autolayer(yoy_fc_lvw) + 
-  autolayer(yoy_fc_yw)
+pl_auto <- autoplot(fc_unc, series = "uncond") + 
+  autolayer(fc_ldw) + 
+  autolayer(fc_lvw) + 
+  autolayer(fc_yw)
 
 
 ```
