@@ -1808,6 +1808,8 @@ manu_arimax_igae0$call
 
 ## Cross Validation
 
+### Compute errors
+
 ```{r cv_fun_auto}
 
 tic()
@@ -1858,4 +1860,15 @@ cv_cond_uncond_dm_s <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
 toc()
 
 ```
+
+
+
+### Examine CV-forecast-errors
+
+```{r}
+
+cv_cond_uncond_auto
+
+```
+
 

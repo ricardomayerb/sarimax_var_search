@@ -1068,9 +1068,9 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
         
         fc_error_of_yoy <- test_y_yoy - fc_rgdp_yoy
         
-        fc_error_as_log_diff <- test_y - this_fc$mean
+        fc_error_as_log_diff <- 100*(test_y - this_fc$mean)
         
-        fc_error_as_percent <- (exp(test_y) - exp(this_fc$mean))/exp(test_y)
+        fc_error_as_percent <- 100*((exp(test_y) - exp(this_fc$mean))/exp(test_y))
         
         fc_error <- exp(test_y) - exp(this_fc$mean)
         
@@ -1093,9 +1093,9 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
         
         fc_error_of_yoy <- test_y_yoy - fc_rgdp_yoy
         
-        fc_error_as_log_diff <- log(test_y) - log(this_fc$mean)
+        fc_error_as_log_diff <- 100*(log(test_y) - log(this_fc$mean))
         
-        fc_error_as_percent <- (test_y - this_fc$mean)/test_y
+        fc_error_as_percent <- 100*((test_y - this_fc$mean)/test_y)
         
         fc_error <- test_y - this_fc$mean
         
@@ -1237,9 +1237,9 @@ cv_arima <- function(y_ts,  h_max, n_cv, training_length,
       
       fc_error_of_yoy <- test_y_yoy - fc_rgdp_yoy
       
-      fc_error_as_log_diff <- test_y - this_fc$mean
+      fc_error_as_log_diff <- 100*(test_y - this_fc$mean)
       
-      fc_error_as_percent <- (exp(test_y) - exp(this_fc$mean))/exp(test_y)
+      fc_error_as_percent <- 100*((exp(test_y) - exp(this_fc$mean))/exp(test_y))
       
       fc_error <- exp(test_y) - exp(this_fc$mean)
       
@@ -1263,9 +1263,9 @@ cv_arima <- function(y_ts,  h_max, n_cv, training_length,
       
       fc_error_of_yoy <- test_y_yoy - fc_rgdp_yoy
       
-      fc_error_as_log_diff <- log(test_y) - log(this_fc$mean)
+      fc_error_as_log_diff <- 100*(log(test_y) - log(this_fc$mean))
       
-      fc_error_as_percent <- (test_y - this_fc$mean)/test_y
+      fc_error_as_percent <- 100*((test_y - this_fc$mean)/test_y)
       
       fc_error <- test_y - this_fc$mean
       
@@ -2427,33 +2427,65 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
     force.constant = force.constant
   )
   
-  cv_rgdp_e <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
+  cv_rgdp_arima <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
                         training_length = training_length, y_order = rgdp_order, 
                         y_seasonal = rgdp_seasonal, method = "ML",  
                         y_include_drift = rgdp_mean_logical, 
                         data_is_log_log = data_is_log_log,
                         force.constant = force.constant)
   
-  cv_rgdp_e_yoy <- cv_rgdp_e[["cv_yoy_errors"]]
-  cv_rgdp_e <- cv_rgdp_e[["cv_errors"]]
-  cv_rdgp_rmse <- compute_rmse(cv_rgdp_e, h_max = h_max, n_cv = n_cv)
-  cv_rdgp_rmse_yoy <- compute_rmse(cv_rgdp_e_yoy, h_max = h_max, n_cv = n_cv)
+  cv_rgdp_arima <- cv_rgdp_arima[["cv_errors"]]
+  cv_rdgp_rmse <- compute_rmse(cv_rgdp_arima, h_max = h_max, n_cv = n_cv)
+
+  cv_rgdp_arima_yoy <- cv_rgdp_arima[["cv_yoy_errors"]]
+  cv_rdgp_rmse_yoy <- compute_rmse(cv_rgdp_arima_yoy, h_max = h_max, n_cv = n_cv)
+  
+  cv_rgdp_arima_logdiff <- cv_rgdp_arima[["cv_logdiff_errors"]]
+  cv_rdgp_rmse_logdiff <- compute_rmse(cv_rgdp_arima_logdiff, h_max = h_max, n_cv = n_cv)
+  
+  cv_rgdp_arima_percent <- cv_rgdp_arima[["cv_percent_errors"]]
+  cv_rdgp_rmse_percent <- compute_rmse(cv_rgdp_arima_percent, h_max = h_max, n_cv = n_cv)
+
   cv_rmse_each_h_rgdp <- cv_rdgp_rmse[["same_h_rmse"]] %>% 
-    mutate(variable = "rgdp", lag = 0)
+  mutate(variable = "rgdp", lag = 0)
+  
   cv_rmse_each_h_rgdp_yoy <- cv_rdgp_rmse_yoy[["same_h_rmse"]] %>% 
+  mutate(variable = "rgdp", lag = 0)
+  
+  cv_rmse_each_h_rgdp_logdiff <- cv_rdgp_rmse_logdiff[["same_h_rmse"]] %>% 
     mutate(variable = "rgdp", lag = 0)
   
-  cv_allx_yoy <- map(cv_arimax_0_to_2, "cv_yoy_errors_all_pairs_yx")
+  cv_rmse_each_h_rgdp_percent <- cv_rdgp_rmse_percent[["same_h_rmse"]] %>% 
+    mutate(variable = "rgdp", lag = 0)
+  
   cv_allx <- map(cv_arimax_0_to_2, "cv_errors_all_pairs_yx")
+  cv_allx_yoy <- map(cv_arimax_0_to_2, "cv_yoy_errors_all_pairs_yx")
+  cv_allx_logdiff <- map(cv_arimax_0_to_2, "cv_logdiff_errors_all_pairs_yx")
+  cv_allx_percent <- map(cv_arimax_0_to_2, "cv_percent_errors_all_pairs_yx")
+  
   cv_rmse_list <- map(cv_allx,  ~ map(., compute_rmse, h_max = h_max, n_cv = n_cv))
   cv_rmse_list_yoy <- map(cv_allx_yoy, 
                           ~ map(., compute_rmse, h_max = h_max, n_cv = n_cv))
+  cv_rmse_list_logdiff <- map(cv_allx_logdiff, 
+                          ~ map(., compute_rmse, h_max = h_max, n_cv = n_cv))
+  cv_rmse_list_percent <- map(cv_allx_percent, 
+                          ~ map(., compute_rmse, h_max = h_max, n_cv = n_cv))
+
   cv_rmse_each_h <- map(cv_rmse_list,
                         ~ map(., "same_h_rmse") %>% reduce(., rbind) %>% 
                           mutate(variable = monthly_names))
   cv_rmse_each_h_yoy <- map(cv_rmse_list_yoy,
                             ~ map(., "same_h_rmse") %>% reduce(., rbind) %>% 
                               mutate(variable = monthly_names))
+  cv_rmse_each_h_logdiff <- map(cv_rmse_list_logdiff,
+                            ~ map(., "same_h_rmse") %>% reduce(., rbind) %>% 
+                              mutate(variable = monthly_names))
+  cv_rmse_each_h_percent <- map(cv_rmse_list_percent,
+                            ~ map(., "same_h_rmse") %>% reduce(., rbind) %>% 
+                              mutate(variable = monthly_names))
+  
+  
+  
   cv_all_x_rmse_each_h <- reduce(cv_rmse_each_h, rbind) %>% 
     mutate(lag =   reduce(
       map(seq(0,length(cv_allx) - 1), rep, length(cv_allx[[1]])),
@@ -2461,20 +2493,38 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
   
   cv_all_x_rmse_each_h_yoy <- reduce(cv_rmse_each_h_yoy, rbind) %>% 
     mutate(lag = reduce(
-      map(seq(0,length(cv_allx) - 1), rep, length(cv_allx[[1]])), c))
+      map(seq(0,length(cv_allx_yoy) - 1), rep, length(cv_allx_yoy[[1]])), c))
+  
+  cv_all_x_rmse_each_h_logdiff <- reduce(cv_rmse_each_h_logdiff, rbind) %>% 
+    mutate(lag = reduce(
+      map(seq(0,length(cv_allx_logdiff) - 1), rep, length(cv_allx_logdiff[[1]])), c))
+
+  cv_all_x_rmse_each_h_percent <- reduce(cv_rmse_each_h_percent, rbind) %>% 
+    mutate(lag = reduce(
+      map(seq(0,length(cv_allx_percent) - 1), rep, length(cv_allx_percent[[1]])), c))
   
   return(list(
     cv_allx = cv_allx, 
     cv_allx_yoy = cv_allx_yoy,
+    cv_allx_logdiff = cv_allx_logdiff,
+    cv_allx_percent = cv_allx_percent,
     cv_rmse_each_h = cv_rmse_each_h, 
     cv_rmse_each_h_yoy = cv_rmse_each_h_yoy,
+    cv_rmse_each_h_logdiff = cv_rmse_each_h_logdiff,
+    cv_rmse_each_h_percent = cv_rmse_each_h_percent,
     cv_rmse_each_h_rgdp = cv_rmse_each_h_rgdp,
     cv_rmse_each_h_rgdp_yoy = cv_rmse_each_h_rgdp_yoy,
-    cv_rgdp_e = cv_rgdp_e,
-    cv_rgdp_e_yoy = cv_rgdp_e_yoy,
+    cv_rmse_each_h_rgdp_logdiff = cv_rmse_each_h_rgdp_logdiff,
+    cv_rmse_each_h_rgdp_percent = cv_rmse_each_h_rgdp_percent,
+    cv_rgdp_arima = cv_rgdp_arima,
+    cv_rgdp_arima_yoy = cv_rgdp_arima_yoy,
+    cv_rgdp_arima_logdiff = cv_rgdp_arima_logdiff,
+    cv_rgdp_arima_percent = cv_rgdp_arima_percent,
     cv_all_x_rmse_each_h = cv_all_x_rmse_each_h,
-    cv_all_x_rmse_each_h_yoy = cv_all_x_rmse_each_h_yoy)
-  )
+    cv_all_x_rmse_each_h_yoy = cv_all_x_rmse_each_h_yoy,
+    cv_all_x_rmse_each_h_logdiff = cv_all_x_rmse_each_h_logdiff,
+    cv_all_x_rmse_each_h_percent = cv_all_x_rmse_each_h_percent)
+)
   
   
 }
