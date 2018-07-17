@@ -2427,23 +2427,26 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
     force.constant = force.constant
   )
   
-  cv_rgdp_arima <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
+  cv_rgdp_arima_list <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
                         training_length = training_length, y_order = rgdp_order, 
                         y_seasonal = rgdp_seasonal, method = "ML",  
                         y_include_drift = rgdp_mean_logical, 
                         data_is_log_log = data_is_log_log,
                         force.constant = force.constant)
   
-  cv_rgdp_arima <- cv_rgdp_arima[["cv_errors"]]
+  # print("names(cv_rgdp_arima)")
+  # print(names(cv_rgdp_arima))
+  
+  cv_rgdp_arima <- cv_rgdp_arima_list[["cv_errors"]]
   cv_rdgp_rmse <- compute_rmse(cv_rgdp_arima, h_max = h_max, n_cv = n_cv)
 
-  cv_rgdp_arima_yoy <- cv_rgdp_arima[["cv_yoy_errors"]]
+  cv_rgdp_arima_yoy <- cv_rgdp_arima_list[["cv_yoy_errors"]]
   cv_rdgp_rmse_yoy <- compute_rmse(cv_rgdp_arima_yoy, h_max = h_max, n_cv = n_cv)
   
-  cv_rgdp_arima_logdiff <- cv_rgdp_arima[["cv_logdiff_errors"]]
+  cv_rgdp_arima_logdiff <- cv_rgdp_arima_list[["cv_logdiff_errors"]]
   cv_rdgp_rmse_logdiff <- compute_rmse(cv_rgdp_arima_logdiff, h_max = h_max, n_cv = n_cv)
   
-  cv_rgdp_arima_percent <- cv_rgdp_arima[["cv_percent_errors"]]
+  cv_rgdp_arima_percent <- cv_rgdp_arima_list[["cv_percent_errors"]]
   cv_rdgp_rmse_percent <- compute_rmse(cv_rgdp_arima_percent, h_max = h_max, n_cv = n_cv)
 
   cv_rmse_each_h_rgdp <- cv_rdgp_rmse[["same_h_rmse"]] %>% 
