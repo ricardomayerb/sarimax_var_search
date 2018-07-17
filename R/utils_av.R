@@ -122,93 +122,192 @@ add_column_cv_yoy_errors <- function(data = cv_objects){
 
 aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
                                         rgdp_ts, rgdp_uncond_fc_mean, 
-                                        test_length = 8, h_max = 8) {
+                                        test_length = 8, h_max = 8,
+                                        data_is_log_log = FALSE) {
   
   mat_of_raw_fcs <- arimax_and_fcs$mat_of_raw_fcs
+  
   cv_all_x_rmse_each_h <- cv_cond_uncond$cv_all_x_rmse_each_h
-  cv_rmse_each_h_rgdp <-  cv_cond_uncond[["cv_rmse_each_h_rgdp"]]
   cv_all_x_rmse_each_h_yoy <- cv_cond_uncond$cv_all_x_rmse_each_h_yoy
+  cv_all_x_rmse_each_h_logdiff <- cv_cond_uncond$cv_all_x_rmse_each_h_logdiff
+  cv_all_x_rmse_each_h_percent <- cv_cond_uncond$cv_all_x_rmse_each_h_percent
+  
+  cv_rmse_each_h_rgdp <-  cv_cond_uncond[["cv_rmse_each_h_rgdp"]]
   cv_rmse_each_h_rgdp_yoy <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_yoy"]]
+  cv_rmse_each_h_rgdp_logdiff <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_logdiff"]]
+  cv_rmse_each_h_rgdp_percent <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_percent"]]
+  
+  print("cv_all_x_rmse_each_h_logdiff")
+  print(cv_all_x_rmse_each_h_logdiff)
+  
+  print("cv_all_x_rmse_each_h_percent")
+  print(cv_all_x_rmse_each_h_percent)
+  
   
   weigthed_fcs <- get_weighted_fcs(raw_fcs = mat_of_raw_fcs,
                                    mat_cv_rmses_from_x = cv_all_x_rmse_each_h,
                                    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp)
   
-  weigthed_fcs[is.nan(weigthed_fcs)] <- rgdp_uncond_fc_mean[is.nan(weigthed_fcs)]
+  weigthed_fcs_cv_yoy_errors <- get_weighted_fcs(
+    raw_fcs = mat_of_raw_fcs, 
+    mat_cv_rmses_from_x =  cv_all_x_rmse_each_h_yoy,
+    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_yoy)
   
-  fcs_using_yoy_weights <- get_weighted_fcs(raw_fcs = mat_of_raw_fcs,
-                                            mat_cv_rmses_from_x = cv_all_x_rmse_each_h_yoy,
-                                            vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_yoy)
+  weigthed_fcs_cv_logdiff_errors <- get_weighted_fcs(
+    raw_fcs = mat_of_raw_fcs, 
+    mat_cv_rmses_from_x =  cv_all_x_rmse_each_h_logdiff,
+    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_logdiff)
   
-  fcs_using_yoy_weights[is.nan(fcs_using_yoy_weights)] <- rgdp_uncond_fc_mean[is.nan(fcs_using_yoy_weights)]
+  weigthed_fcs_cv_percent_errors <- get_weighted_fcs(
+    raw_fcs = mat_of_raw_fcs, 
+    mat_cv_rmses_from_x =  cv_all_x_rmse_each_h_percent,
+    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_percent)
+  
+  
+  # weigthed_fcs[is.nan(weigthed_fcs)] <- rgdp_uncond_fc_mean[is.nan(weigthed_fcs)]
+  # 
+  # fcs_using_yoy_weights <- get_weighted_fcs(raw_fcs = mat_of_raw_fcs,
+  #                                           mat_cv_rmses_from_x = cv_all_x_rmse_each_h_yoy,
+  #                                           vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_yoy)
+  
+  # fcs_using_yoy_weights[is.nan(fcs_using_yoy_weights)] <- rgdp_uncond_fc_mean[is.nan(fcs_using_yoy_weights)]
   
   weigthed_fcs <- ts(weigthed_fcs, 
+                     start = stats::start(rgdp_uncond_fc_mean), 
+                     frequency = 4)
+  
+  weigthed_fcs_cv_yoy_errors <- ts(weigthed_fcs_cv_yoy_errors, 
+                     start = stats::start(rgdp_uncond_fc_mean), 
+                     frequency = 4)
+  
+  weigthed_fcs_cv_logdiff_errors <- ts(weigthed_fcs_cv_logdiff_errors, 
+                     start = stats::start(rgdp_uncond_fc_mean), 
+                     frequency = 4)
+  
+  weigthed_fcs_cv_percent_errors <- ts(weigthed_fcs_cv_percent_errors, 
                      start = stats::start(rgdp_uncond_fc_mean), 
                      frequency = 4)
   
   rgdp_data_and_uncond_fc <- ts(data = c(rgdp_ts, rgdp_uncond_fc_mean), 
                                 frequency = 4, start = stats::start(rgdp_ts))
   
-  yoy_rgdp_data_and_uncond_fc <- make_yoy_ts(exp(rgdp_data_and_uncond_fc))
+  if (data_is_log_log) {
+    yoy_rgdp_data_and_uncond_fc <- make_yoy_ts(exp(rgdp_data_and_uncond_fc))
+  } else {
+    yoy_rgdp_data_and_uncond_fc <- make_yoy_ts(rgdp_data_and_uncond_fc)
+  }
   
   rgdp_uncond_yoy_fc_mean <- window(yoy_rgdp_data_and_uncond_fc,
                                     start = stats::start(rgdp_uncond_fc_mean))
   
-  fcs_using_yoy_weights <- ts(fcs_using_yoy_weights, 
-                              start = stats::start(rgdp_uncond_fc_mean), 
-                              frequency = 4)
+  # fcs_using_yoy_weights <- ts(fcs_using_yoy_weights, 
+  #                             start = stats::start(rgdp_uncond_fc_mean), 
+  #                             frequency = 4)
   
   final_rgdp_and_w_fc <- ts(c(rgdp_ts, weigthed_fcs), frequency = 4,
                             start = stats::start(rgdp_ts))
   
-  final_rgdp_and_yoyw_fc <- ts(c(rgdp_ts, fcs_using_yoy_weights), frequency = 4,
-                               start = stats::start(rgdp_ts))
+  final_rgdp_and_w_fc_yoy_errors <- ts(c(rgdp_ts, weigthed_fcs_cv_yoy_errors), 
+                                       frequency = 4,
+                                       start = stats::start(rgdp_ts))
   
-  expo_final_rgdp_and_w_fc <- exp(final_rgdp_and_w_fc)
-  expo_final_rgdp_and_yoyw_fc <- exp(final_rgdp_and_yoyw_fc)
+  final_rgdp_and_w_fc_logdiff_errors <- ts(c(rgdp_ts, weigthed_fcs_cv_logdiff_errors), 
+                                       frequency = 4,
+                                       start = stats::start(rgdp_ts))
   
-  yoy_growth_expo_final_rgdp_and_w_fc <- diff(expo_final_rgdp_and_w_fc, lag = 4)/lag.xts(expo_final_rgdp_and_w_fc, k = 4)
-  yoy_growth_expo_final_rgdp_and_yoyw_fc <- diff(expo_final_rgdp_and_yoyw_fc, lag = 4)/lag.xts(expo_final_rgdp_and_yoyw_fc, k = 4)
+  final_rgdp_and_w_fc_percent_errors <- ts(c(rgdp_ts, weigthed_fcs_cv_percent_errors),
+                                       frequency = 4,
+                                       start = stats::start(rgdp_ts))
+  
+  if (data_is_log_log) {
+    final_rgdp_and_w_fc <- exp(final_rgdp_and_w_fc)
+    final_rgdp_and_w_fc_yoy_errors <- exp(final_rgdp_and_w_fc_yoy_errors)
+    final_rgdp_and_w_fc_logdiff_errors <- exp(final_rgdp_and_w_fc_logdiff_errors)
+    final_rgdp_and_w_fc_percent_errors <- exp(final_rgdp_and_w_fc_percent_errors)
+  }
 
-  level_fc_using_accu_level_weights <- expo_final_rgdp_and_w_fc
-  level_fc_using_accu_yoy_weights <- expo_final_rgdp_and_yoyw_fc
+  yoy_growth_rgdp_and_w_fc <- make_yoy_ts(final_rgdp_and_w_fc, is_log = FALSE)
   
-  yoy_fc_using_accu_level_weights <- yoy_growth_expo_final_rgdp_and_w_fc
-  yoy_fc_using_accu_yoy_weights <- yoy_growth_expo_final_rgdp_and_yoyw_fc
+  yoy_growth_rgdp_and_w_fc_yoy_errors <- make_yoy_ts(
+    final_rgdp_and_w_fc_yoy_errors, is_log = FALSE)
   
-  cv_rmse_yoy_rgdp_conditional_on_x <- cv_all_x_rmse_each_h_yoy
-  cv_rmse_yoy_rgdp <- cv_rmse_each_h_rgdp_yoy
+  yoy_growth_rgdp_and_w_fc_logdiff_errors <- make_yoy_ts(
+    final_rgdp_and_w_fc_logdiff_errors, is_log = FALSE)
+  
+  yoy_growth_rgdp_and_w_fc_percent_errors <- make_yoy_ts(
+    final_rgdp_and_w_fc_percent_errors, is_log = FALSE)
+
+  yoy_fc_using_weights <- yoy_growth_rgdp_and_w_fc
+  yoy_fc_using_weights_yoy_errors <- yoy_growth_rgdp_and_w_fc_yoy_errors
+  yoy_fc_using_weights_logdiff_errors <- yoy_growth_rgdp_and_w_fc_logdiff_errors
+  yoy_fc_using_weights_percent_errors <- yoy_growth_rgdp_and_w_fc_percent_errors
+
   cv_rmse_level_rgdp_conditional_on_x <- cv_all_x_rmse_each_h
   cv_rmse_level_rgdp <- cv_rmse_each_h_rgdp
   
+  cv_rmse_yoy_rgdp_conditional_on_x <- cv_all_x_rmse_each_h_yoy
+  cv_rmse_yoy_rgdp <- cv_rmse_each_h_rgdp_yoy
+  
+  cv_rmse_logdiff_rgdp_conditional_on_x <- cv_all_x_rmse_each_h_logdiff
+  cv_rmse_logdiff_rgdp <- cv_rmse_each_h_rgdp_logdiff
+  
+  cv_rmse_percent_rgdp_conditional_on_x <- cv_all_x_rmse_each_h_percent
+  cv_rmse_percent_rgdp <- cv_rmse_each_h_rgdp_percent
+  
   names(cv_rmse_level_rgdp_conditional_on_x)[1:test_length] <- paste0("level_rmse_", 1:test_length)
+  names(cv_rmse_level_rgdp)[1:test_length] <- paste0("level_rmse_", 1:test_length)
+  
   names(cv_rmse_yoy_rgdp_conditional_on_x)[1:test_length] <- paste0("yoy_rmse_", 1:test_length)
   names(cv_rmse_yoy_rgdp)[1:test_length] <- paste0("yoy_rmse_", 1:test_length)
-  names(cv_rmse_level_rgdp)[1:test_length] <- paste0("level_rmse_", 1:test_length)
+  
+  names(cv_rmse_logdiff_rgdp_conditional_on_x)[1:test_length] <- paste0("logdiff_rmse_", 1:test_length)
+  names(cv_rmse_logdiff_rgdp)[1:test_length] <- paste0("logdiff_rmse_", 1:test_length)
+  
+  names(cv_rmse_percent_rgdp_conditional_on_x)[1:test_length] <- paste0("yoy_percent_", 1:test_length)
+  names(cv_rmse_percent_rgdp)[1:test_length] <- paste0("yoy_percent_", 1:test_length)
   
   compare_rmse <- rbind(cv_rmse_level_rgdp, 
                         cv_rmse_level_rgdp_conditional_on_x) 
   
   compare_rmse_yoy <- rbind(cv_rmse_yoy_rgdp, 
                             cv_rmse_yoy_rgdp_conditional_on_x)
+  
+  compare_rmse_logdiff <- rbind(cv_rmse_logdiff_rgdp, 
+                            cv_rmse_logdiff_rgdp_conditional_on_x)
+  
+  compare_rmse_percent <- rbind(cv_rmse_percent_rgdp, 
+                            cv_rmse_percent_rgdp_conditional_on_x)
+  
   return(list(
     weigthed_fcs = weigthed_fcs,
+    fcs_using_yoy_weights = weigthed_fcs_cv_yoy_errors,
+    fcs_using_logdiff_weights = weigthed_fcs_cv_logdiff_errors,
+    fcs_using_percent_weights = weigthed_fcs_cv_percent_errors,
     rgdp_data_and_uncond_fc = rgdp_data_and_uncond_fc,
     yoy_rgdp_data_and_uncond_fc = yoy_rgdp_data_and_uncond_fc,
     rgdp_uncond_yoy_fc_mean = rgdp_uncond_yoy_fc_mean,
-    fcs_using_yoy_weights = fcs_using_yoy_weights,
     final_rgdp_and_w_fc = final_rgdp_and_w_fc,
-    final_rgdp_and_yoyw_fc = final_rgdp_and_yoyw_fc,
-    level_fc_using_accu_level_weights = level_fc_using_accu_level_weights,
-    level_fc_using_accu_yoy_weights = level_fc_using_accu_yoy_weights,
-    yoy_fc_using_accu_level_weights = yoy_fc_using_accu_level_weights,
-    yoy_fc_using_accu_yoy_weights = yoy_fc_using_accu_yoy_weights,
-    cv_rmse_yoy_rgdp_conditional_on_x = cv_rmse_yoy_rgdp_conditional_on_x,
-    cv_rmse_yoy_rgdp = cv_rmse_yoy_rgdp,
+    final_rgdp_and_yoyw_fc = final_rgdp_and_w_fc_yoy_errors,
+    final_rgdp_and_logdiffw_fc = final_rgdp_and_w_fc_logdiff_errors,
+    final_rgdp_and_percentw_fc = final_rgdp_and_w_fc_percent_errors,
+    level_fc_using_accu_level_weights = final_rgdp_and_w_fc,
+    level_fc_using_accu_yoy_weights = final_rgdp_and_w_fc_yoy_errors,
+    yoy_fc_using_accu_level_weights = yoy_fc_using_weights,
+    yoy_fc_using_accu_yoy_weights = yoy_fc_using_weights_yoy_errors,
+    yoy_fc_using_accu_logdiff_weights = yoy_fc_using_weights_logdiff_errors,
+    yoy_fc_using_accu_percent_weights = yoy_fc_using_weights_percent_errors,
     cv_rmse_level_rgdp_conditional_on_x = cv_rmse_level_rgdp_conditional_on_x,
     cv_rmse_level_rgdp = cv_rmse_level_rgdp,
+    cv_rmse_yoy_rgdp_conditional_on_x = cv_rmse_yoy_rgdp_conditional_on_x,
+    cv_rmse_yoy_rgdp = cv_rmse_yoy_rgdp,
+    cv_rmse_logdiff_rgdp_conditional_on_x = cv_rmse_logdiff_rgdp_conditional_on_x,
+    cv_rmse_logdiff_rgdp = cv_rmse_logdiff_rgdp,
+    cv_rmse_percent_rgdp_conditional_on_x = cv_rmse_percent_rgdp_conditional_on_x,
+    cv_rmse_percent_rgdp = cv_rmse_percent_rgdp,
     compare_rmse = compare_rmse,
-    compare_rmse_yoy = compare_rmse_yoy
+    compare_rmse_yoy = compare_rmse_yoy,
+    compare_rmse_logdiff = compare_rmse_logdiff,
+    compare_rmse_percent = compare_rmse_percent
   ))
   
 }
@@ -1112,7 +1211,7 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
     cv_errors_all_pairs_yx[[x]] <- cv_errors_this_x
     cv_yoy_errors_all_pairs_yx[[x]] <- cv_yoy_errors_this_x
     cv_logdiff_errors_all_pairs_yx[[x]] <- cv_logdiff_errors_this_x
-    cv_percent_errors_all_pairs_yx[[x]] <- cv_logdiff_errors_this_x
+    cv_percent_errors_all_pairs_yx[[x]] <- cv_percent_errors_this_x
   }
   
   cv_errors_all_pairs_yx <- map(cv_errors_all_pairs_yx, reduce, rbind)
@@ -2286,7 +2385,8 @@ get_arima_results_old <- function(country_name, read_results = FALSE,
 
 
 get_arimax_and_fcs <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
-                               rgdp_order_list, h_max, force.constant = FALSE) {
+                               rgdp_order_list, h_max, force.constant = FALSE,
+                               data_is_log_log = FALSE) {
   
   gdp_order <- get_order_from_arima(rgdp_arima)[[1]]
   rgdp_order <-  gdp_order[c("p", "d", "q")]
@@ -2340,7 +2440,7 @@ get_arimax_and_fcs <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
     ) %>% 
     mutate(data_and_fc = map(raw_rgdp_fc, ~ts(data = c(y_ts, .), frequency = 4,
                                               start = stats::start(y_ts))),
-           yoy_data_and_fc = map(data_and_fc, ~ make_yoy_ts(exp(.))),
+           yoy_data_and_fc = map(data_and_fc, ~ make_yoy_ts( . , is_log = data_is_log_log)),
            yoy_raw_rgdp_fc = map2(yoy_data_and_fc, raw_rgdp_fc,
                                   ~ window(.x, start = stats::start(.y)))
     )

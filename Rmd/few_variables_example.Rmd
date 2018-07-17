@@ -3,6 +3,8 @@ title: "R Notebook"
 output:
   html_document:
     df_print: paged
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -310,6 +312,8 @@ if (use_demetra) {
                                h = h_max, xreg = t_for_fc_sq)
     rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
     
+    uncond_fc_mean_dm_s <- rgdp_uncond_fc_mean
+    
     print(rgdp_uncond_fc_mean)
     
     rgdp_and_uncond_fc_dm_f <- ts(data = c(rgdp_uncond_fc$x, 
@@ -369,7 +373,6 @@ print(this_rgdp_arima[["rgdp"]])
 
 
 ```
-
 
 
 ```{r rgpd_uncond_arimas_dm_not_force}
@@ -448,6 +451,8 @@ if (use_demetra) {
 rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
 rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
 
+uncond_fc_mean_dm_r <- rgdp_uncond_fc_mean
+
 rgdp_and_uncond_fc_dm_nf <- ts(data = c(rgdp_uncond_fc$x, 
                                   rgdp_uncond_fc$mean), 
                          frequency = 4,
@@ -471,7 +476,6 @@ this_rgdp_arima_dm_r <- this_rgdp_arima
 
 
 ```
-
 
 
 ```{r rgpd_uncond_arimas_auto}
@@ -553,6 +557,8 @@ if (use_demetra) {
 rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
 rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
 
+uncond_fc_mean_auto <- rgdp_uncond_fc_mean
+
 rgdp_and_uncond_fc_auto <- ts(data = c(rgdp_uncond_fc$x, 
                                   rgdp_uncond_fc$mean), 
                          frequency = 4,
@@ -577,6 +583,7 @@ this_rgdp_arima_auto <- this_rgdp_arima
 
 
 ```
+
 
 ```{r all_3_uncond_arimas}
 
@@ -1719,7 +1726,7 @@ arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts,
                           rgdp_arima = this_rgdp_arima_dm_r,
                           max_x_lag = max_x_lag,
                           rgdp_order_list = rgdp_order_list_dm_r,
-                          h_max = h_max)
+                          h_max = h_max, data_is_log_log = is_log_log)
 toc()
 
 all_arimax_tbl <- arimax_and_fcs$all_arimax
@@ -1750,7 +1757,8 @@ arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts,
                           rgdp_arima = this_rgdp_arima_dm_s,
                           max_x_lag = max_x_lag,
                           rgdp_order_list = rgdp_order_list_dm_s,
-                          h_max = h_max, force.constant = TRUE)
+                          h_max = h_max, force.constant = TRUE, 
+                          data_is_log_log = is_log_log)
 toc()
 
 all_arimax_tbl <- arimax_and_fcs$all_arimax
@@ -1782,7 +1790,7 @@ arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts,
                           rgdp_arima = this_rgdp_arima_auto,
                           max_x_lag = max_x_lag,
                           rgdp_order_list = rgdp_order_list_auto,
-                          h_max = h_max)
+                          h_max = h_max, data_is_log_log = is_log_log)
 toc()
 
 all_arimax_tbl <- arimax_and_fcs$all_arimax
@@ -1821,7 +1829,7 @@ cv_cond_uncond_auto <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               n_cv = number_of_cv, 
                               test_length = test_length,
                               training_length = train_span,
-                              h_max = h_max, data_is_log_log = TRUE)
+                              h_max = h_max, data_is_log_log = is_log_log)
 toc()
 
 ```
@@ -1838,7 +1846,7 @@ cv_cond_uncond_dm_r <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               n_cv = number_of_cv, 
                               test_length = test_length,
                               training_length = train_span,
-                              h_max = h_max, data_is_log_log = TRUE)
+                              h_max = h_max, data_is_log_log = is_log_log)
 toc()
 
 ```
@@ -1855,7 +1863,7 @@ cv_cond_uncond_dm_s <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               n_cv = number_of_cv, 
                               test_length = test_length,
                               training_length = train_span,
-                              h_max = h_max, data_is_log_log = TRUE, 
+                              h_max = h_max, data_is_log_log = is_log_log, 
                               force.constant = TRUE)
 toc()
 
@@ -1865,10 +1873,169 @@ toc()
 
 ### Examine CV-forecast-errors
 
-```{r}
+```{r cv_fun_auto}
 
-cv_cond_uncond_auto
+tic()
+cv_cond_uncond_auto <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
+                              xreg_ts = mdata_ext_ts_auto,
+                              rgdp_arima = this_rgdp_arima_auto,
+                              max_x_lag = max_x_lag,
+                              rgdp_order_list = rgdp_order_list_auto,
+                              n_cv = number_of_cv, 
+                              test_length = test_length,
+                              training_length = train_span,
+                              h_max = h_max, data_is_log_log = is_log_log)
+toc()
 
 ```
 
+
+```{r cv_fun_dm_r}
+
+tic()
+cv_cond_uncond_dm_r <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
+                              xreg_ts = mdata_ext_ts_dm_r,
+                              rgdp_arima = this_rgdp_arima_dm_r,
+                              max_x_lag = max_x_lag,
+                              rgdp_order_list = rgdp_order_list_dm_r,
+                              n_cv = number_of_cv, 
+                              test_length = test_length,
+                              training_length = train_span,
+                              h_max = h_max, data_is_log_log = is_log_log)
+toc()
+
+```
+
+
+```{r cv_fun_dm_s}
+
+tic()
+cv_cond_uncond_dm_s <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
+                              xreg_ts = mdata_ext_ts_dm_s,
+                              rgdp_arima = this_rgdp_arima_dm_s,
+                              max_x_lag = max_x_lag,
+                              rgdp_order_list = rgdp_order_list_dm_s,
+                              n_cv = number_of_cv, 
+                              test_length = test_length,
+                              training_length = train_span,
+                              h_max = h_max, data_is_log_log = is_log_log, 
+                              force.constant = TRUE)
+toc()
+
+```
+
+
+
+### Examine CV-forecast-errors
+
+```{r fc_cv_rmse_auto}
+
+tic()
+fcs_aggr_transf_auto <- aggregate_and_transform_fcs(
+  arimax_and_fcs_auto, cv_cond_uncond_auto, rgdp_ts = this_rgdp_ts,
+  rgdp_uncond_fc_mean = uncond_fc_mean_auto, test_length = test_length,
+  h_max = 9, data_is_log_log = is_log_log)
+toc()
+
+rmse_tbl <- fcs_aggr_transf_auto$compare_rmse
+rmse_tbl_yoy <- fcs_aggr_transf_auto$compare_rmse_yoy
+rmse_tbl_logdiff <- fcs_aggr_transf_auto$compare_rmse_logdiff
+rmse_tbl_percent <- fcs_aggr_transf_auto$compare_rmse_percent
+
+fcs_aggr_transf_auto <- aggregate_and_transform_fcs(
+  arimax_and_fcs_auto, cv_cond_uncond_auto, rgdp_ts = this_rgdp_ts,
+  rgdp_uncond_fc_mean = uncond_fc_mean_auto, test_length = test_length,
+  h_max = 9, data_is_log_log = is_log_log)
+toc()
+
+rmse_tbl_auto <- fcs_aggr_transf_auto$compare_rmse
+rmse_tbl_yoy_auto <- fcs_aggr_transf_auto$compare_rmse_yoy
+rmse_tbl_logdiff_auto <- fcs_aggr_transf_auto$compare_rmse_logdiff
+rmse_tbl_percent_auto <- fcs_aggr_transf_auto$compare_rmse_percent
+
+# rmse_tbl_logdiff_auto
+# rmse_tbl_percent_auto
+# rmse_tbl_auto
+# rmse_tbl_yoy_auto
+
+```
+
+
+```{r fc_cv_rmse_dm_r}
+
+tic()
+fcs_aggr_transf_dm_r <- aggregate_and_transform_fcs(
+  arimax_and_fcs_dm_r, cv_cond_uncond_dm_r, rgdp_ts = this_rgdp_ts,
+  rgdp_uncond_fc_mean = uncond_fc_mean_dm_r, test_length = test_length,
+  h_max = 9, data_is_log_log = is_log_log)
+toc()
+
+rmse_tbl_dm_r <- fcs_aggr_transf_dm_r$compare_rmse
+rmse_tbl_yoy_dm_r <- fcs_aggr_transf_dm_r$compare_rmse_yoy
+rmse_tbl_logdiff_dm_r <- fcs_aggr_transf_dm_r$compare_rmse_logdiff
+rmse_tbl_percent_dm_r <- fcs_aggr_transf_dm_r$compare_rmse_percent
+
+# rmse_tbl_logdiff_dm_r
+# rmse_tbl_percent_dm_r
+# rmse_tbl_dm_r
+# rmse_tbl_yoy_dm_r
+
+
+```
+
+
+```{r fc_cv_rmse_dm_s}
+
+tic()
+fcs_aggr_transf_dm_s <- aggregate_and_transform_fcs(
+  arimax_and_fcs_dm_s, cv_cond_uncond_dm_s, rgdp_ts = this_rgdp_ts,
+  rgdp_uncond_fc_mean = uncond_fc_mean_dm_s, test_length = test_length,
+  h_max = 9, data_is_log_log = is_log_log)
+toc()
+
+rmse_tbl_dm_s <- fcs_aggr_transf_dm_s$compare_rmse
+rmse_tbl_yoy_dm_s <- fcs_aggr_transf_dm_s$compare_rmse_yoy
+rmse_tbl_logdiff_dm_s <- fcs_aggr_transf_dm_s$compare_rmse_logdiff
+rmse_tbl_percent_dm_s <- fcs_aggr_transf_dm_s$compare_rmse_percent
+
+# rmse_tbl_logdiff_dm_s
+# rmse_tbl_percent_dm_s
+# rmse_tbl_dm_s
+# rmse_tbl_yoy_dm_s
+
+```
+
+
+```{r  fc_cv_rmse_compare3}
+
+rmse_tbl_yoy_auto
+rmse_tbl_yoy_dm_r
+rmse_tbl_yoy_dm_s
+
+```
+
+```{r plot_uncond_cond}
+
+yoy_fc_unc <- fcs_aggr_transf_auto$yoy_rgdp_data_and_uncond_fc
+yoy_fc_ldw <- fcs_aggr_transf_auto$yoy_fc_using_accu_logdiff_weights
+yoy_fc_lvw <- fcs_aggr_transf_auto$yoy_fc_using_accu_level_weights
+yoy_fc_yw <- fcs_aggr_transf_auto$yoy_fc_using_accu_yoy_weights
+
+py_auto <- autoplot(yoy_fc_unc, series = "uncond") + 
+  autolayer(yoy_fc_ldw) + 
+  autolayer(yoy_fc_lvw) + 
+  autolayer(yoy_fc_yw)
+
+fc_unc <- fcs_aggr_transf_auto$rgdp_data_and_uncond_fc
+fc_ldw <- fcs_aggr_transf_auto$fcs_using_logdiff_weights
+fc_lvw <- fcs_aggr_transf_auto$
+fc_yw <- fcs_aggr_transf_auto$yoy_fc_using_accu_yoy_weights
+
+pl_auto <- autoplot(yoy_fc_unc, series = "uncond") + 
+  autolayer(yoy_fc_ldw) + 
+  autolayer(yoy_fc_lvw) + 
+  autolayer(yoy_fc_yw)
+
+
+```
 
