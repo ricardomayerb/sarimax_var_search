@@ -1,9 +1,9 @@
 source('./R/utils_av.R')
 library(scales)
 
-arima_res_suffix <- "_dm_r"
+arima_res_suffix <- "auto"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Bolivia"
+country_name <- "Argentina"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -12,7 +12,7 @@ h_max <-  8 # last rgdp data is 2017 Q4
 test_length <- h_max
 number_of_cv = 8
 train_span = 16
-use_demetra <- TRUE
+use_demetra <- FALSE
 
 use_dm_force_constant <- FALSE
 is_log_log <- TRUE
