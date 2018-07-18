@@ -4521,7 +4521,15 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     # print("colnames(x_series)")
     # print(colnames(x_series))
     
-    x_time <- time(x_series)
+    x_series_and_lags <-  map(seq(0,max(xreg_lags)),
+                              ~ lag.xts(x_series, k = .)) %>% 
+      reduce(ts.union) %>% na.omit()
+    
+    # x_time <- time(x_series)
+    x_time <- time(x_series_and_lags)
+    
+    # print("time(x_series_and_lags)")
+    # print(time(x_series_and_lags))
     
     if (min(x_time) > min(y_time)) {
       latest_start <- stats::start(x_series)
@@ -4547,6 +4555,8 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     # print(y_ts)
     # print("x_series")
     # print(x_series)
+    
+
     
     procrustean_y <- window(y_ts, start = latest_start, end = earliest_end, frequency = 4)
     
@@ -4580,6 +4590,8 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     if (any(is.na(procrustean_x_and_lags))) {
       print(paste("Warning, xreg series",   vec_of_names[x_regressor],
           "is too short and lags introduced NAs"))
+      
+      
       
       procrustean_x_and_lags <- na.omit(procrustean_x_and_lags)
       procrustean_y <- window(procrustean_y, start = stats::start(procrustean_x_and_lags),
