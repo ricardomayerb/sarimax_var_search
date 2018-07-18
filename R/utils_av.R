@@ -143,9 +143,10 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
                       cv_all_x_rmse_each_h_logdiff$lag, sep = "_")
   names(tbl_raw_fcs) <- cond_names
   tbl_raw_fcs$type <- "cond_fc"
-  tbl_raw_fcs$yq <-  as.yearqtr(time(rgdp_uncond_fc_mean))
+  # tbl_raw_fcs$yq <-  as.yearqtr(time(rgdp_uncond_fc_mean))
+  tbl_raw_fcs$date <-  date(as.yearqtr(time(rgdp_uncond_fc_mean)))
   
-  tsbl_raw_fcs <- as_tsibble(tbl_raw_fcs, index = yq, key = id(type))
+  tsbl_raw_fcs <- as_tsibble(tbl_raw_fcs, index = date, key = id(type))
 
   print("tbl_raw_fcs")
   print(tbl_raw_fcs)
@@ -4576,7 +4577,19 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     colnames(procrustean_x_and_lags) <- paste(x_names[x_regressor],
                                               0:max(xreg_lags), sep = "_")
     
-    
+    if (any(is.na(procrustean_x_and_lags))) {
+      print(paste("Warning, xreg series",   vec_of_names[x_regressor],
+          "is too short and lags introduced NAs"))
+      
+      procrustean_x_and_lags <- na.omit(procrustean_x_and_lags)
+      procrustean_y <- window(procrustean_y, start = stats::start(procrustean_x_and_lags),
+                              end = stats::end(procrustean_x_and_lags))
+      
+      print(paste("New number of rows:", nrow(procrustean_y), "and",
+                  nrow(procrustean_x_and_lags)))
+      print(paste("New start date:", as.yearqtr(stats::start(procrustean_y))))
+      print(paste("New end date:", as.yearqtr(stats::end(procrustean_y))))
+    }
 
     
     
