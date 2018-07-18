@@ -102,7 +102,7 @@ extended_data <- get_extended_monthly_variables(
   order_list = demetra_output,
   order_list_external = demetra_output_external,
   data_path = data_path,
-  final_forecast_horizon = final_forecast_horizon)
+  final_forecast_horizon = final_forecast_horizon )
 toc()
 
 
@@ -122,7 +122,7 @@ cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               rgdp_order_list = rgdp_order_list,
                               n_cv = number_of_cv, 
                               test_length = test_length,
-                              is_log_log = is_log_log, 
+                              data_is_log_log = is_log_log, 
                               training_length = train_span,
                               h_max = h_max)
 toc()
@@ -133,12 +133,15 @@ arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts,
                           rgdp_arima = this_rgdp_arima,
                           max_x_lag = max_x_lag,
                           rgdp_order_list = rgdp_order_list,
-                          h_max = h_max)
+                          h_max = h_max,
+                          data_is_log_log = is_log_log)
 toc()
 
 tic()
 fcs_aggr_transf <- aggregate_and_transform_fcs(arimax_and_fcs, cv_cond_uncond,
-                                   rgdp_ts = this_rgdp_ts  )
+                                   rgdp_ts = this_rgdp_ts,
+                                   data_is_log_log = is_log_log, 
+                                   rgdp_uncond_fc_mean = rgdp_uncond_fc_mean)
 toc()
 
 arima_res_1 <- fcs_aggr_transf

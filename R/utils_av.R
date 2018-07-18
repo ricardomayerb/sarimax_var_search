@@ -125,7 +125,6 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
                                         test_length = 8, h_max = 8,
                                         data_is_log_log = FALSE) {
   
-  mat_of_raw_fcs <- arimax_and_fcs$mat_of_raw_fcs
   
   cv_all_x_rmse_each_h <- cv_cond_uncond$cv_all_x_rmse_each_h
   cv_all_x_rmse_each_h_yoy <- cv_cond_uncond$cv_all_x_rmse_each_h_yoy
@@ -137,11 +136,26 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   cv_rmse_each_h_rgdp_logdiff <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_logdiff"]]
   cv_rmse_each_h_rgdp_percent <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_percent"]]
   
-  print("cv_all_x_rmse_each_h_logdiff")
-  print(cv_all_x_rmse_each_h_logdiff)
   
-  print("cv_all_x_rmse_each_h_percent")
-  print(cv_all_x_rmse_each_h_percent)
+  mat_of_raw_fcs <- arimax_and_fcs$mat_of_raw_fcs
+  tbl_raw_fcs <- as_tibble(t(mat_of_raw_fcs))
+  cond_names <- paste(cv_all_x_rmse_each_h_logdiff$variable,
+                      cv_all_x_rmse_each_h_logdiff$lag, sep = "_")
+  names(tbl_raw_fcs) <- cond_names
+  tbl_raw_fcs$type <- "cond_fc"
+  tbl_raw_fcs$yq <-  as.yearqtr(time(rgdp_uncond_fc_mean))
+  
+  tsbl_raw_fcs <- as_tsibble(tbl_raw_fcs, index = yq, key = id(type))
+
+  print("tbl_raw_fcs")
+  print(tbl_raw_fcs)
+  print("tsbl_raw_fcs")
+  print(tsbl_raw_fcs)
+
+  # print(as.yearqtr(time(rgdp_uncond_fc_mean)))
+  # print(date(as.yearqtr(time(rgdp_uncond_fc_mean))))
+  
+  
   
   
   weigthed_fcs <- get_weighted_fcs(raw_fcs = mat_of_raw_fcs,
@@ -279,6 +293,7 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
                             cv_rmse_percent_rgdp_conditional_on_x)
   
   return(list(
+    tbl_raw_fcs = tbl_raw_fcs,
     weigthed_fcs = weigthed_fcs,
     fcs_using_yoy_weights = weigthed_fcs_cv_yoy_errors,
     fcs_using_logdiff_weights = weigthed_fcs_cv_logdiff_errors,
@@ -307,7 +322,9 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
     compare_rmse = compare_rmse,
     compare_rmse_yoy = compare_rmse_yoy,
     compare_rmse_logdiff = compare_rmse_logdiff,
-    compare_rmse_percent = compare_rmse_percent
+    compare_rmse_percent = compare_rmse_percent,
+    mat_of_raw_fcs = mat_of_raw_fcs,
+    tsbl_raw_fcs = tsbl_raw_fcs
   ))
   
 }
@@ -4490,6 +4507,8 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
   
   for (x_regressor in 1:number_of_xregs) {
     
+    print("vec_of_names[x_regressor]")
+    print(vec_of_names[x_regressor])
     
     
     if (is.null(ncol(xreg_ts))) {
@@ -4574,34 +4593,49 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       colnames(procrustean_x_and_lags) <- c("sq_trend", nam)
     }
     
-    # print("nrow(procrustean_x)2")
-    # print(nrow(procrustean_x))
-    # print("nrow(procrustean_y)2")
-    # print(nrow(procrustean_y))
-    # 
-    # print("procrustean_x_and_lags")
-    # print(procrustean_x_and_lags)
-    
+
     this_arimax <- try(Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
                              order = y_order,
                              seasonal = y_seasonal,
                              include.mean = y_include_mean,
                              method = method))
-    
     class_this_arimax <- class(this_arimax)[1]
-    
-    
-    
     if (class_this_arimax == "try-error") {
       this_mssg <- paste0("For xreg variable ", vec_of_names[x_regressor], 
                           ", ML method failed in Arima. Switched to CSS-ML.")
       warning(this_mssg)
+      
+      print("fooooo")
       new_method <-  "CSS-ML"
-      this_arimax <- Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
+      this_arimax <- try(Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
                            order = y_order,
                            seasonal = y_seasonal,
                            include.mean = y_include_mean,
-                           method = new_method)
+                           method = new_method))
+      
+      class_this_arimax <- class(this_arimax)[1]
+      print("classthisarima")
+      print(class_this_arimax)
+      if (class_this_arimax == "try-error") {
+        print("mooooo")
+        print("procrustean_y")
+        print(procrustean_y)
+        
+        print("procrustean_x_and_lags")
+        print(procrustean_x_and_lags)
+        
+        
+        this_mssg <- paste0("For xreg variable ", vec_of_names[x_regressor], 
+                            ", CSS-ML method failed in Arima. Switched to CSS.")
+        warning(this_mssg)
+        new_method <-  "CSS"
+        this_arimax <- Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
+                             order = y_order,
+                             seasonal = y_seasonal,
+                             include.mean = y_include_mean,
+                             method = new_method)
+      }
+      
     }
     
     
