@@ -1,9 +1,9 @@
 source('./R/utils_av.R')
 library(scales)
 
-arima_res_suffix <- "_auto"
+arima_res_suffix <- "_dm_s"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Brasil"
+country_name <- "Colombia"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -12,12 +12,12 @@ h_max <- 8 # last rgdp data is 2017 Q4
 test_length <- h_max
 number_of_cv = 8
 train_span = 16
-use_demetra <- FALSE
+use_demetra <- TRUE
 
-use_dm_force_constant <- FALSE
+use_dm_force_constant <- TRUE
 is_log_log <- TRUE
 lambda_0_in_auto <- FALSE
-mean_logical_in_auto <- TRUE
+mean_logical_in_auto <- TRUE 
 max_x_lag <- 2
 
 all_arima_data <- ts_data_for_arima(data_path = data_path, 
@@ -158,7 +158,18 @@ arima_res_2 <- list(
   uncond_fc = rgdp_uncond_fc_mean,
   uncond_yoy_fc = fcs_aggr_transf$rgdp_uncond_yoy_fc_mean)
 
-arima_res <- c(arima_res_1, arima_res_2)
+arima_res_3 <- list(
+  arima_cv_allx =  cv_cond_uncond[["cv_allx"]],
+  arima_cv_rgdp  = cv_cond_uncond[["cv_rgdp_arima"]],
+  arima_cv_allx_yoy  =  cv_cond_uncond[["cv_allx_yoy"]],
+  arima_cv_rgdp_yoy  = cv_cond_uncond[["cv_rgdp_arima_yoy"]],
+  arima_cv_allx_logdiff  =  cv_cond_uncond[["cv_allx_logdiff"]],
+  arima_cv_rgdp_logdiff  = cv_cond_uncond[["cv_rgdp_arima_logdiff"]],
+  arima_cv_allx_percent  =  cv_cond_uncond[["cv_allx_percent"]],
+  arima_cv_rgdp_percent  = cv_cond_uncond[["cv_rgdp_arima_percent"]]
+)
+
+arima_res <- c(arima_res_1, arima_res_2, arima_res_3)
 
 rds_file_name = paste0(arima_rds_path, country_name, arima_res_suffix, ".rds")
 saveRDS(object = arima_res, file = rds_file_name)
