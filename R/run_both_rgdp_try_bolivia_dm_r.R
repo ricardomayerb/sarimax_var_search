@@ -1,14 +1,14 @@
 source('./R/utils_av.R')
 library(scales)
 
-arima_res_suffix <- "auto"
+arima_res_suffix <- "_auto"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Argentina"
+country_name <- "Brasil"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
 final_forecast_horizon <- c(2019, 12)
-h_max <-  8 # last rgdp data is 2017 Q4
+h_max <- 8 # last rgdp data is 2017 Q4
 test_length <- h_max
 number_of_cv = 8
 train_span = 16
@@ -27,6 +27,10 @@ all_arima_data <- ts_data_for_arima(data_path = data_path,
 this_rgdp_ts <- all_arima_data[["rgdp_ts"]]
 this_internal_monthly_ts <- all_arima_data[["monthly_ts"]]
 this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
+
+print("this_rgdp_ts")
+print(this_rgdp_ts)
+
 
 internal_monthly_names <- colnames(this_internal_monthly_ts)
 external_monthly_names <- colnames(this_external_monthly_ts)
@@ -141,7 +145,7 @@ tic()
 fcs_aggr_transf <- aggregate_and_transform_fcs(arimax_and_fcs, cv_cond_uncond,
                                    rgdp_ts = this_rgdp_ts,
                                    data_is_log_log = is_log_log, 
-                                   rgdp_uncond_fc_mean = rgdp_uncond_fc_mean)
+                                   rgdp_uncond_fc_mean = rgdp_uncond_fc_mean, h_max = h_max)
 toc()
 
 arima_res_1 <- fcs_aggr_transf

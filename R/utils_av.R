@@ -135,15 +135,26 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   cv_rmse_each_h_rgdp_yoy <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_yoy"]]
   cv_rmse_each_h_rgdp_logdiff <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_logdiff"]]
   cv_rmse_each_h_rgdp_percent <-  cv_cond_uncond[["cv_rmse_each_h_rgdp_percent"]]
-  
-  
+
   mat_of_raw_fcs <- arimax_and_fcs$mat_of_raw_fcs
+  
+  # print("mat_of_raw_fcs")
+  # print(mat_of_raw_fcs)
+  
+
   tbl_raw_fcs <- as_tibble(t(mat_of_raw_fcs))
   cond_names <- paste(cv_all_x_rmse_each_h_logdiff$variable,
                       cv_all_x_rmse_each_h_logdiff$lag, sep = "_")
   names(tbl_raw_fcs) <- cond_names
   tbl_raw_fcs$type <- "cond_fc"
   # tbl_raw_fcs$yq <-  as.yearqtr(time(rgdp_uncond_fc_mean))
+  
+  # print("tbl_raw_fcs")
+  # print(tbl_raw_fcs)
+  
+  print( "date(as.yearqtr(time(rgdp_uncond_fc_mean)))")
+  print( date(as.yearqtr(time(rgdp_uncond_fc_mean))))
+  
   tbl_raw_fcs$date <-  date(as.yearqtr(time(rgdp_uncond_fc_mean)))
   
   tsbl_raw_fcs <- as_tsibble(tbl_raw_fcs, index = date, key = id(type))
@@ -161,22 +172,26 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   
   weigthed_fcs <- get_weighted_fcs(raw_fcs = mat_of_raw_fcs,
                                    mat_cv_rmses_from_x = cv_all_x_rmse_each_h,
-                                   vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp)
+                                   vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp, 
+                                   h_max = h_max)
   
   weigthed_fcs_cv_yoy_errors <- get_weighted_fcs(
     raw_fcs = mat_of_raw_fcs, 
     mat_cv_rmses_from_x =  cv_all_x_rmse_each_h_yoy,
-    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_yoy)
+    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_yoy, 
+    h_max = h_max)
   
   weigthed_fcs_cv_logdiff_errors <- get_weighted_fcs(
     raw_fcs = mat_of_raw_fcs, 
     mat_cv_rmses_from_x =  cv_all_x_rmse_each_h_logdiff,
-    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_logdiff)
+    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_logdiff, 
+    h_max = h_max)
   
   weigthed_fcs_cv_percent_errors <- get_weighted_fcs(
     raw_fcs = mat_of_raw_fcs, 
     mat_cv_rmses_from_x =  cv_all_x_rmse_each_h_percent,
-    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_percent)
+    vec_cv_rmse_from_rgdp = cv_rmse_each_h_rgdp_percent, 
+    h_max = h_max)
   
   
   # weigthed_fcs[is.nan(weigthed_fcs)] <- rgdp_uncond_fc_mean[is.nan(weigthed_fcs)]
@@ -1834,12 +1849,38 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
     } else {
       
       
-      fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj, max.d = 1,
+      fit <- try(auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj, max.d = 1,
                         max.D = 1,
                         stepwise = do_stepwise, 
-                        approximation = do_approximation,
-                        parallel = parallel, num.cores = num.cores,
-                        )
+                        approximation = do_approximation
+                        ))
+      
+      class_fit <- class(fit)[1]
+
+      if (class_fit == "try-error") {
+        this_mssg <- paste0("in unconditional auto.arima ML method failed in Arima. Switched to CSS-ML.")
+        warning(this_mssg)
+
+        new_method <-  "CSS-ML"
+        
+        fit <- try(auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj,
+                              max.d = 1, max.D = 1,
+                              stepwise = do_stepwise, 
+                              approximation = do_approximation))
+        class_fit <- class(fit)[1]
+        if (class_fit == "try-error") {
+          this_mssg <- paste0("in unconditional auto.arima CSS-ML method failed in Arima. Switched to CSS.")
+          warning(this_mssg)
+          
+          new_method <-  "CSS"
+          
+          fit <- auto.arima(y = this_y, lambda = my_lambda, biasadj = my_biasadj,
+                                max.d = 1, max.D = 1,
+                                stepwise = do_stepwise, 
+                                approximation = do_approximation)
+        }
+      }
+        
       
     }
     
@@ -3408,7 +3449,7 @@ get_sets_of_variables <- function(df, this_size, all_variables,
 }
 
 
-get_fc_weights_one_h <- function(mat_cv_rmses_from_x, vec_cv_rmse_from_rgdp, pos, h_max = 8) {
+get_fc_weights_one_h <- function(mat_cv_rmses_from_x, vec_cv_rmse_from_rgdp, pos, h_max) {
   
   this_mat <- mat_cv_rmses_from_x
   this_vec <- vec_cv_rmse_from_rgdp
@@ -3422,6 +3463,9 @@ get_fc_weights_one_h <- function(mat_cv_rmses_from_x, vec_cv_rmse_from_rgdp, pos
   # this_mat_num[3,] <= this_vec_num
   
   is_as_good_as_rgdp <- t(apply(this_mat_num, 1 , function(x) x <= this_vec_num))
+  
+  # print("this_mat_num")
+  # print(this_mat_num)
   
   mean_val <- rowMeans(this_mat_num)
   
@@ -3485,7 +3529,8 @@ get_rgdp_and_dates <- function(data_path, gdp_name = "rgdp",
 
 
 
-get_weighted_fcs <- function(raw_fcs, mat_cv_rmses_from_x, vec_cv_rmse_from_rgdp) {
+get_weighted_fcs <- function(raw_fcs, mat_cv_rmses_from_x, vec_cv_rmse_from_rgdp,
+                             h_max) {
   
   n_h <- ncol(raw_fcs)
   
@@ -3496,7 +3541,8 @@ get_weighted_fcs <- function(raw_fcs, mat_cv_rmses_from_x, vec_cv_rmse_from_rgdp
     this_raw <- raw_fcs[, pos]
     
     this_vec_weight <- get_fc_weights_one_h(mat_cv_rmses_from_x,
-                                            vec_cv_rmse_from_rgdp, pos)
+                                            vec_cv_rmse_from_rgdp, pos, 
+                                            h_max = h_max)
     
     this_weigthed_fc <- weighted.mean(this_raw, this_vec_weight$fc_weight)
     
