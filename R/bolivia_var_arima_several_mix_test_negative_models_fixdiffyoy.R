@@ -145,6 +145,101 @@ generate_best_10_models_plus_negative_corr_models <- function(models_and_errors,
   
 }
 
+
+fc_summ_to_ts <- function(summ_tbl, var_data, freq = 4 ) {
+  
+  start_yq_fc <- as.yearqtr(max(time(var_data[, "rgdp"])) + 0.25)
+  
+  fcs_as_ts <- ts(data = summ_tbl$sum_one_h, 
+                  start = c(year(start_yq_fc), quarter(start_yq_fc)),
+                  frequency = 4)
+  
+  return(fcs_as_ts)
+  
+}
+
+
+diffyoy_2_yoy_data_and_fc <- function(summ_tbl, var_data, rgdp_level_ts, 
+                                      freq = 4) {
+  
+  var_fcs_all_ts <-  fc_summ_to_ts(summ_tbl = summ_tbl, var_data = var_data)
+  var_fcs_all_and_data_ts <- ts(data = c(var_data[,"rgdp"], var_fcs_all_ts), 
+                                frequency = 4, start = start(var_data[,"rgdp"]))
+  
+  rgdp_yoy_ts <-make_yoy_ts(rgdp_level_ts)
+  
+  yq_pre_var_data <- as.yearqtr(min(time(VAR_data[, "rgdp"])) - 0.25)
+  last_undiffed_start_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  last_undiffed_end_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  
+  this_last_undiffed_var_data <- window(rgdp_yoy_ts, 
+                                        start = last_undiffed_start_vd, 
+                                        end = last_undiffed_end_vd)
+  
+  VAR_rgdp_yoy_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_data,
+                                diffed_ts = var_data[, "rgdp"])
+  
+  yq_pre_var_fcs <- as.yearqtr(min(time(var_fcs_all_ts)) - 0.25)
+  last_undiffed_start_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  last_undiffed_end_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  
+  this_last_undiffed_var_fc <- window(rgdp_yoy_ts, 
+                                      start = last_undiffed_start_vf, 
+                                      end = last_undiffed_end_vf)
+  
+  VAR_rgdp_yoy_fc_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_fc,
+                                   diffed_ts = var_fcs_all_ts)
+  
+  return(list(yoy_rgdp_fc = VAR_rgdp_yoy_fc_ts, 
+              yoy_rgdp_data =  VAR_rgdp_yoy_ts))
+}
+
+diff_2_yoy_data_and_fc <- function(summ_tbl, var_data, rgdp_level_ts, 
+                                      freq = 4) {
+  
+  var_fcs_all_ts <-  fc_summ_to_ts(summ_tbl = summ_tbl, var_data = var_data)
+  var_fcs_all_and_data_ts <- ts(data = c(var_data[,"rgdp"], var_fcs_all_ts), 
+                                frequency = 4, start = start(var_data[,"rgdp"]))
+  
+  # rgdp_yoy_ts <-make_yoy_ts(rgdp_level_ts)
+  
+  yq_pre_var_data <- as.yearqtr(min(time(VAR_data[, "rgdp"])) - 0.25)
+  last_undiffed_start_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  last_undiffed_end_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  
+  this_last_undiffed_var_data <- window(rgdp_level_ts, 
+                                        start = last_undiffed_start_vd, 
+                                        end = last_undiffed_end_vd)
+  
+  VAR_rgdp_level_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_data,
+                                diffed_ts = var_data[, "rgdp"])
+  
+  yq_pre_var_fcs <- as.yearqtr(min(time(var_fcs_all_ts)) - 0.25)
+  last_undiffed_start_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  last_undiffed_end_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  
+  this_last_undiffed_var_fc <- window(rgdp_level_ts, 
+                                      start = last_undiffed_start_vf, 
+                                      end = last_undiffed_end_vf)
+  
+  VAR_rgdp_level_fc_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_fc,
+                                   diffed_ts = var_fcs_all_ts)
+  
+  data_and_fc_lev <- ts(c(VAR_rgdp_level_ts, VAR_rgdp_level_fc_ts),
+                        frequency = freq, start = start(VAR_rgdp_level_ts))
+  
+  data_and_fc_yoy <- make_yoy_ts(data_and_fc_lev)
+  
+  VAR_rgdp_yoy_ts <- make_yoy_ts(VAR_rgdp_level_ts)
+  VAR_rgdp_yoy_fc_ts <- window(data_and_fc_yoy, frequency = freq,
+                                start = start(VAR_rgdp_level_fc_ts))
+  
+  return(list(yoy_rgdp_fc = VAR_rgdp_yoy_fc_ts, 
+              yoy_rgdp_data =  VAR_rgdp_yoy_ts))
+}
+
+
+
 # Our own themes: to be moved to our own theme package
 ## Make our own theme
 theme_cepal_fcs_line_graph <- theme_grey() +  
@@ -207,6 +302,29 @@ extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
 
 
+var_countries_and_gdp_transform <- tibble(
+  country = c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia", "Ecuador",
+              "Mexico", "Paraguay", "Peru", "Uruguay"),
+  transformation = c("diff_yoy", "diff_yoy", "yoy", "yoy", "yoy",
+                     "diff", "yoy", "diff_yoy", "yoy", "diff_yoy"))
+
+this_country_gdp_transform <- subset(x = var_countries_and_gdp_transform,
+                                     subset = country == country_name, 
+                                     select = transformation)$transformation
+
+# Always check if this is true or false
+arima_rgdp_is_log <- TRUE
+
+if(arima_rgdp_is_log) {
+  rgdp_level_ts <- exp(rgdp_ts_in_arima )
+  
+} else {
+  rgdp_level_ts <- rgdp_ts_in_arima 
+}
+
+
+
+
 ########################## IMPORT ARIMAX AND VAR FILES #############################
 # Automatically imports the data matching the country_name
 
@@ -216,51 +334,6 @@ path_VAR_data <- paste("./data/VAR_data_", country_name, ".rds", sep = "")
 models_and_accu <- readRDS(path_models_and_accu)
 cv_objects <- readRDS(path_cv_objects)
 VAR_data <- readRDS(path_VAR_data)
-
-
-
-var_countries_and_gdp_transform <- tibble(
-  country = c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia", "Ecuador",
-              "Mexico", "Paraguay", "Peru", "Uruguay"),
-  transformation = c("diff_yoy", "diff_yoy", "yoy", "yoy", "yoy",
-                     "diff", "yoy", "diff_yoy", "yoy", "diff_yoy"))
-
-this_country_gdp_transform <- subset(x = var_countries_and_gdp_transform,
-                           subset = country == country_name, 
-                           select = transformation)$transformation
-
-arima_rgdp_is_log <- TRUE
-if(arima_rgdp_is_log) {
-  rgdp_level_ts <- exp(this_rgdp_ts)
-  
-} else {
-  rgdp_level_ts <- this_rgdp_ts
-}
-
-rgdp_yoy_ts <-make_yoy_ts(rgdp_level_ts)
-
-
-if (this_country_gdp_transform == "yoy") {
-  VAR_data_as_yoy <- VAR_data[, "rgdp"]
-}
-
-if (this_country_gdp_transform == "diff_yoy") {
-  this_rgdp_ts
-}
-
-
-
-fc_summ_to_ts <- function(summ_tbl, VAR_data, freq = 4 ) {
-  
-  start_yq_fc <- as.yearqtr(max(time(VAR_data[, "rgdp"])) + 0.25)
-  
-  fcs_as_ts <- ts(data = summ_tbl$sum_one_h, 
-                  start = c(year(start_yq_fc), quarter(start_yq_fc)),
-                  frequency = 4)
-  
-  return(fcs_as_ts)
-  
-}
 
 
 
@@ -332,8 +405,52 @@ summ_VAR_fcs_all <- VAR_fcs_all %>%
   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
 
-var_fcs_all_ts <-  fc_summ_to_ts(summ_tbl = summ_VAR_fcs_all, VAR_data = VAR_data)
 
+
+
+# if (this_country_gdp_transform == "yoy") {
+#   VAR_data_as_yoy <- VAR_data[, "rgdp"]
+# }
+# 
+# if (this_country_gdp_transform == "diff_yoy") {
+#   this_rgdp_ts
+# }
+
+# var_fcs_all_ts <-  fc_summ_to_ts(summ_tbl = summ_VAR_fcs_all, VAR_data = VAR_data)
+# var_fcs_all_and_data_ts <- ts(data = c(VAR_data[,"rgdp"], var_fcs_all_ts), 
+#                               frequency = 4, start = start(VAR_data[,"rgdp"]))
+# 
+# 
+# yq_pre_var_data <- as.yearqtr(min(time(VAR_data[, "rgdp"])) - 0.25)
+# last_undiffed_start_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+# last_undiffed_end_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+# 
+# this_last_undiffed_var_data <- window(rgdp_yoy_ts, 
+#                              start = last_undiffed_start_vd, 
+#                              end = last_undiffed_end_vd)
+# 
+# VAR_rgdp_yoy_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_data,
+#                   diffed_ts = VAR_data[, "rgdp"])
+# 
+# yq_pre_var_fcs <- as.yearqtr(min(time(var_fcs_all_ts)) - 0.25)
+# last_undiffed_start_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+# last_undiffed_end_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+# 
+# this_last_undiffed_var_fc <- window(rgdp_yoy_ts, 
+#                                       start = last_undiffed_start_vf, 
+#                                       end = last_undiffed_end_vf)
+# 
+# VAR_rgdp_yoy_fc_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_fc,
+#                               diffed_ts = var_fcs_all_ts)
+# 
+
+
+
+
+VAR_fcs_all_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(summ_tbl = summ_VAR_fcs_all, var_data = VAR_data,
+                          rgdp_level_ts = rgdp_level_ts)
+
+VAR_fcs_all_and_data_as_yoy
 
 VAR_fcs_all_best_10 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
