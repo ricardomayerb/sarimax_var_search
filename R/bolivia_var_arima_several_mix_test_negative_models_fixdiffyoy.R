@@ -331,6 +331,10 @@ summ_VAR_fcs_all <- VAR_fcs_all %>%
   group_by(horizon) %>%
   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
+
+var_fcs_all_ts <-  fc_summ_to_ts(summ_tbl = summ_VAR_fcs_all, VAR_data = VAR_data)
+
+
 VAR_fcs_all_best_10 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
