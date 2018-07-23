@@ -164,6 +164,7 @@ diffyoy_2_yoy_data_and_fc <- function(summ_tbl, var_data, rgdp_level_ts,
                                       freq = 4) {
   
   var_fcs_all_ts <-  fc_summ_to_ts(summ_tbl = summ_tbl, var_data = var_data)
+  
   var_fcs_all_and_data_ts <- ts(data = c(var_data[,"rgdp"], var_fcs_all_ts), 
                                 frequency = 4, start = start(var_data[,"rgdp"]))
   
@@ -194,6 +195,8 @@ diffyoy_2_yoy_data_and_fc <- function(summ_tbl, var_data, rgdp_level_ts,
   return(list(yoy_rgdp_fc = VAR_rgdp_yoy_fc_ts, 
               yoy_rgdp_data =  VAR_rgdp_yoy_ts))
 }
+
+
 
 # use this function for diff countries (so far, ECUADOR) VAR forecast and data
 diff_2_yoy_data_and_fc <- function(summ_tbl, var_data, rgdp_level_ts, 
@@ -285,7 +288,7 @@ watermark_cepal <- matrix(rgb(img[,,1],img[,,2],img[,,3], img[,,3.5] * 0.4), nro
 
 # Start of the Script
 
-country_name <- "Bolivia"
+country_name <- "Chile"
 
 # Optional: Estimate (and Save) new Arimax RDS file
 
@@ -298,11 +301,11 @@ country_name <- "Bolivia"
 #                                final_ext_horizon = final_forecast_horizon)
 
 # Run Saved ARimax RDS File
-arima_res <- get_arima_results(country_name = country_name, read_results = TRUE)
+arima_res <- get_arima_results(country_name = paste0(country_name,"_dm_s"), read_results = TRUE)
 
 extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
-do.force.constant <- TRUE
+
 
 # foo <- rgdp_ts_in_arima
 # foodiff <- diff(foo, lag = 1, differences = 1)
@@ -412,12 +415,11 @@ summ_VAR_fcs_all <- VAR_fcs_all %>%
   group_by(horizon) %>%
   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
-
-
-VAR_fcs_all_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(summ_tbl = summ_VAR_fcs_all, var_data = VAR_data,
-                          rgdp_level_ts = rgdp_level_ts)
-
-VAR_fcs_all_and_data_as_yoy
+# 
+# VAR_fcs_all_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(summ_tbl = summ_VAR_fcs_all, var_data = VAR_data,
+#                           rgdp_level_ts = rgdp_level_ts)
+# 
+# VAR_fcs_all_and_data_as_yoy
 
 VAR_fcs_all_best_10 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
@@ -432,6 +434,13 @@ VAR_fcs_all_best_5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                   h = h_max, extended_x_data_ts = extended_x_data_ts,
                                   rgdp_ts_in_arima = rgdp_ts_in_arima,
                                   model_type = "VAR", max_rank_h = 5)
+
+models_id_info <- VAR_fcs_all_best_10 %>% 
+  select(c(variables, lags, id, arima_order, arima_seasonal, model_function,
+           short_name, long_name ))
+
+models_cv_fc_obs <- 
+
 
 summ_VAR_fcs_all_best_5 <- VAR_fcs_all_best_5 %>% 
   group_by(horizon) %>%
@@ -522,20 +531,10 @@ forecast_plot_best_vars
 # Transform rgdp series from log level to yoy
 rgdp_arimax <- make_yoy_ts(exp(rgdp_ts_in_arima))
 
-arima_res_all_arimax <-  arima_res$all_arimax
-
-arima_res_igae2 <- arima_res_all_arimax %>% 
-  filter(id_fc == "igae") %>% 
-  filter(lag == 2)
-
-# arima_res_igae2$arimax
-
-
-
 arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                   h = h_max, extended_x_data_ts = extended_x_data_ts,
                                   rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                  model_type = "Arima", force.constant = do.force.constant)
+                                  model_type = "Arima")
 
 summ_arimax_fcs_all <- arimax_fcs_all %>%
   group_by(horizon) %>%

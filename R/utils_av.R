@@ -1915,7 +1915,8 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
 }
 
 fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables, 
-                          lags, order, seasonal, extended_x_data_ts) {
+                          lags, order, seasonal, extended_x_data_ts,
+                          force.constant = FALSE) {
   if (model_function == "VAR") {
     
     fit <- vars::VAR(y = VAR_data[, variables], p = lags)
@@ -1923,9 +1924,12 @@ fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables,
   
   if (model_function == "Arima") {
     
-    fit <- my_arima_one_x(y_ts = arima_rgdp_ts, y_order = order, 
-                          y_seasonal = seasonal, xreg_lags = lags, 
-                          x_name = variables, xreg_data = extended_x_data_ts)
+    fit <- my_arima_one_x(y_ts = arima_rgdp_ts, y_order = order,
+                          y_seasonal = seasonal, xreg_lags = lags,
+                          x_name = variables, xreg_data = extended_x_data_ts,
+                          force.constant = force.constant)
+    
+
   } 
   return(fit)
 }
@@ -2266,12 +2270,16 @@ get_arima_results <- function(country_name, read_results = FALSE,
                               data_is_log_log = TRUE, lambda_0_in_auto = FALSE,
                               mean_logical_in_auto = FALSE, max_x_lag = 2,
                               external_data_path = "./data/external/external.xlsx",
-                              arima_res_suffix = "foo") {
+                              arima_res_suffix = "_dm_s") {
   
   if(read_results) {
     print("Reading previously estimated arima results")
     # rds_file_name = paste0("data/sarimax_objects_", country_name,".rds")
-    rds_file_name = paste0(arima_rds_path, country_name,".rds")
+    rds_file_name = paste0(arima_rds_path, country_name, arima_res_suffix, ".rds")
+    
+    print(paste0("file name = ", rds_file_name))
+    
+    
     arima_res <- readRDS(file = rds_file_name)
     return(arima_res)
     
@@ -2475,6 +2483,10 @@ get_arimax_and_fcs <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
   }
   
   names(all_arimax_list) <- paste0("arimax_", seq(0, length(all_arimax_list) - 1))
+  
+  print(" names(all_arimax_list) ")
+  print( names(all_arimax_list) )
+  
   
   all_arimax <- as_tibble(all_arimax_list) %>% 
     mutate(id_fc = monthly_names) %>% 
@@ -3121,12 +3133,9 @@ get_hmax_q <- function(final_date_as_vector, current_data, type = "quarterly"){
   if (type == "monthly") {
     fd_as_decimal <- final_date_as_vector[1] + (
       final_date_as_vector[2] - 1)/12 
-    
-    print(fd_as_decimal)
-    
-    
+
     max_time_data <- max(time(current_data))
-    print(max_time_data )
+  
     
   }
   
@@ -3140,32 +3149,22 @@ get_hmax_q <- function(final_date_as_vector, current_data, type = "quarterly"){
   }
   
   fd_year <- year(as.yearqtr(fd_as_decimal))
-  print(fd_year)
   
   fd_quarter <- quarter(as.yearqtr(fd_as_decimal))
-  print(fd_quarter)
   
   fd_yq_dec <- fd_year + (fd_quarter - 1)*0.25
   
   cd_year <- year(as.yearqtr(max_time_data))
-  print(cd_year)
   
   cd_quarter <- quarter(as.yearqtr(max_time_data))
-  print(cd_quarter)
-  
+
   cd_yq_dec <- cd_year + (cd_quarter - 1)*0.25
-  
-  
-  
+
   diff_time <- fd_yq_dec - cd_yq_dec
-  print(diff_time)
   
   diff_in_quarters <- diff_time * 4
-  print(diff_in_quarters)
-  
-  
+
   return(diff_in_quarters)
-  
 }
 
 
@@ -3706,6 +3705,81 @@ logyoy <- function(logfc_ts, log_data_ts) {
 
 indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
                                rgdp_ts_in_arima, var_data, max_rank_h = NULL,
+                               model_type = NULL, chosen_rmse_h = NULL,
+                               force.constant = FALSE) {
+  
+  if (!is.null(model_type)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(model_function == model_type) %>% 
+      group_by(rmse_h) %>% 
+      mutate(rank_h = rank(rmse)) %>% 
+      arrange(rmse_h, rank_h)
+  }
+  
+  if (!is.null(chosen_rmse_h)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(rmse_h == chosen_rmse_h) %>% 
+      mutate(rank_h )
+  }
+  
+  if (!is.null(max_rank_h)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(rank_h <= max_rank_h)
+  }
+  
+  
+  my_stability_fun <- function(model_type, model_object) {
+    
+    # print(model_type)
+    # print(model_object)
+    
+    if (model_type == "Arima") {
+      is.stable <- TRUE
+      
+    }
+    if (model_type == "VAR"){
+      is.stable <- all(roots(model_object) < 1)
+    }
+    
+    return(is.stable)
+  }
+  
+  
+  tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
+    group_by(rmse_h) %>% 
+    mutate(sum_invmse_h = sum(inv_mse),
+           model_weight_h = inv_mse/sum_invmse_h,
+           horizon = as.numeric(substr(rmse_h, 6, 6)),
+           fit = pmap(list(model_function, variables, lags, arima_order, 
+                           arima_seasonal),
+                      ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                      lags = ..3, order = ..4, seasonal = ..5,
+                                      extended_x_data_ts = extended_x_data_ts,
+                                      arima_rgdp_ts = rgdp_ts_in_arima,
+                                      force.constant = force.constant)),
+           fc_obj = pmap(list(model_function, variables, lags, fit),
+                         ~ forecast_VAR_Arima(model_function = ..1, 
+                                              variables = ..2, lags = ..3,
+                                              fit = ..4, h = h_max, 
+                                              mat_x_ext = extended_x_data_ts)
+           ),
+           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+           fc_yoy = map2(model_function, fc_mean, 
+                         ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
+                                      fc_ts = .y)),
+           one_model_w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                                 ~ subset(..1 * ..2, start = ..3, end = ..3)
+           ),
+           is_stable = map2(model_function, fit, ~my_stability_fun(model_type = .x, model_object = .y))
+    ) %>% 
+    ungroup() %>% filter(is_stable == TRUE)
+  
+  return(tibble_fit_and_fcs)
+}
+
+
+indiv_weigthed_fcs_debug <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
+                               rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL) {
   
   if (!is.null(model_type)) {
@@ -3775,7 +3849,6 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
   
   return(tibble_fit_and_fcs)
 }
-
 
 
 
@@ -4608,7 +4681,12 @@ make_yoy_ts <- function(df_ts, freq = 4, is_log = FALSE) {
 
 
 my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
-                           xreg_data = NULL) {
+                           xreg_data = NULL, force.constant = FALSE,
+                           procrust_start = NULL, method = "ML",
+                           y_include_mean = TRUE) {
+  
+  this_d <- y_order[2]
+  this_D <- y_seasonal[2]
 
   y_ts <- na.omit(y_ts)
 
@@ -4617,64 +4695,150 @@ my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
                          seasonal = y_seasonal)
     return(this_arimax)
   }
-  x_series <-  xreg_data[ , x_name]
   
-  # n <- length(y_ts)
+  if (is.null(ncol(xreg_data))) {
+    x_series <-  na.omit(xreg_data)
+  } else {
+    x_series <-  na.omit(xreg_data[, x_name])
+  }
   
+
+  x_series_and_lags <-  map(seq(0,max(xreg_lags)),
+                            ~ lag.xts(x_series, k = .)) %>% 
+    reduce(ts.union) %>% na.omit()
+  
+  x_time <- time(x_series_and_lags)
+
   y_time <- time(y_ts)
-  x_time <- time(x_series)
   
-  if (min(x_time) >= min(y_time)) {
-    latest_start <- stats::start(x_series)
+  
+  if (min(x_time) > min(y_time)) {
+    latest_start <- stats::start(x_series_and_lags)
   } else {
     latest_start <- stats::start(y_ts)
   }
   
-  if (max(x_time) <= max(y_time)) {
-    earliest_end <- stats::end(x_series)
+  if (max(x_time) < max(y_time)) {
+    earliest_end <- stats::end(x_series_and_lags)
   } else {
     earliest_end <- stats::end(y_ts)
   }
   
-  y_ts <- ts(y_ts, start = latest_start, end = earliest_end, frequency = 4)
   
-  
-  x_as_y <- window(x_series, start = stats::start(y_ts),
-                   end = stats::end(y_ts),
-                   frequency = 4)
-  
-  max_xreg_lag <- max(xreg_lags)
-  xlagmat <- c()
-  
-  for (i in 0:max_xreg_lag) {
-    xlagmat <- cbind(xlagmat, lag.xts(x_as_y, k = i))
+  if (is.null(procrust_start)) {
+    
+    procrustean_y <- window(y_ts, start = latest_start, end = earliest_end, frequency = 4)
+    
+    
+    procrustean_x <- window(x_series, start = latest_start, end = earliest_end,
+                            frequency = 4)
+    
+    procrustean_x_and_lags <- window(x_series_and_lags, start = latest_start, end = earliest_end,
+                                     frequency = 4)
+  } else {
+    
+    procrustean_y <- window(y_ts, start = procrust_start, 
+                            end = procrust_end, frequency = 4)
+    
+    
+    procrustean_x <- window(x_series, start = procrust_start, 
+                            end = procrust_end, frequency = 4)
+    
+    procrustean_x_and_lags <- window(x_series_and_lags, start = procrust_start, 
+                                     end = procrust_end, frequency = 4)
   }
   
-  # colnames(xlagmat) <- paste0("xlag_", 0:max_xreg_lag)
-  x_as_y <- xlagmat
   
-  # this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
-  #                      order = y_order, seasonal = y_seasonal,
-  #                      method = "ML")
+  if (is.null(dim(procrustean_x))) {
+    dim(procrustean_x) <- c(length(procrustean_x), 1)
+  }
   
-  # print("comienzo")
-  this_arimax <- try(Arima(y = y_ts, xreg = x_as_y, 
-                           order = y_order, seasonal = y_seasonal,
-                           method = "ML"))
+  if (is.null(dim(procrustean_x_and_lags))) {
+    dim(procrustean_x_and_lags) <- c(length(procrustean_x_and_lags), 1)
+    
+  }
+  
+
+  n_x <- length(procrustean_x)
+  
+  # print("n_x")
+  # print(n_x)
+  
+  # procrustean_x_and_lags <- map(seq(0,max(xreg_lags)),
+  #                               ~ lag.xts(procrustean_x, k = .)) %>% 
+  #   reduce(ts.union)
+  # 
+  
+
+  
+  colnames(procrustean_x_and_lags) <- paste(x_name,
+                                            0:max(xreg_lags), sep = "_")
+  
+
+  if ( force.constant & (this_d + this_D) >= 2) {
+    
+    # print("Adding a deterministic quadractic trend")
+    
+    xtrend <- seq(1, length(procrustean_y))^2
+    
+    nam <- colnames(procrustean_x_and_lags)
+    
+    procrustean_x_and_lags <- ts.union(xtrend, procrustean_x_and_lags)
+    
+    colnames(procrustean_x_and_lags) <- c("sq_trend", nam)
+  }
+  
+  this_arimax <- try(Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
+                           order = y_order,
+                           seasonal = y_seasonal,
+                           include.mean = y_include_mean,
+                           method = method))
   
   class_this_arimax <- class(this_arimax)[1]
+  
+  class_this_arimax <- class(this_arimax)[1]
+  
   
   if (class_this_arimax == "try-error") {
     this_mssg <- paste0("For xreg variable ", x_name, 
                         ", ML method failed in Arima. Switched to CSS-ML.")
     warning(this_mssg)
+    
+    # print("fooooo")
     new_method <-  "CSS-ML"
-    this_arimax <- Arima(y = y_ts, xreg = x_as_y, 
-                         order = y_order, seasonal = y_seasonal,
-                         method = new_method)
+    this_arimax <- try(Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
+                             order = y_order,
+                             seasonal = y_seasonal,
+                             include.mean = y_include_mean,
+                             method = new_method))
+    
+    class_this_arimax <- class(this_arimax)[1]
+    # print("classthisarima")
+    # print(class_this_arimax)
+    
+    
+    if (class_this_arimax == "try-error") {
+      # print("mooooo")
+      # print("procrustean_y")
+      # print(procrustean_y)
+      # 
+      # print("procrustean_x_and_lags")
+      # print(procrustean_x_and_lags)
+      
+      
+      this_mssg <- paste0("For xreg variable ", x_name, 
+                          ", CSS-ML method failed in Arima. Switched to CSS.")
+      warning(this_mssg)
+      new_method <-  "CSS"
+      this_arimax <- Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
+                           order = y_order,
+                           seasonal = y_seasonal,
+                           include.mean = y_include_mean,
+                           method = new_method)
+    }
+    
   }
   
-  # print("final")
   
   return(this_arimax)
   
@@ -4888,7 +5052,10 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
                              seasonal = y_seasonal,
                              include.mean = y_include_mean,
                              method = method))
+    
     class_this_arimax <- class(this_arimax)[1]
+    
+    
     if (class_this_arimax == "try-error") {
       this_mssg <- paste0("For xreg variable ", vec_of_names[x_regressor], 
                           ", ML method failed in Arima. Switched to CSS-ML.")
@@ -4905,6 +5072,8 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       class_this_arimax <- class(this_arimax)[1]
       # print("classthisarima")
       # print(class_this_arimax)
+      
+      
       if (class_this_arimax == "try-error") {
         # print("mooooo")
         # print("procrustean_y")
