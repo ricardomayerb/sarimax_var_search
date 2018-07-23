@@ -3082,6 +3082,95 @@ get_gdp_shaped_data <- function(data_path, country = NULL,
 
 
 
+get_hmax_m <- function(final_date_as_vector, current_data, type = "monthly"  ){
+  
+  
+  if (type == "monthly") {
+    fd_as_decimal <- final_date_as_vector[1] + (
+      final_date_as_vector[2] - 1)/12 
+    
+    max_time_data <- max(time(current_data))
+  }
+  
+  if (type == "quarterly") {
+    
+    fd_as_decimal <- final_date_as_vector[1] + (
+      final_date_as_vector[2] - 1)/4 
+    
+    # fd_year <- year(as.yearqtr(fd_as_decimal))
+    # print(fd_year)
+    # 
+    # fd_quarter <- quarter(as.yearqtr(fd_as_decimal))
+    # print(fd_quarter)
+    # 
+    # fd_yq_dec <- fd_year + (fd_quarter - 1)*0.25
+    
+    max_time_data <- max(time(current_data))
+  }
+  
+  diff_time <- fd_as_decimal - max_time_data
+  diff_in_months <- diff_time * 12
+  
+  return(diff_in_months)
+  
+}
+
+
+get_hmax_q <- function(final_date_as_vector, current_data, type = "quarterly"){
+  
+  if (type == "monthly") {
+    fd_as_decimal <- final_date_as_vector[1] + (
+      final_date_as_vector[2] - 1)/12 
+    
+    print(fd_as_decimal)
+    
+    
+    max_time_data <- max(time(current_data))
+    print(max_time_data )
+    
+  }
+  
+  if (type == "quarterly") {
+    
+    fd_as_decimal <- final_date_as_vector[1] + (
+      final_date_as_vector[2] - 1)/4 
+    
+    max_time_data <- max(time(current_data))
+    
+  }
+  
+  fd_year <- year(as.yearqtr(fd_as_decimal))
+  print(fd_year)
+  
+  fd_quarter <- quarter(as.yearqtr(fd_as_decimal))
+  print(fd_quarter)
+  
+  fd_yq_dec <- fd_year + (fd_quarter - 1)*0.25
+  
+  cd_year <- year(as.yearqtr(max_time_data))
+  print(cd_year)
+  
+  cd_quarter <- quarter(as.yearqtr(max_time_data))
+  print(cd_quarter)
+  
+  cd_yq_dec <- cd_year + (cd_quarter - 1)*0.25
+  
+  
+  
+  diff_time <- fd_yq_dec - cd_yq_dec
+  print(diff_time)
+  
+  diff_in_quarters <- diff_time * 4
+  print(diff_in_quarters)
+  
+  
+  return(diff_in_quarters)
+  
+}
+
+
+
+
 get_monthly_variables <- function(data_path, vars_to_eliminate = 
                                     c("hlookup")) {
   data <- read_excel(data_path, sheet = "monthly")

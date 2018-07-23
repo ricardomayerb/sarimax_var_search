@@ -8,8 +8,7 @@ country_name <- "Colombia"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
 final_forecast_horizon <- c(2019, 12)
-h_max <- 8 # last rgdp data is 2017 Q4
-test_length <- h_max
+# h_max <- 8 # last rgdp data is 2017 Q4
 number_of_cv = 8
 train_span = 16
 use_demetra <- TRUE
@@ -30,6 +29,17 @@ this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 
 print("this_rgdp_ts")
 print(this_rgdp_ts)
+
+
+h_max <- get_hmax_q(final_forecast_horizon, current_data = this_rgdp_ts,
+                    type = "monthly")
+
+test_length <- h_max
+
+
+# thishm <- get_hmax_m(final_forecast_horizon, current_data = moo)
+# thishm
+
 
 
 internal_monthly_names <- colnames(this_internal_monthly_ts)
@@ -170,6 +180,24 @@ arima_res_3 <- list(
 )
 
 arima_res <- c(arima_res_1, arima_res_2, arima_res_3)
+
+
+# make_arima_growth_tables <- function(){
+#   
+# }
+# 
+# make_arima_fcs_plots <- function(){}
+
+
+moo <- window(this_internal_monthly_ts[,1], end = c(2017, 2))
+moo
+
+qoo <- window(internal_mdata_ext_ts[,1], end = c(2017, 3))
+qoo
+
+
+
+
 
 rds_file_name = paste0(arima_rds_path, country_name, arima_res_suffix, ".rds")
 saveRDS(object = arima_res, file = rds_file_name)
