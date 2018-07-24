@@ -152,8 +152,8 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   # print("tbl_raw_fcs")
   # print(tbl_raw_fcs)
   
-  print( "date(as.yearqtr(time(rgdp_uncond_fc_mean)))")
-  print( date(as.yearqtr(time(rgdp_uncond_fc_mean))))
+  # print( "date(as.yearqtr(time(rgdp_uncond_fc_mean)))")
+  # print( date(as.yearqtr(time(rgdp_uncond_fc_mean))))
   
   tbl_raw_fcs$date <-  date(as.yearqtr(time(rgdp_uncond_fc_mean)))
   
@@ -1993,7 +1993,7 @@ follow_rec <- function(data_tbl_ts, table_of_recommendations) {
 
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
-                               mat_x_ext, h) {
+                               mat_x_ext, h, force.constant = force.constant) {
   
   if (model_function == "VAR") {
     fc <- forecast(fit, h = h)
@@ -2003,15 +2003,22 @@ forecast_VAR_Arima <- function(model_function, variables, lags, fit,
     if (variables == "rgdp") {
       fc <- forecast(object = fit, h = h)
     } else {
+      
+      # fc <- forecast_xreg(arimax_list = list(fit), xreg_mts , h, 
+      #                           vec_of_names = NULL, xreg_lags = NULL,
+      #                           force.constant = FALSE)
+      
       fc <- forecast_from_arimax_obj(arimax_obj = fit, x_variable = variables, 
-                                     mat_x_ext = mat_x_ext, lags = lags, h = h)
+                                     mat_x_ext = mat_x_ext, lags = lags, h = h,
+                                     force.constant = force.constant)
     }
   } 
   return(fc)
 }
 
 
-forecast_from_arimax_obj <- function(arimax_obj, x_variable, mat_x_ext, lags, h) {
+forecast_from_arimax_obj <- function(arimax_obj, x_variable, mat_x_ext, lags, h,
+                                     force.constant = FALSE) {
   
   # arimax_model <- (arimax_obj$arimax)[[1]] 
   arimax_model <- arimax_obj 
@@ -2022,6 +2029,18 @@ forecast_from_arimax_obj <- function(arimax_obj, x_variable, mat_x_ext, lags, h)
                       quarter(as.yearqtr(0.25 + maxtime_arimax)))
   xreg_for_fc <- make_xreg_fc(variable_name = x_variable, mx_ext = mat_x_ext,
                               lags = lags,  start_fc = start_forecast, h = h)
+  
+  this_arma <- arimax_model$arma
+  this_d <- this_arma[6]
+  this_D <- this_arma[7]
+  
+  if (force.constant & (this_d + this_D >= 2)) {
+    xtrend_fc <- seq( length(rgdp_in_arimax) + 1, length(rgdp_in_arimax) + h)^2
+    
+    xreg_for_fc  <- ts.union(xtrend_fc, xreg_for_fc)
+  }
+  
+  
   fc <- forecast(object = arimax_model, h = h, xreg = xreg_for_fc)
   return(fc)
   
@@ -2484,8 +2503,8 @@ get_arimax_and_fcs <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
   
   names(all_arimax_list) <- paste0("arimax_", seq(0, length(all_arimax_list) - 1))
   
-  print(" names(all_arimax_list) ")
-  print( names(all_arimax_list) )
+  # print(" names(all_arimax_list) ")
+  # print( names(all_arimax_list) )
   
   
   all_arimax <- as_tibble(all_arimax_list) %>% 
@@ -3761,7 +3780,8 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
                          ~ forecast_VAR_Arima(model_function = ..1, 
                                               variables = ..2, lags = ..3,
                                               fit = ..4, h = h_max, 
-                                              mat_x_ext = extended_x_data_ts)
+                                              mat_x_ext = extended_x_data_ts,
+                                              force.constant = force.constant)
            ),
            fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
            fc_yoy = map2(model_function, fc_mean, 
@@ -4668,6 +4688,18 @@ make_yoy_xts <- function(df_xts, freq = 4) {
 }
 
 
+make_yoy_not_growth_ts <- function(df_ts, freq = 4, is_log = FALSE) {
+  
+  if (is_log) {
+    df_ts <- exp(df_ts)
+  }
+  
+  new_ts <- base::diff(df_ts, lag = freq)
+  
+  return(new_ts)
+}
+
+
 make_yoy_ts <- function(df_ts, freq = 4, is_log = FALSE) {
   
   if (is_log) {
@@ -4678,7 +4710,6 @@ make_yoy_ts <- function(df_ts, freq = 4, is_log = FALSE) {
   
   return(new_ts)
 }
-
 
 my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
                            xreg_data = NULL, force.constant = FALSE,

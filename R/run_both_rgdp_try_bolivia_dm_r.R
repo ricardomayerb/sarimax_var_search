@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_dm_s"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Bolivia"
+country_name <- "Mexico"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -27,8 +27,8 @@ this_rgdp_ts <- all_arima_data[["rgdp_ts"]]
 this_internal_monthly_ts <- all_arima_data[["monthly_ts"]]
 this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 
-print("this_rgdp_ts")
-print(this_rgdp_ts)
+# print("this_rgdp_ts")
+# print(this_rgdp_ts)
 
 
 h_max <- get_hmax_q(final_forecast_horizon, current_data = this_rgdp_ts,
