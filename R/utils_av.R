@@ -345,6 +345,80 @@ aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
   
 }
 
+
+
+any_fc_2_fc_yoy <- function(current_fc, rgdp_transformation, rgdp_level_ts) {
+  
+  yq_pre_fc <- as.yearqtr(min(time(current_fc)) - 0.25)
+  
+  end_adjusted <- c(year(yq_pre_fc), quarter(yq_pre_fc))
+  
+  rgdp_level_end_adjusted  <- window(rgdp_level_ts, end = end_adjusted )
+  
+  
+  if (rgdp_transformation == "yoy") {
+    yoy_fc <- current_fc
+  }
+  
+  
+  if (rgdp_transformation == "log") {
+    yoy_fc <- exp(current_fc)
+  }
+  
+  
+  if (rgdp_transformation == "none") {
+    rgdp_data_transformed <- rgdp_level_end_adjusted 
+    fc_and_data <- ts(c(rgdp_level_end_adjusted, current_fc), frequency = 4,
+                      start = start(rgdp_level_end_adjusted))
+    
+    fc_and_data_transformed <- make_yoy_ts(fc_and_data)
+    
+    yoy_fc <- window(fc_and_data_transformed, start = start(current_fc))
+  }
+  
+  
+  if (rgdp_transformation == "diff_yoy") {
+    
+    rgdp_yoy_end_adjusted <- make_yoy_ts(rgdp_level_end_adjusted)
+    
+    last_data_undiff <- window(rgdp_yoy_end_adjusted, start = end_adjusted, 
+                               end = end_adjusted)
+    
+    # print("last_data_undiff")
+    # print(last_data_undiff)
+    # 
+    # print("current_fc")
+    # print(current_fc)
+    
+    yoy_fc <- un_diff_ts(last_undiffed = last_data_undiff, diffed_ts = current_fc)
+    
+    # print("yoy_fc")
+    # print(yoy_fc)
+    
+  }
+  
+  
+  if (rgdp_transformation == "diff") {
+    
+    last_data_undiff <- window(rgdp_level_end_adjusted, start = end_adjusted, 
+                               end = end_adjusted)
+    
+    level_fc <- un_diff_ts(last_undiffed = last_data_undiff, diffed_ts = current_fc)
+    
+    fc_and_data <- ts(c(rgdp_level_end_adjusted, level_fc), frequency = 4,
+                      start = start(rgdp_level_end_adjusted))
+    
+    fc_and_data_transformed <- make_yoy_ts(fc_and_data)
+    
+    yoy_fc <- window(fc_and_data_transformed, start = start(current_fc))
+    
+  }
+  
+  return(yoy_fc)
+  
+}
+
+
 bsarimax_as_function <- function(data_path, train_span = 16, h_max = 6,
                                  number_of_cv = 8, 
                                  final_forecast_horizon = c(2019, 12),
@@ -3723,7 +3797,7 @@ logyoy <- function(logfc_ts, log_data_ts) {
 
 
 
-indiv_weigthed_fcs_new <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
+indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
                                rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL,
                                force.constant = FALSE) {
@@ -3795,122 +3869,35 @@ indiv_weigthed_fcs_new <- function(tbl_of_models_and_rmse, h, extended_x_data_ts
                                            rgdp_level_ts = rgdp_level_ts)),
            weighted_fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
                                    ~ subset(..1 * ..2, start = ..3, end = ..3)),
+           fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
+                                   ~ subset(..2, start = ..3, end = ..3)),
            is_stable = map2(model_function, fit, ~my_stability_fun(model_type = .x, model_object = .y))
     ) %>% 
     ungroup() %>% filter(is_stable == TRUE)
   
+  w_ave_fc_tbl <- tibble_fit_and_fcs %>% 
+    group_by(horizon) %>%
+    summarise(sum_one_h = reduce(weighted_fc_at_h, sum))
   
+  w_fc_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
   
-  # tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
-  #   group_by(rmse_h) %>% 
-  #   mutate(sum_invmse_h = sum(inv_mse),
-  #          model_weight_h = inv_mse/sum_invmse_h,
-  #          horizon = as.numeric(substr(rmse_h, 6, 6)),
-  #          fit = pmap(list(model_function, variables, lags, arima_order, 
-  #                          arima_seasonal),
-  #                     ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
-  #                                     lags = ..3, order = ..4, seasonal = ..5,
-  #                                     extended_x_data_ts = extended_x_data_ts,
-  #                                     arima_rgdp_ts = rgdp_ts_in_arima,
-  #                                     force.constant = force.constant)),
-  #          fc_obj = pmap(list(model_function, variables, lags, fit),
-  #                        ~ forecast_VAR_Arima(model_function = ..1, 
-  #                                             variables = ..2, lags = ..3,
-  #                                             fit = ..4, h = h_max, 
-  #                                             mat_x_ext = extended_x_data_ts,
-  #                                             force.constant = force.constant)
-  #          ),
-  #          fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
-  #          fc_yoy = map2(model_function, fc_mean, 
-  #                        ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
-  #                                     fc_ts = .y)),
-  #          one_model_w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
-  #                                ~ subset(..1 * ..2, start = ..3, end = ..3)
-  #          ),
-  #          is_stable = map2(model_function, fit, ~my_stability_fun(model_type = .x, model_object = .y))
-  #   ) %>% 
-  #   ungroup() %>% filter(is_stable == TRUE)
+  fc_for_plot <- tibble_fit_and_fcs %>% 
+  select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse)
+
+  ensemble_model_tbl <- tibble(short_name = "ensemble", 
+                               model_function = "weighted_average",
+                             fc_yoy = w_fc_ts, fc_at_h = NA, rmse_h = "rmse_1",
+                             rmse = 0.00001)
   
-  return(tibble_fit_and_fcs)
+  fc_for_plot <- rbind(fc_for_plot, ensemble_model_tbl)
+  
+  return(list(info_fit_ifcs = tibble_fit_and_fcs,
+              w_fc_ts = w_fc_ts,
+              fc_for_plot = fc_for_plot))
 }
 
 
 
-
-indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
-                               rgdp_ts_in_arima, var_data, max_rank_h = NULL,
-                               model_type = NULL, chosen_rmse_h = NULL,
-                               force.constant = FALSE) {
-  
-  if (!is.null(model_type)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(model_function == model_type) %>% 
-      group_by(rmse_h) %>% 
-      mutate(rank_h = rank(rmse)) %>% 
-      arrange(rmse_h, rank_h)
-  }
-  
-  if (!is.null(chosen_rmse_h)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(rmse_h == chosen_rmse_h) %>% 
-      mutate(rank_h )
-  }
-  
-  if (!is.null(max_rank_h)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(rank_h <= max_rank_h)
-  }
-  
-  
-  my_stability_fun <- function(model_type, model_object) {
-    
-    # print(model_type)
-    # print(model_object)
-    
-    if (model_type == "Arima") {
-      is.stable <- TRUE
-      
-    }
-    if (model_type == "VAR"){
-      is.stable <- all(roots(model_object) < 1)
-    }
-    
-    return(is.stable)
-  }
-  
-  
-  tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
-    group_by(rmse_h) %>% 
-    mutate(sum_invmse_h = sum(inv_mse),
-           model_weight_h = inv_mse/sum_invmse_h,
-           horizon = as.numeric(substr(rmse_h, 6, 6)),
-           fit = pmap(list(model_function, variables, lags, arima_order, 
-                           arima_seasonal),
-                      ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
-                                      lags = ..3, order = ..4, seasonal = ..5,
-                                      extended_x_data_ts = extended_x_data_ts,
-                                      arima_rgdp_ts = rgdp_ts_in_arima,
-                                      force.constant = force.constant)),
-           fc_obj = pmap(list(model_function, variables, lags, fit),
-                         ~ forecast_VAR_Arima(model_function = ..1, 
-                                              variables = ..2, lags = ..3,
-                                              fit = ..4, h = h_max, 
-                                              mat_x_ext = extended_x_data_ts,
-                                              force.constant = force.constant)
-           ),
-           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
-           fc_yoy = map2(model_function, fc_mean, 
-                         ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
-                                      fc_ts = .y)),
-           one_model_w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
-                                 ~ subset(..1 * ..2, start = ..3, end = ..3)
-           ),
-           is_stable = map2(model_function, fit, ~my_stability_fun(model_type = .x, model_object = .y))
-    ) %>% 
-    ungroup() %>% filter(is_stable == TRUE)
-  
-  return(tibble_fit_and_fcs)
-}
 
 
 

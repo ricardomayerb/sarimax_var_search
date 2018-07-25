@@ -324,15 +324,15 @@ do.force.constant <- TRUE
 # 
 # foo_from_diff2yoy <- diff_2_yoy_data_and_fc() 
 
-var_countries_and_gdp_transform <- tibble(
-  country = c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia", "Ecuador",
-              "Mexico", "Paraguay", "Peru", "Uruguay"),
-  transformation = c("diff_yoy", "diff_yoy", "yoy", "yoy", "yoy",
-                     "diff", "yoy", "diff_yoy", "yoy", "diff_yoy"))
-
-this_country_gdp_transform <- subset(x = var_countries_and_gdp_transform,
-                                     subset = country == country_name, 
-                                     select = transformation)$transformation
+# var_countries_and_gdp_transform <- tibble(
+#   country = c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia", "Ecuador",
+#               "Mexico", "Paraguay", "Peru", "Uruguay"),
+#   transformation = c("diff_yoy", "diff_yoy", "yoy", "yoy", "yoy",
+#                      "diff", "yoy", "diff_yoy", "yoy", "diff_yoy"))
+# 
+# this_country_gdp_transform <- subset(x = var_countries_and_gdp_transform,
+#                                      subset = country == country_name, 
+#                                      select = transformation)$transformation
 
 what_rgdp_transformation <- function(country_name, model_type,  var_transform_tibble = NULL,
                                      arimas_are_logs = TRUE) {
@@ -392,7 +392,9 @@ models_and_accu <- readRDS(path_models_and_accu)
 cv_objects <- readRDS(path_cv_objects)
 VAR_data <- readRDS(path_VAR_data)
 VAR_data_rgdp <- VAR_data[, "rgdp"]
-rgdp_yoy_VAR_timespan <-  window
+rgdp_yoy_VAR_timespan <-  window(make_yoy_ts(rgdp_level_ts), 
+                                 start = start(VAR_data_rgdp),
+                                 end = end(VAR_data_rgdp))
 
 
 # check var data
@@ -467,14 +469,29 @@ models_tbl_ssel <- models_tbl_ssel %>%
 VAR_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                 h = h_max, extended_x_data_ts = extended_x_data_ts,
                                 rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                model_type = "VAR", max_rank_h = 30)
+                                model_type = "VAR", max_rank_h = 30,
+                                var_data = VAR_data)
 
+VAR_best_all_fit_fc_tbl <- VAR_fcs_all$info_fit_ifcs
+VAR_best_all_wfc_ts <- VAR_fcs_all$w_fc_ts
+VAR_best_all_for_plot <- VAR_fcs_all$fc_for_plot
 
-summ_VAR_fcs_all <- VAR_fcs_all %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
+fc_for_plot <- VAR_best_all_fit_fc_tbl %>% 
+  select(short_name, model_function, fc_yoy, fc_at_h, 
+         rmse_h, rmse)
+
+ensemble_model_tbl <- tibble(short_name = "ensemble", model_function = "weighted_average",
+                             fc_yoy = w_fc_ts, fc_at_h = NA, rmse_h = "rmse_1",
+                             rmse = 0.00001)
+
+fc_for_plot
+glimpse(fc_for_plot)
+# View(foo)
+
 
 VAR_fcs_all_ts <- fc_summ_to_ts(summ_VAR_fcs_all, var_data = VAR_data)
+
+
 VAR_fcs_all_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(VAR_fcs_all_ts, var_data = VAR_data,
                           rgdp_level_ts = rgdp_level_ts)
 
@@ -504,82 +521,22 @@ summ_VAR_fcs_all_best_10$sum_one_h <- VAR_fcs_all_best_10_yoy
 summ_VAR_fcs_all_best_10$sum_one_h <- as.numeric(summ_VAR_fcs_all_best_10$sum_one_h)
 
 
-any_fc_2_fc_yoy <- function(current_fc, rgdp_transformation, rgdp_level_ts) {
-  
-  yq_pre_fc <- as.yearqtr(min(time(current_fc)) - 0.25)
-  
-  end_adjusted <- c(year(yq_pre_fc), quarter(yq_pre_fc))
-  
-  rgdp_level_end_adjusted  <- window(rgdp_level_ts, end = end_adjusted )
-  
-  
-  if (rgdp_transformation == "yoy") {
-    yoy_fc <- current_fc
-  }
-  
-  
-  if (rgdp_transformation == "log") {
-    yoy_fc <- exp(current_fc)
-  }
-  
 
-  if (rgdp_transformation == "none") {
-    rgdp_data_transformed <- rgdp_level_end_adjusted 
-    fc_and_data <- ts(c(rgdp_level_end_adjusted, current_fc), frequency = 4,
-                      start = start(rgdp_level_end_adjusted))
-    
-    fc_and_data_transformed <- make_yoy_ts(fc_and_data)
-    
-    yoy_fc <- window(fc_and_data_transformed, start = start(current_fc))
-  }
-
-
-  if (rgdp_transformation == "diff_yoy") {
-    
-    rgdp_yoy_end_adjusted <- make_yoy_ts(rgdp_level_end_adjusted)
-    
-    last_data_undiff <- window(rgdp_yoy_end_adjusted, start = end_adjusted, 
-                               end = end_adjusted)
-    
-    # print("last_data_undiff")
-    # print(last_data_undiff)
-    # 
-    # print("current_fc")
-    # print(current_fc)
-    
-    yoy_fc <- un_diff_ts(last_undiffed = last_data_undiff, diffed_ts = current_fc)
-    
-    # print("yoy_fc")
-    # print(yoy_fc)
-    
-  }
-
-
-  if (rgdp_transformation == "diff") {
-    
-    last_data_undiff <- window(rgdp_level_end_adjusted, start = end_adjusted, 
-                               end = end_adjusted)
-    
-    level_fc <- un_diff_ts(last_undiffed = last_data_undiff, diffed_ts = current_fc)
-    
-    fc_and_data <- ts(c(rgdp_level_end_adjusted, level_fc), frequency = 4,
-                            start = start(rgdp_level_end_adjusted))
-    
-    fc_and_data_transformed <- make_yoy_ts(fc_and_data)
-    
-    yoy_fc <- window(fc_and_data_transformed, start = start(current_fc))
-    
-  }
-  
-  return(yoy_fc)
-  
-}
-
-
-VAR_fcs_all_best_5_new <- indiv_weigthed_fcs_new(tbl_of_models_and_rmse = models_tbl,
+VAR_fcs_all_best_5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                          h = h_max, extended_x_data_ts = extended_x_data_ts,
                                          rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                         model_type = "VAR", max_rank_h = 5)
+                                         model_type = "VAR", max_rank_h = 5,
+                                         var_data = VAR_data)
+
+VAR_best_5_fit_fc_tbl <- VAR_fcs_all_best_5$info_fit_ifcs
+VAR_best_5_wfc_ts <- VAR_fcs_all_best_5$w_fc_ts
+
+foo <- VAR_best_5_fit_fc_tbl %>% 
+  select(short_name, model_function, fc_yoy, weighted_fc_at_h)
+
+glimpse(foo)
+View(foo)
+
 
 summ_VAR_fcs_all_best_5_new <- VAR_fcs_all_best_5_new %>% 
   group_by(horizon) %>%
