@@ -11,6 +11,11 @@ add_row_fcs_summary <- function(summary_model, rgdp_ts){
   summary_model %>% add_row(horizon = 0, sum_one_h = last(rgdp_ts)) %>% arrange(horizon)
 }
 
+add_last_obs_to_fcs <- function(fcs_ts, rgdp_ts){
+  new_fc_ts <- ts(c(last(rgdp_ts), fcs_ts), frequency = 4, end = end(fcs_ts))
+  return(new_fc_ts)
+}
+
 turn_summary_in_ts <- function(summary_model, start_year_ts, start_qtr_ts, frequency = 4){
   ts(data = summary_model$sum_one_h, frequency = frequency, start = c(start_year_ts, start_qtr_ts))
 }
@@ -365,9 +370,9 @@ what_rgdp_transformation <- function(country_name, model_type,  var_transform_ti
 } 
 
 
-what_rgdp_transformation(country_name = "Chile", model_type = "VAR")
-what_rgdp_transformation(country_name = "Bolivia", model_type = "VAR")
-what_rgdp_transformation(country_name = "Chile", model_type = "Arima")
+# what_rgdp_transformation(country_name = "Chile", model_type = "VAR")
+# what_rgdp_transformation(country_name = "Bolivia", model_type = "VAR")
+# what_rgdp_transformation(country_name = "Chile", model_type = "Arima")
 
 # Always check if this is true or false
 arima_rgdp_is_log <- TRUE
@@ -397,14 +402,14 @@ rgdp_yoy_VAR_timespan <-  window(make_yoy_ts(rgdp_level_ts),
                                  end = end(VAR_data_rgdp))
 
 
-# check var data
-VAR_data_rgdp
-
-
-#lets diff yoy our level data
-arima_yoy_rgdp <- rgdp_level_ts %>% make_yoy_ts()
-arima_diff_yoy_rgdp <- arima_yoy_rgdp %>% diff()
-arima_diff_rgdp <- rgdp_level_ts %>% diff()
+# # check var data
+# VAR_data_rgdp
+# 
+# 
+# #lets diff yoy our level data
+# arima_yoy_rgdp <- rgdp_level_ts %>% make_yoy_ts()
+# arima_diff_yoy_rgdp <- arima_yoy_rgdp %>% diff()
+# arima_diff_rgdp <- rgdp_level_ts %>% diff()
 
 
 
@@ -463,8 +468,6 @@ models_tbl_ssel <- models_tbl_ssel %>%
 
 
 
-
-
 # First have a look at the VAR models
 VAR_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                 h = h_max, extended_x_data_ts = extended_x_data_ts,
@@ -472,54 +475,17 @@ VAR_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                 model_type = "VAR", max_rank_h = 30,
                                 var_data = VAR_data)
 
-VAR_best_all_fit_fc_tbl <- VAR_fcs_all$info_fit_ifcs
-VAR_best_all_wfc_ts <- VAR_fcs_all$w_fc_ts
-VAR_best_all_for_plot <- VAR_fcs_all$fc_for_plot
-
-fc_for_plot <- VAR_best_all_fit_fc_tbl %>% 
-  select(short_name, model_function, fc_yoy, fc_at_h, 
-         rmse_h, rmse)
-
-ensemble_model_tbl <- tibble(short_name = "ensemble", model_function = "weighted_average",
-                             fc_yoy = w_fc_ts, fc_at_h = NA, rmse_h = "rmse_1",
-                             rmse = 0.00001)
-
-fc_for_plot
-glimpse(fc_for_plot)
-# View(foo)
-
-
-VAR_fcs_all_ts <- fc_summ_to_ts(summ_VAR_fcs_all, var_data = VAR_data)
-
-
-VAR_fcs_all_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(VAR_fcs_all_ts, var_data = VAR_data,
-                          rgdp_level_ts = rgdp_level_ts)
-
-rgdp_var <- VAR_fcs_all_and_data_as_yoy$yoy_rgdp_data
-VAR_fcs_all_yoy <- VAR_fcs_all_and_data_as_yoy$yoy_rgdp_fc
-# turn VAR_fcs_all_yoy into summ format
-summ_VAR_fcs_all$sum_one_h <- VAR_fcs_all_yoy 
-summ_VAR_fcs_all$sum_one_h <- as.numeric(summ_VAR_fcs_all$sum_one_h)
-
+VAR_all_fit_fc_tbl <- VAR_fcs_all$info_fit_ifcs
+VAR_all_wfc_yoy_ts <- VAR_fcs_all$w_fc_yoy_ts
+VAR_all_for_plot <- VAR_fcs_all$fc_for_plot
+rgdp_yoy_VAR_timespan
 
 
 VAR_fcs_all_best_10 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                   model_type = "VAR", max_rank_h = 10)
-
-summ_VAR_fcs_all_best_10 <- VAR_fcs_all_best_10 %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
-
-VAR_fcs_all_best_10_ts <- fc_summ_to_ts(summ_VAR_fcs_all_best_10, var_data = VAR_data)
-VAR_fcs_all_best_10_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(VAR_fcs_all_best_10_ts, var_data = VAR_data,
-                                                         rgdp_level_ts = rgdp_level_ts)
-
-VAR_fcs_all_best_10_yoy <- VAR_fcs_all_best_10_and_data_as_yoy$yoy_rgdp_fc
-summ_VAR_fcs_all_best_10$sum_one_h <- VAR_fcs_all_best_10_yoy 
-summ_VAR_fcs_all_best_10$sum_one_h <- as.numeric(summ_VAR_fcs_all_best_10$sum_one_h)
-
+                                   model_type = "VAR", max_rank_h = 10,
+                                   var_data = VAR_data)
 
 
 VAR_fcs_all_best_5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
@@ -528,187 +494,35 @@ VAR_fcs_all_best_5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                          model_type = "VAR", max_rank_h = 5,
                                          var_data = VAR_data)
 
-VAR_best_5_fit_fc_tbl <- VAR_fcs_all_best_5$info_fit_ifcs
-VAR_best_5_wfc_ts <- VAR_fcs_all_best_5$w_fc_ts
-
-foo <- VAR_best_5_fit_fc_tbl %>% 
-  select(short_name, model_function, fc_yoy, weighted_fc_at_h)
-
-glimpse(foo)
-View(foo)
-
-
-summ_VAR_fcs_all_best_5_new <- VAR_fcs_all_best_5_new %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(weighted_fc_at_h, sum))
-
-# 
-# [[1]]
-# Qtr3
-# 2017 0.006421942
-# 
-# [[2]]
-# Qtr3
-# 2017 0.008653615
-# 
-# [[3]]
-# Qtr3
-# 2017 0.005610164
-# 
-# [[4]]
-# Qtr3
-# 2017 0.006121515
-# 
-# [[5]]
-# Qtr3
-# 2017 0.005385767
-# 
-# 
-# 
-# 
-# [[36]]
-# Qtr2
-# 2019 0.01362952
-# 
-# [[37]]
-# Qtr2
-# 2019 0.01014949
-# 
-# [[38]]
-# Qtr2
-# 2019 0.009176825
-# 
-# [[39]]
-# Qtr2
-# 2019 0.008183698
-# 
-# [[40]]
-# Qtr2
-# 2019 0.006686466
-# 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-VAR_fcs_all_best_5_new
-glimpse(VAR_fcs_all_best_5_new)
-
-VAR_fcs_all_best_5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                  h = h_max, extended_x_data_ts = extended_x_data_ts,
-                                  rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                  model_type = "VAR", max_rank_h = 5)
-
-summ_VAR_fcs_all_best_5 <- VAR_fcs_all_best_5 %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
-
-
-VAR_fcs_all_best_5_ts <- fc_summ_to_ts(summ_VAR_fcs_all_best_5, var_data = VAR_data)
-VAR_fcs_all_best_5_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(VAR_fcs_all_best_5_ts, var_data = VAR_data,
-                                                                rgdp_level_ts = rgdp_level_ts)
-
-theforecast_yoy <- VAR_fcs_all_best_5_and_data_as_yoy$yoy_rgdp_fc
-thedata_yoy <- VAR_fcs_all_best_5_and_data_as_yoy$yoy_rgdp_data
-
-# ts.union(thedata_yoy, arima_yoy_rgdp)
-# 
-# print("VAR_fcs_all_best_5_ts")
-# print(VAR_fcs_all_best_5_ts)
-# 
-# print("VAR_fcs_all_best_5_and_data_as_yoy")
-# print(VAR_fcs_all_best_5_and_data_as_yoy)
-
-# #  TEST diff 2 yoy function
-# foo <- diff_2_yoy_data_and_fc(var_fcs_ts = VAR_fcs_all_best_5_ts, var_data = arima_diff_rgdp, rgdp_level_ts = rgdp_level_ts)
-# 
-# footheforecast_yoy <- foo$yoy_rgdp_fc
-# foothedata_yoy <- foo$yoy_rgdp_data
-# 
-# ts.union(foothedata_yoy, arima_yoy_rgdp)
-
-VAR_fcs_all_best_5_yoy <- VAR_fcs_all_best_5_and_data_as_yoy$yoy_rgdp_fc
-summ_VAR_fcs_all_best_5$sum_one_h <- VAR_fcs_all_best_5_yoy 
-summ_VAR_fcs_all_best_5$sum_one_h <- as.numeric(summ_VAR_fcs_all_best_5$sum_one_h)
-
-
 
 VAR_fcs_all_best_15 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                   model_type = "VAR", max_rank_h = 15)
-
-summ_VAR_fcs_all_best_15 <- VAR_fcs_all_best_15 %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
-
-VAR_fcs_all_best_15_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(summ_tbl = summ_VAR_fcs_all_best_15, var_data = VAR_data,
-                                                                rgdp_level_ts = rgdp_level_ts)
-
-VAR_fcs_all_best_15_yoy <- VAR_fcs_all_best_15_and_data_as_yoy$yoy_rgdp_fc
-summ_VAR_fcs_all_best_15$sum_one_h <- VAR_fcs_all_best_15_yoy 
-summ_VAR_fcs_all_best_15$sum_one_h <- as.numeric(summ_VAR_fcs_all_best_15$sum_one_h)
+                                   model_type = "VAR", max_rank_h = 15,
+                                   var_data = VAR_data)
 
 
 VAR_fcs_all_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                   model_type = "VAR", max_rank_h = 20)
+                                   model_type = "VAR", max_rank_h = 20,
+                                   var_data = VAR_data)
 
-summ_VAR_fcs_all_best_20 <- VAR_fcs_all_best_20 %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
-
-VAR_fcs_all_best_20_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(summ_tbl = summ_VAR_fcs_all_best_20, var_data = VAR_data,
-                                                                 rgdp_level_ts = rgdp_level_ts)
-
-VAR_fcs_all_best_20_yoy <- VAR_fcs_all_best_20_and_data_as_yoy$yoy_rgdp_fc
-summ_VAR_fcs_all_best_20$sum_one_h <- VAR_fcs_all_best_20_yoy 
-summ_VAR_fcs_all_best_20$sum_one_h <- as.numeric(summ_VAR_fcs_all_best_20$sum_one_h)
-
-
-# rgdp_var <- VAR_data[ ,1]
-# autoplot(rgdp_var)
+rgdp_var <- rgdp_yoy_VAR_timespan
 
 start_ts_fcs_var_year <- year(as.yearqtr(last(time(rgdp_var)))) # use year from lubridate. Time gives you the time like 2017.5 etc
 # last gives you the last observation. as.yearqtr turns it into 2017 Q3 form and year gives the year
 start_ts_fcs_var_qtr <- quarter(as.yearqtr(last(time(rgdp_var)))) # use quarter from lubridate
 
-summ_VAR_fcs_all <- add_row_fcs_summary(summary_model = summ_VAR_fcs_all, rgdp_ts = rgdp_var)
-summ_VAR_fcs_all_best_5 <- add_row_fcs_summary(summary_model = summ_VAR_fcs_all_best_5, rgdp_ts = rgdp_var)
-summ_VAR_fcs_all_best_10 <- add_row_fcs_summary(summary_model = summ_VAR_fcs_all_best_10, rgdp_ts = rgdp_var)
-summ_VAR_fcs_all_best_15 <- add_row_fcs_summary(summary_model = summ_VAR_fcs_all_best_15, rgdp_ts = rgdp_var)
-summ_VAR_fcs_all_best_20 <- add_row_fcs_summary(summary_model = summ_VAR_fcs_all_best_20, rgdp_ts = rgdp_var)
+fcs_all_VAR_best5_ts <- add_last_obs_to_fcs(VAR_fcs_all_best_5$w_fc_yoy_ts, rgdp_var)
 
-fcs_all_VAR_best5_ts <- turn_summary_in_ts(summary_model = summ_VAR_fcs_all_best_5, 
-                                       start_year_ts = start_ts_fcs_var_year, 
-                                       start_qtr_ts = start_ts_fcs_var_qtr)
+fcs_all_VAR_best10_ts <- add_last_obs_to_fcs(VAR_fcs_all_best_10$w_fc_yoy_ts, rgdp_var)
 
-fcs_all_VAR_best10_ts <- turn_summary_in_ts(summary_model = summ_VAR_fcs_all_best_10, 
-                                        start_year_ts = start_ts_fcs_var_year, 
-                                        start_qtr_ts = start_ts_fcs_var_qtr)
+fcs_all_VAR_best15_ts <- add_last_obs_to_fcs(VAR_fcs_all_best_15$w_fc_yoy_ts, rgdp_var)
 
-fcs_all_VAR_best15_ts <- turn_summary_in_ts(summary_model = summ_VAR_fcs_all_best_15, 
-                                        start_year_ts = start_ts_fcs_var_year, 
-                                        start_qtr_ts = start_ts_fcs_var_qtr)
+fcs_all_VAR_best20_ts <- add_last_obs_to_fcs(VAR_fcs_all_best_20$w_fc_yoy_ts, rgdp_var)
 
-fcs_all_VAR_best20_ts <- turn_summary_in_ts(summary_model = summ_VAR_fcs_all_best_20, 
-                                        start_year_ts = start_ts_fcs_var_year, 
-                                        start_qtr_ts = start_ts_fcs_var_qtr)
-
-fcs_all_VAR_ts <- turn_summary_in_ts(summary_model = summ_VAR_fcs_all, 
-                                     start_year_ts = start_ts_fcs_var_year, 
-                                     start_qtr_ts = start_ts_fcs_var_qtr)
+fcs_all_VAR_ts <- add_last_obs_to_fcs(VAR_fcs_all$w_fc_yoy_ts, rgdp_var)
 
 rgdp_var_and_fcs <- ts.union(rgdp_var, fcs_all_VAR_best5_ts, fcs_all_VAR_best10_ts, 
                              fcs_all_VAR_best15_ts, fcs_all_VAR_best20_ts,
@@ -752,38 +566,14 @@ rgdp_arimax <- make_yoy_ts(exp(rgdp_ts_in_arima))
 arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
                                      h = h_max, extended_x_data_ts = extended_x_data_ts,
                                      rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                     model_type = "Arima", force.constant = do.force.constant)
-
-summ_arimax_fcs_all <- arimax_fcs_all %>%
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
-# 
-# arimax_fcs_all_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(summ_tbl = summ_arimax_fcs_all, var_data = VAR_data,
-#                                                          rgdp_level_ts = rgdp_level_ts)
-# 
-# rgdp_arimax <- arimax_fcs_all_and_data_as_yoy$yoy_rgdp_data
-# arimax_fcs_all_yoy <- arimax_fcs_all_and_data_as_yoy$yoy_rgdp_fc
-# summ_arimax_fcs_all$sum_one_h <- arimax_fcs_all_yoy 
-# summ_arimax_fcs_all$sum_one_h <- as.numeric(summ_arimax_fcs_all$sum_one_h)
-
+                                     model_type = "Arima", var_data = VAR_data,
+                                     force.constant = do.force.constant)
 
 
 arimax_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
                                        h = h_max, extended_x_data_ts = extended_x_data_ts,
                                        rgdp_ts_in_arima = rgdp_ts_in_arima,
                                        model_type = "Arima")
-
-summ_arimax_fcs_all_ssel <- arimax_fcs_all_ssel %>% 
-  group_by(horizon) %>%
-  summarise(sum_one_h = reduce(one_model_w_fc, sum))
-
-arimax_fcs_all_ssel_and_data_as_yoy <- diffyoy_2_yoy_data_and_fc(summ_tbl = summ_arimax_fcs_all_ssel, var_data = VAR_data,
-                                                            rgdp_level_ts = rgdp_level_ts)
-
-arimax_fcs_all_ssel_yoy <- arimax_fcs_all_ssel_and_data_as_yoy$yoy_rgdp_fc
-summ_arimax_fcs_all_ssel$sum_one_h <- arimax_fcs_all_ssel_yoy
-summ_arimax_fcs_all_ssel$sum_one_h <- as.numeric(summ_arimax_fcs_all_ssel$sum_one_h)
-
 
 
 # select similar start date for rgdp_arimax as for rgdp_var so that graph is comparable
@@ -795,16 +585,8 @@ first_qtr_var_ts <- quarter(as.yearqtr(first(time(rgdp_var))))
 start_ts_fcs_arimax_year <- year(as.yearqtr(last(time(rgdp_arimax)))) 
 start_ts_fcs_arimax_qtr <- quarter(as.yearqtr(last(time(rgdp_arimax))))
 
-summ_arimax_fcs_all <- add_row_fcs_summary(summary_model = summ_arimax_fcs_all, rgdp_ts = rgdp_arimax)
-summ_arimax_fcs_all_ssel <- add_row_fcs_summary(summary_model = summ_arimax_fcs_all_ssel, rgdp_ts = rgdp_arimax)
-
-fcs_all_arimax_ts <- turn_summary_in_ts(summary_model = summ_arimax_fcs_all, 
-                                       start_year_ts = start_ts_fcs_var_year, 
-                                       start_qtr_ts = start_ts_fcs_var_qtr)
-
-fcs_all_arimax_ssel_ts <- turn_summary_in_ts(summary_model = summ_arimax_fcs_all_ssel, 
-                                        start_year_ts = start_ts_fcs_var_year, 
-                                        start_qtr_ts = start_ts_fcs_var_qtr)
+fcs_all_arimax_ts <- add_last_obs_to_fcs(arimax_fcs_all$w_fc_yoy_ts, make_yoy_ts(rgdp_level_ts)) 
+fcs_all_arimax_ssel_ts <- add_last_obs_to_fcs(arimax_fcs_all$w_fc_yoy_ts, make_yoy_ts(rgdp_level_ts)) 
 
 # Two ways to combine the time-series. 1) Use autolayer, which adds a layer to an existing plot, or 2) ts.union the time-series and then plot them
 plot_arimax_title <- paste("GDP Forecasts Best ARIMAX", country_name, sep = " ")
@@ -813,7 +595,7 @@ filename_arimax_plot <- paste(plot_arimax_title, "png", sep = ".")
 # To turn a ts object into a date frame using tk_tbl
 rgdp_var_and_fcs_df <- fcs_all_arimax_ts %>% tk_tbl() %>% as.data.frame()
 
-forecast_plot_best_arimax <- autoplot(rgdp_var) + 
+forecast_plot_best_arimax <- autoplot(make_yoy_ts(rgdp_level_ts)) + 
   autolayer(fcs_all_arimax_ts, series="Best 30 ARIMAX", linetype = 2, size = 1) +
   autolayer(fcs_all_arimax_ssel_ts, series="Best 30 ARIMAX Stata Selection", linetype = 3, size = 1) +
   ggtitle(plot_arimax_title) +

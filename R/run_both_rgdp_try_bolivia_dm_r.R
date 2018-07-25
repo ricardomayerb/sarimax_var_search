@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_dm_s"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Mexico"
+country_name <- "Paraguay"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -148,14 +148,17 @@ arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts,
                           max_x_lag = max_x_lag,
                           rgdp_order_list = rgdp_order_list,
                           h_max = h_max,
-                          data_is_log_log = is_log_log)
+                          data_is_log_log = is_log_log,
+                          force.constant = use_dm_force_constant)
 toc()
 
 tic()
 fcs_aggr_transf <- aggregate_and_transform_fcs(arimax_and_fcs, cv_cond_uncond,
                                    rgdp_ts = this_rgdp_ts,
                                    data_is_log_log = is_log_log, 
-                                   rgdp_uncond_fc_mean = rgdp_uncond_fc_mean, h_max = h_max)
+                                   rgdp_uncond_fc_mean = rgdp_uncond_fc_mean, 
+                                   h_max = h_max,
+                                   test_length = test_length)
 toc()
 
 arima_res_1 <- fcs_aggr_transf
@@ -189,11 +192,11 @@ arima_res <- c(arima_res_1, arima_res_2, arima_res_3)
 # make_arima_fcs_plots <- function(){}
 
 
-moo <- window(this_internal_monthly_ts[,1], end = c(2017, 2))
-moo
-
-qoo <- window(internal_mdata_ext_ts[,1], end = c(2017, 3))
-qoo
+# moo <- window(this_internal_monthly_ts[,1], end = c(2017, 2))
+# moo
+# 
+# qoo <- window(internal_mdata_ext_ts[,1], end = c(2017, 3))
+# qoo
 
 
 

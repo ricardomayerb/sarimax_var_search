@@ -362,7 +362,11 @@ any_fc_2_fc_yoy <- function(current_fc, rgdp_transformation, rgdp_level_ts) {
   
   
   if (rgdp_transformation == "log") {
-    yoy_fc <- exp(current_fc)
+    level_fc <- exp(current_fc)
+    fc_and_data <- ts(c(rgdp_level_end_adjusted, level_fc), frequency = 4,
+                      start = start(rgdp_level_end_adjusted))
+    fc_and_data_transformed <- make_yoy_ts(fc_and_data)
+    yoy_fc <- window(fc_and_data_transformed, start = start(current_fc))
   }
   
   
@@ -1115,7 +1119,7 @@ cv_obs_fc_back_from_diff <- function(yoy_ts, diff_ts, training_length,
 
 
 cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
-                          y_order, y_seasonal,
+                          y_order, y_seasonal, x_order, x_seasonal,
                           y_include_drift = TRUE, 
                           vec_of_names = NULL, method = "ML", 
                           s4xreg = FALSE,
@@ -1219,17 +1223,18 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
       test_y <- subset(y_ts, 
                        start = start_test_index_y,
                        end = end_test_index_y)
+      # this is wrong, to simulate what the model does, we need to use forecasted x's, not realized ones
+      # test_x <- window(x_series,
+      #                  start = stats::start(test_y),
+      #                  end = stats::end(test_y))
+      
+      # arima_of_x <- 
       
       test_x <- window(x_series,
                        start = stats::start(test_y),
                        end = stats::end(test_y))
 
-      # this_arimax_list <- my_arimax(y_ts = training_y, xreg_ts = training_x, 
-      #                          y_order = y_order, y_seasonal = y_seasonal,
-      #                          vec_of_names = this_arima_name, xreg_lags = xreg_lags,
-      #                          method = method, force.constant = force.constant,
-      #                          y_include_mean = y_include_drift
-      #                          )
+
       
       this_arimax_list <- my_arimax(y_ts = y_ts, xreg_ts = x_series, 
                                     y_order = y_order, y_seasonal = y_seasonal,
@@ -1702,6 +1707,152 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   # return(ext_series_ts_quarterly)
   
 }
+
+
+extend_qtr_variables <- function(data_mts, final_horizon_date_q, vec_of_names, 
+                           fitted_arima_list, start_date_gdp,
+                           force_constant = FALSE, order_list = NULL) {
+  
+  # print("final_horizon_date")
+  # print(final_horizon_date)
+  
+  fc_list_q <- list() 
+  extended_q_ts_list <- list()
+  
+  final_year <- final_horizon_date_q[1]
+  final_month <- final_horizon_date_q[2] - 1
+  
+  final_horizon_decimal <- final_year + final_month/4
+  
+  # print("final_horizon_decimal")
+  # print(final_horizon_decimal)
+  
+  
+  for (i in seq_along(vec_of_names)) {
+    
+    this_arima <- fitted_arima_list[[i]]
+    quarterly_series <- data_mts[, vec_of_names[i]]
+    
+    series_date_max <- quarterly_series %>% na.omit() %>% time %>% max
+    # diff_decimal <- final_horizon_decimal - series_date_max 
+    # diff_in_month <- as.integer(12 * diff_decimal)
+    
+    series_date_max_yq <- yearqtr(series_date_max) 
+    # final_horizon_decimal_yq <- yearqtr(final_horizon_decimal)
+    # series_to_final_interval <- lubridate::interval(series_date_max_yq,
+    #                                                 final_horizon_decimal_yq)
+    
+    print("final_horizon_date_q")
+    print(final_horizon_date_q)
+    
+    print("series_date_max_yq")
+    print(series_date_max_yq)
+    
+    diff_in_quarter <- get_hmax_q(final_horizon_date_q, 
+                                  current_data = quarterly_series %>% na.omit())
+    
+    print("diff_in_quarter")
+    print(diff_in_quarter)
+    
+    # print("diff_in_month")
+    # print(diff_in_month)
+    # 
+    
+    
+    # print("fc_mean")
+    # print(fc_mean)
+    
+    
+    if (force_constant) {
+      this_instruction <- order_list[[i]]
+      this_order <- this_instruction[["order"]]
+      this_seasonal <- this_instruction[["seasonal"]]
+      this_constant <- this_instruction[["mean_logical"]]
+      # this_log <- this_instruction[["log_logical"]]
+      
+      this_d <- this_order[2]
+      this_D <- this_seasonal[2]
+      
+      if (this_d + this_D >= 2) {
+        t <- seq(1, length(this_arima$x) + diff_in_quarter)
+        t_sq <- t^2
+        
+        t_fc <- seq(length(this_arima$x) + 1, length(this_arima$x) + diff_in_quarter)
+        t_fc_sq <- t_fc^2
+        
+        this_fc <- forecast(this_arima, h = diff_in_quarter, xreg = t_fc_sq)
+        fc_mean <- this_fc$mean  
+        
+      }
+      
+    } else {
+      this_fc <- forecast(this_arima, h = diff_in_quarter)
+      fc_mean <- this_fc$mean
+    }
+    
+    # extended_monthly_series <- glue_x_mean(monthly_series, fc_mean)
+    extended_quarterly_series <- ts(data = c(na.omit(quarterly_series), fc_mean),
+                                  start = stats::start(na.omit(quarterly_series)),
+                                  frequency = 4)
+    
+    # print("extended_monthly_series")
+    # print(extended_monthly_series)
+    
+    
+    # print("tail(extended_monthly_series)")
+    # print(tail(extended_monthly_series))
+    
+    fc_list_q[[i]] <- this_fc
+    extended_q_ts_list[[i]] <- extended_quarterly_series
+    
+  }
+  
+  names(fc_list_q) <- vec_of_names
+  
+  # print(vec_of_names)
+  
+  names(extended_q_ts_list) <- vec_of_names
+  
+  if (length(vec_of_names) == 1) {
+    ext_quarterly_series_mts <- extended_q_ts_list[[1]]
+    dim(ext_quarterly_series_mts) <- c(length(ext_quarterly_series_mts), 1)
+  } else {
+    ext_quarterly_series_mts <- reduce(extended_q_ts_list, ts.union)
+  }
+  
+  colnames(ext_quarterly_series_mts) <- vec_of_names
+  
+  # print("tail(ext_monthly_series_mts)")
+  # print(tail(ext_monthly_series_mts))
+  
+  index_date <- as.Date(time(ext_quarterly_series_mts))
+  
+  rgdp_start_year <- start_date_gdp[1]
+  rgdp_start_quarter <- start_date_gdp[2]
+  start_gdp_str <- paste0(rgdp_start_year, "-", rgdp_start_quarter, "/")
+  
+  ext_quarterly_series_tbl <- as.tibble(ext_quarterly_series_mts) 
+  ext_quarterly_series_tbl <- cbind(tibble(date = index_date), ext_quarterly_series_tbl)
+  
+  ext_series_xts_quarterly <- tk_xts(ext_quarterly_series_tbl, date_var = date,
+                                   silent = TRUE)
+  
+  xts_q_start <- min(date(ext_series_xts_quarterly))
+  
+  ext_series_ts_quarterly <- tk_ts(ext_series_xts_quarterly, 
+                                   start = c(year(xts_q_start), 
+                                             quarter(xts_q_start)), 
+                                   frequency = 4)
+  
+  # chop off any obs previous to the start of gdp
+  
+  return(list(quarterly_series_ts = ext_series_ts_quarterly,
+              quarterly_series_xts = ext_series_xts_quarterly))
+  
+  # return(ext_series_ts_quarterly)
+  
+}
+
 
 
 facet_rmse_all_h <- function(selected_models_tbl) {
@@ -3115,6 +3266,115 @@ get_extended_monthly_variables <- function(
 }
 
 
+get_extended_quarterly_variables <- function(
+  quarterly_data_ts, final_date, order_list, 
+  order_list_external, data_path, use_demetra = FALSE,
+  do_dm_force_constant = FALSE, do_dm_strict = TRUE, do_auto = TRUE,
+  print_comments_on_constant = FALSE,
+  final_forecast_horizon_q = c(2019, q), method = "ML") {
+  
+  # print("final_forecast_horizon")
+  # print(final_forecast_horizon)
+  
+  
+  quarterly_data_names <- colnames(quarterly_data_ts)
+  
+  gdp_and_dates <- get_rgdp_and_dates(data_path)
+  start_date_gdp <- gdp_and_dates[["gdp_start"]]
+  
+  # at first all NULL and changed only if condition is true
+  fit_arima_quarterly_list_demetra_stata_constants <- NULL
+  qdata_ext_dem_stata  <- NULL
+
+  fit_arima_quarterly_list_demetra_r_constants <- NULL
+  qdata_ext_dem_r <- NULL
+
+  fit_arima_quarterly_list_auto <- NULL
+  qdata_ext_auto_r <- NULL
+
+  
+  if (use_demetra) {
+    if (do_dm_force_constant) {
+      
+      # print("names(order_list)")
+      # print(names(order_list))
+      # 
+      # print("order_list[[monthly_order_list]]")
+      # print(order_list[["monthly_order_list"]])
+      # print("method")
+      # print(method)
+      
+      fit_arima_quarterly_list_demetra_stata_constants <- fit_arimas(
+        y_ts = quarterly_data_ts, order_list = order_list[["monthly_order_list"]],
+        this_arima_names = quarterly_data_names,  force_constant = TRUE, freq = 4,
+        print_comments_on_constant = print_comments_on_constant, method = method)
+      
+      # print("fit_arima_monthly_list_demetra_stata_constants")
+      # print(fit_arima_monthly_list_demetra_stata_constants)
+      
+      
+      qdata_ext_dem_stata <- extend_qtr_variables(
+        data_mts = quarterly_data_ts, 
+        final_horizon_date = final_forecast_horizon_q , 
+        vec_of_names = quarterly_data_names,
+        fitted_arima_list = fit_arima_quarterly_list_demetra_stata_constants,
+        start_date_gdp = start_date_gdp,
+        force_constant = TRUE,
+        order_list = order_list[["quarterly_order_list"]])
+      
+      
+    } 
+    
+    
+    if (do_dm_strict) {
+      fit_arima_monthly_list_demetra_r_constants <- fit_arimas(
+        y_ts = monthly_data_ts, order_list = order_list[["monthly_order_list"]],
+        this_arima_names = monthly_data_names,  force_constant = FALSE, freq = 12,
+        print_comments_on_constant = print_comments_on_constant, include.constant = TRUE)
+
+      
+      qdata_ext_dem_r <- extend_qtr_variables(
+        data_mts = quarterly_data_ts, 
+        final_horizon_date = final_forecast_horizon_q , 
+        vec_of_names = quarterly_data_names, 
+        fitted_arima_list = fit_arima_quarterly_list_demetra_r_constants,
+        start_date_gdp = start_date_gdp,
+        order_list = order_list[["quarterly_order_list"]])
+
+    } 
+  }
+  
+  
+  
+  if (do_auto) {
+    fit_arima_quarterly_list_auto <- fit_arimas(
+      y_ts = quarterly_data_ts, auto = TRUE, my_lambda = NULL, 
+      do_approximation = TRUE, freq = 4, 
+      this_arima_names = quarterly_data_names)
+    
+
+    qdata_ext_auto_r <- extend_qtr_variables(
+      data_mts = quarterly_data_ts, 
+      final_horizon_date = final_forecast_horizon_q , 
+      vec_of_names = quarterly_data_names, 
+      fitted_arima_list = fit_arima_quarterly_list_auto,
+      start_date_gdp = start_date_gdp,
+      order_list = order_list[["quarterly_order_list"]])
+    
+
+  } 
+  
+  
+  return(list(non_external_auto_r = qdata_ext_auto_r,
+              non_external_dm_r = qdata_ext_dem_r,
+              non_external_dm_s = qdata_ext_dem_stata,
+              fit_arima_q_list_dm_s = fit_arima_quarterly_list_demetra_stata_constants,
+              fit_arima_q_list_dm_r = fit_arima_quarterly_list_demetra_r_constants,
+              fit_arima_q_list_auto = fit_arima_quarterly_list_auto))
+  
+}
+
+
 
 get_gdp_start_end <- function(data) {
   
@@ -3262,6 +3522,17 @@ get_hmax_q <- function(final_date_as_vector, current_data, type = "quarterly"){
 
 
 
+get_quarterly_variables <- function(data_path, vars_to_eliminate = 
+                                    c("hlookup")) {
+  data <- read_excel(data_path, sheet = "quarterly")
+  
+  for (variable in vars_to_eliminate) {
+    data[, variable] <- NULL 
+  }
+  
+  return(data)
+}
+
 
 get_monthly_variables <- function(data_path, vars_to_eliminate = 
                                     c("hlookup")) {
@@ -3321,7 +3592,7 @@ get_order_from_arima <- function(arima_obj, suffix = NULL,
 
 
 
-get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
+get_raw_data_ts_old <- function(country = NULL, data_path = "./data/excel/"){
   
   file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
   file_paths <- paste0(data_path, file_names)
@@ -3435,6 +3706,120 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
   
 }
 
+
+get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
+  
+  file_names <- list.files(path = data_path, recursive = T, pattern = '*.xlsx')
+  file_paths <- paste0(data_path, file_names)
+  country_names <- str_extract(file_names, "\\w+(?=\\.xlsx?)")  
+  names(file_paths) <- country_names
+  names(file_names) <- country_names
+  
+  general_variables_to_drop <- list(c("year", "quarter", "hlookup", "rgdp_sa", "trim", 
+                                      "month", "conf_emp", "conf_ibre", "ip_ine", 
+                                      "vta_auto", "exist"))
+  # to make the data work we have to delete "m2" for argentina, "imp_int", "imp_k" for Ecuador and 
+  # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
+  extra_vars_to_drop <- list(Argentina = c("emae", "", "", "", "", "", "", "", "", "", ""), 
+                             Bolivia = c("igae", "hidrocarburo", "", "", "", "", "", "", "", "", "", ""), 
+                             Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
+                             Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
+                             Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
+                             Uruguay = c("cred", "imp_nonpetro", "", "", "", "", "", "", "", ""))
+  
+  variables_to_drop <- map2(extra_vars_to_drop, general_variables_to_drop, c)
+  
+  if (!is.null(country)) {
+    file_paths <- file_paths[country]
+    file_names <- file_names[country]
+    country_names <- country
+  }
+  
+  if (length(country == 1)) {
+    is_single_country <- TRUE
+  } else {
+    is_single_country <- FALSE
+  }
+  
+  all_files_q <- list_along(country_names)
+  all_files_m <- list_along(country_names)
+  all_files_m_q <- list_along(country_names)
+  countries_merged_q_m <- list_along(country_names)
+  countries_merged_q_m_ts <- list_along(country_names)
+  
+  
+  
+  for (i in seq_along(country_names)) {
+    
+    this_q <- read_excel(file_paths[i], sheet = "quarterly")
+    this_q <- as_tbl_time(this_q, index = date)
+    this_q <- dplyr::select(this_q, -c(year, hlookup))
+    
+    this_country <- country_names[i]
+    this_variables_to_drop <- variables_to_drop[[this_country]]
+    
+    
+    if(country_names[i] == "Uruguay") {
+      this_q[, "rm"] <- - this_q[, "rm"]
+    }
+    
+    
+    all_files_q[[i]] <- this_q
+    
+    this_m <- read_excel(file_paths[i], sheet = "monthly")
+    this_m <- as_tbl_time(this_m, index = date)
+    all_files_m[[i]] <- this_m
+    
+    this_m_q <- this_m  %>%
+      collapse_by(period = "quarterly") %>%
+      group_by(date) %>% transmute_all(mean) %>%
+      distinct(date, .keep_all = TRUE) %>% 
+      ungroup() 
+    
+    all_files_m_q[[i]] <- this_m_q
+    
+    m_and_q <- left_join(this_q, this_m_q, by = "date")
+    
+    # this_vars_to_drop <- variables_to_drop[[i]]
+    m_and_q <- drop_this_vars(m_and_q, this_variables_to_drop)
+    
+    # m_and_q$year <- NULL
+    # m_and_q$quarter <- NULL
+    # m_and_q$month <- NULL
+    # m_and_q$hlookup <- NULL
+    # m_and_q$trim <- NULL
+    
+    
+    maq_start <- first(tk_index(m_and_q))
+    m_and_q_ts <- suppressWarnings(tk_ts(m_and_q, frequency = 4, 
+                                         start = c(year(maq_start), quarter(maq_start))))
+    
+    countries_merged_q_m[[i]] <- m_and_q
+    countries_merged_q_m_ts[[i]] <- m_and_q_ts
+    
+  }
+  
+  names(all_files_q) <- country_names
+  names(all_files_m) <- country_names
+  names(all_files_m_q) <- country_names
+  names(countries_merged_q_m) <- country_names
+  names(countries_merged_q_m_ts) <- country_names
+  
+  # countries_merged_q_m <- countries_merged_q_m %>% 
+  #   dplyr::select(-c(year, quarter, month, hlookup))
+  
+  if (is_single_country) {
+    return(countries_merged_q_m_ts[[1]])
+  } else {
+    return(countries_merged_q_m_ts)
+  }
+  
+  
+}
 
 
 
@@ -3879,20 +4264,34 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
     group_by(horizon) %>%
     summarise(sum_one_h = reduce(weighted_fc_at_h, sum))
   
-  w_fc_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
+  print(" w_ave_fc_tbl ")
+  print( w_ave_fc_tbl )
+  
+  
+  if (model_type == "Arima") {
+    w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = rgdp_ts_in_arima)
+  }
+  
+  
+  if (model_type == "VAR") {
+    w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
+  }
+  
+  
   
   fc_for_plot <- tibble_fit_and_fcs %>% 
-  select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse)
+  select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse, 
+         model_weight_h)
 
   ensemble_model_tbl <- tibble(short_name = "ensemble", 
                                model_function = "weighted_average",
-                             fc_yoy = w_fc_ts, fc_at_h = NA, rmse_h = "rmse_1",
-                             rmse = 0.00001)
+                             fc_yoy = w_fc_yoy_ts, fc_at_h = NA, rmse_h = "rmse_1",
+                             rmse = 0.00001, model_weight_h = 1)
   
   fc_for_plot <- rbind(fc_for_plot, ensemble_model_tbl)
   
   return(list(info_fit_ifcs = tibble_fit_and_fcs,
-              w_fc_ts = w_fc_ts,
+              w_fc_yoy_ts = w_fc_yoy_ts,
               fc_for_plot = fc_for_plot))
 }
 
@@ -4353,6 +4752,36 @@ make_models_tbl_rm <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
   return(models_rmse_at_each_h)
 }
 
+
+make_quarterly_ts <- function(data, 
+                            names_to_exclude = c("date", "year", "quarter")) {
+  
+  
+  min_date <- min(date(data$date)) 
+  
+  start_year <- year(min_date)
+  start_quarter <- quarter(min_date)
+  
+  all_names <- names(data)
+  names_to_keep <- all_names[!str_detect(all_names, names_to_exclude)]
+  
+  data_ts <- tk_ts(data, frequency = 4, 
+                   start = c(start_year, start_quarter),
+                   silent = TRUE)
+  
+  data_ts <- data_ts[ , names_to_keep]
+  
+  # print("data_ts")
+  # print(data_ts)
+  
+  if (is.null(dim(data_ts))) {
+    dim(data_ts) <- c(length(data_ts), 1)
+    colnames(data_ts) <- names_to_keep
+  }
+  
+  
+  return(data_ts)
+}
 
 
 
@@ -5388,7 +5817,8 @@ transform_cv <- function(list_series, series_name, current_form,
 }
 
 
-ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
+ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE,
+                              get_quarterly_data = FALSE, log_q_variables = FALSE) {
   
   
   gdp_and_dates <- get_rgdp_and_dates(data_path)
@@ -5403,6 +5833,14 @@ ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
   external_monthly_ts <- make_monthly_ts(external_monthly_data)
   external_monthly_names <- colnames(external_monthly_ts)
   
+  if(get_quarterly_data) {
+    quarterly_data <- get_quarterly_variables(data_path = data_path)
+    quarterly_ts <- make_quarterly_ts(quarterly_data)
+    quarterly_names <- colnames(quarterly_ts)
+  } else {
+    quarterly_ts <- NULL
+  }
+  
   
   rgdp_ts <- ts(data = gdp_and_dates[["gdp_data"]], 
                 start = gdp_and_dates[["gdp_start"]], frequency = 4)
@@ -5413,8 +5851,16 @@ ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE) {
     rgdp_ts <- log(rgdp_ts)
   }
   
+  
+  if (log_q_variables) {
+    quarterly_ts  <- log(quarterly_ts)
+  }
+  
+  
   ret_list <- list(
-    monthly_ts = monthly_ts, external_monthly_ts = external_monthly_ts,
+    monthly_ts = monthly_ts, 
+    quarterly_ts = quarterly_ts,
+    external_monthly_ts = external_monthly_ts,
     rgdp_ts = rgdp_ts)
 }
 
