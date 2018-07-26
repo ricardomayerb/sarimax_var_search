@@ -303,7 +303,7 @@ watermark_cepal <- matrix(rgb(img[,,1],img[,,2],img[,,3], img[,,3.5] * 0.4), nro
 
 # Start of the Script
 
-country_name <- "Bolivia"
+country_name <- "Argentina"
 
 # Optional: Estimate (and Save) new Arimax RDS file
 

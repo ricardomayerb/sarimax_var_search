@@ -1176,8 +1176,6 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
       earliest_end <- stats::end(y_ts)
     }
     
-
-
     procrustean_y <- window(y_ts, start = latest_start, end = earliest_end, 
                             frequency = 4)
 
@@ -1187,9 +1185,6 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
     n_x <- length(procrustean_x)
     n_y <- length(procrustean_y)
     
-    # print("n_x == n_y")
-    # print(n_x == n_y)
-
     cv_errors_this_x <- list_along(1:n_cv)
     cv_yoy_errors_this_x  <- list_along(1:n_cv)
     cv_logdiff_errors_this_x  <- list_along(1:n_cv)
@@ -1209,12 +1204,6 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
       start_test_index_x <- end_training_index_x + 1
       end_test_index_x <- start_test_index_x + h_max - 1
 
-      # print("start_training_index_y")
-      # print(start_training_index_y)
-      # 
-      # print("start_training_index_x")
-      # print(start_training_index_x)
-      
       training_y <- subset(y_ts, 
                            start = start_training_index_y,
                            end = end_training_index_y)
@@ -1225,64 +1214,164 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
       test_y <- subset(y_ts, 
                        start = start_test_index_y,
                        end = end_test_index_y)
-      # this is wrong, to simulate what the model does, we need to use forecasted x's, not realized ones
-      # test_x <- window(x_series,
-      #                  start = stats::start(test_y),
-      #                  end = stats::end(test_y))
       
-      # arima_of_x <- 
       if(use_demetra) {
         this_x_order_list <- x_order_list[[x]]
         this_x_order <- this_x_order_list[["order"]]
         this_x_seasonal <- this_x_order_list[["order"]]
-        
-        # print("vec_of_names[x]")
-        # print(vec_of_names[x])
-        # print("this_x_order_list")
-        # print(this_x_order_list)
-        # print("this_x_order")
-        # print(this_x_order)
-        # print("this_x_seasonal")
-        # print(this_x_seasonal)
-        
+
         this_x_d <- this_x_order[2]
         this_x_D <- this_x_seasonal[2]
-        
-        
-        
-        
+
+        condition_for_sq_trend <- force.constant & (this_x_d + this_x_D >= 2)
+
+        if(condition_for_sq_trend) {
+
+          sq_trend_x_arima <- seq(1, length(training_x))^2
+          this_x_arima <- try(
+            Arima(y = training_x, order = this_x_order, 
+                  seasonal = this_x_seasonal, xreg = sq_trend_x_arima,
+                  include.constant = TRUE, method = method))
+          class_x_arima <- class(this_x_arima)[1]
+          
+          if (class_x_arima == "try-error") {
+            warn_msg <- paste("in cv_arimax, extending xreg", 
+                              vec_of_names[x],", ML fails. Swtiching to CSS-ML")
+            warning(warn_msg)
+            new_method <- "CSS-ML"
+            
+            this_x_arima <- try(Arima(y = training_x, order = this_x_order, 
+                      seasonal = this_x_seasonal, xreg = sq_trend_x_arima,
+                      include.constant = TRUE, method = method))
+             
+            class_x_arima_2 <- class(this_x_arima)[1]
+            
+            if (class_x_arima_2 == "try-error") {
+              warn_msg <- paste("in cv_arimax, extending xreg", 
+                                vec_of_names[x],", CSS-ML fails. Swtiching to CSS")
+              warning(warn_msg)
+              new_new_method <- "CSS"
+              
+              this_x_arima <- try(Arima(y = training_x, order = this_x_order, 
+                                        seasonal = this_x_seasonal, xreg = sq_trend_x_arima,
+                                        include.constant = FALSE, method = "CSS"))
+              
+              class_x_arima_3 <- class(this_x_arima)[1]
+              
+              if (class_x_arima_3 == "try-error") {
+                warn_msg <- paste("in cv_arimax, extending xreg", 
+                                  vec_of_names[x],", CSS fails. Swtiching to auto.arima")
+                warning(warn_msg)
+                
+                this_x_arima <- auto.arima(y = training_x, approximation = FALSE, 
+                                           stepwise = FALSE, xreg = sq_trend_x_arima)
+              }
+            }
+          }
+          sq_trend_x_fc <- seq(length(training_x) + 1,
+                               length(training_x) + length(test_y))^2
+          
+          fc_this_x <- forecast(this_x_arima, h = length(test_y), 
+                                xreg = sq_trend_x_fc)
+        } else {
+          this_x_arima <- try(
+            Arima(y = training_x, order = this_x_order, 
+                  seasonal = this_x_seasonal, 
+                  include.constant = TRUE, method = method)
+          )
+          
+          class_x_arima <- class(this_x_arima)[1]
+
+          if (class_x_arima == "try-error") {
+            # print("doing CSS-ML non sq") 
+            warn_msg <- paste("in cv_arimax, extending xreg", 
+                              vec_of_names[x],", ML fails. Swtiching to CSS-ML")
+            warning(warn_msg)
+            new_method <- "CSS-ML"
+            this_x_arima <- try(
+                Arima(y = training_x, order = this_x_order, 
+                      seasonal = this_x_seasonal,
+                      include.constant = TRUE, method = method))
+            class_x_arima_2 <- class(this_x_arima)[1]
+            print("class_x_arima_2")
+            print(class_x_arima_2)
+            
+            if (class_x_arima_2 == "try-error") {
+              
+              warn_msg <- paste("in cv_arimax, extending xreg", 
+                                vec_of_names[x],", CSS-ML fails. Swtiching to CSS")
+              warning(warn_msg)
+              
+              new_new_method <- "CSS"
+              
+              this_x_arima <- try(Arima(y = training_x, order = this_x_order, 
+                                        seasonal = this_x_seasonal,
+                                        include.constant = FALSE, method = "CSS"))
+              
+              class_x_arima_3 <- class(this_x_arima)[1]
+              print("class_x_arima_3")
+              print(class_x_arima_3)
+              
+              if (class_x_arima_3 == "try-error") {
+                print("ML, CSS-ML and CSS failed. Trying auto.arima")
+                
+                this_x_arima <- auto.arima(y = training_x, approximation = FALSE, 
+                                           stepwise = FALSE)
+                
+              }
+            }
+          }
+          
+
+          fc_this_x <- forecast(this_x_arima, h = length(test_y))
+        }
       }
       
-      test_x <- window(x_series,
+
+      test_x <- fc_this_x$mean
+      x_series_pre_test <- window(x_series, end = end(training_y))
+      x_series_with_fc <- ts(c(x_series_pre_test, test_x), frequency = 4,
+                             start = start(x_series_pre_test))
+      
+      
+      test_x_perfect_foresight <- window(x_series,
                        start = stats::start(test_y),
                        end = stats::end(test_y))
-
-
       
-      this_arimax_list <- my_arimax(y_ts = y_ts, xreg_ts = x_series, 
+      this_arimax_list <- my_arimax(y_ts = y_ts, xreg_ts = x_series_with_fc, 
                                     y_order = y_order, y_seasonal = y_seasonal,
                                     vec_of_names = this_arima_name, xreg_lags = xreg_lags,
                                     method = method, force.constant = force.constant,
                                     y_include_mean = y_include_drift,
                                     procrust_start = stats::start(training_y),
-                                    procrust_end = stats::end(training_y)
-      )
+                                    procrust_end = stats::end(training_y))
       
-      # print("names(this_arimax_list)") 
-      # print(names(this_arimax_list))
+      # this_arimax_list <- my_arimax(y_ts = y_ts, xreg_ts = x_series, 
+      #                               y_order = y_order, y_seasonal = y_seasonal,
+      #                               vec_of_names = this_arima_name, xreg_lags = xreg_lags,
+      #                               method = method, force.constant = force.constant,
+      #                               y_include_mean = y_include_drift,
+      #                               procrust_start = stats::start(training_y),
+      #                               procrust_end = stats::end(training_y))
       
+
       this_arimax <- this_arimax_list[[names(this_arimax_list)]]
-
-
-      # this_fc <- forecast(this_arimax, h = h_max, xreg = test_x)
-      # print(test_x)
+      
       this_fc_list <- forecast_xreg(arimax_list = this_arimax_list, 
-                               h = length(test_y), 
-                               xreg_mts = x_series,
-                               xreg_lags = xreg_lags, 
-                               vec_of_names = this_arima_name, 
-                               force.constant = force.constant
-                               )
+                                    h = length(test_y), 
+                                    xreg_mts = x_series_with_fc,
+                                    xreg_lags = xreg_lags, 
+                                    vec_of_names = this_arima_name, 
+                                    force.constant = force.constant
+      )
+
+      # this_fc_list <- forecast_xreg(arimax_list = this_arimax_list, 
+      #                          h = length(test_y), 
+      #                          xreg_mts = x_series,
+      #                          xreg_lags = xreg_lags, 
+      #                          vec_of_names = this_arima_name, 
+      #                          force.constant = force.constant
+      #                          )
       
       this_fc <- this_fc_list[[this_arima_name]]
       
@@ -3754,7 +3843,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
                              Brasil = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
-                             Ecuador = c("imp_int", "imp_k", "", "", "", "", "", "", "", "", "", ""), 
+                             Ecuador = c("confianza_con", "confianza_emp", "m1", "rm", "", "", "", "", "", ""), 
                              Mexico = c("imp_consumer", "imp_intermediate", "imp_capital", "", "", "", "", "", "", "", "", ""), 
                              Paraguay = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Peru = c("expec_demand", "", "", "", "", "", "", "", "", "", "", ""),
@@ -5554,7 +5643,7 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     
     if ( force.constant & (this_d + this_D) >= 2) {
       
-      print("Adding a deterministic quadractic trend")
+      # print("Adding a deterministic quadractic trend")
       
       xtrend <- seq(1, length(procrustean_y))^2
       
@@ -6035,6 +6124,10 @@ try_sizes_vbls_lags <- function(var_data, rgdp_yoy_ts, rgdp_level_ts, target_v, 
     
     if (rgdp_current_form == "diff") {
       auxiliary_ts <-  rgdp_level_ts
+      
+      
+      
+      
     }
     
     

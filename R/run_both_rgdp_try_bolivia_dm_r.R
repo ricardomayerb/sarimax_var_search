@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_dm_s"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Paraguay"
+country_name <- "Argentina"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -147,6 +147,8 @@ cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               h_max = h_max,
                               force.constant = use_dm_force_constant)
 toc()
+
+
 
 tic()
 arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
