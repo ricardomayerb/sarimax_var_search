@@ -50,6 +50,9 @@ if (use_demetra) {
   demetra_output <- get_demetra_params(data_path)
   demetra_output_external <- get_demetra_params(external_data_path)
   
+  demetra_order_internal_external <- c(demetra_output[["monthly_order_list"]],
+                                        demetra_output_external[["monthly_order_list"]])
+  
   rgdp_order_list <- demetra_output[["rgdp_order_list"]][[1]]
   
   fit_arima_rgdp_list_dem <- fit_arimas(
@@ -80,6 +83,7 @@ if (use_demetra) {
   }
 } else {
   do_auto <- TRUE
+  demetra_order_internal_external <- NULL
   fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
                                          this_arima_names = "rgdp", 
                                          my_lambda = NULL,
@@ -134,11 +138,14 @@ cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               rgdp_arima = this_rgdp_arima,
                               max_x_lag = max_x_lag,
                               rgdp_order_list = rgdp_order_list,
+                              x_order_list = demetra_order_internal_external,
+                              use_demetra = use_demetra,
                               n_cv = number_of_cv, 
                               test_length = test_length,
                               data_is_log_log = is_log_log, 
                               training_length = train_span,
-                              h_max = h_max)
+                              h_max = h_max,
+                              force.constant = use_dm_force_constant)
 toc()
 
 tic()

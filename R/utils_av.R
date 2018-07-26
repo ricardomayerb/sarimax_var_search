@@ -1125,7 +1125,9 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                           s4xreg = FALSE,
                           xreg_lags = NULL,
                           data_is_log_log = FALSE,
-                          force.constant = FALSE) {
+                          force.constant = FALSE,
+                      use_demetra = FALSE,
+                      x_order_list = NULL) {
   
 
   i = 1
@@ -1229,6 +1231,27 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
       #                  end = stats::end(test_y))
       
       # arima_of_x <- 
+      if(use_demetra) {
+        this_x_order_list <- x_order_list[[x]]
+        this_x_order <- this_x_order_list[["order"]]
+        this_x_seasonal <- this_x_order_list[["order"]]
+        
+        # print("vec_of_names[x]")
+        # print(vec_of_names[x])
+        # print("this_x_order_list")
+        # print(this_x_order_list)
+        # print("this_x_order")
+        # print(this_x_order)
+        # print("this_x_seasonal")
+        # print(this_x_seasonal)
+        
+        this_x_d <- this_x_order[2]
+        this_x_D <- this_x_seasonal[2]
+        
+        
+        
+        
+      }
       
       test_x <- window(x_series,
                        start = stats::start(test_y),
@@ -2797,7 +2820,8 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names,
                              test_length = 8, n_cv = 8, training_length = 16, 
                              method = "ML", max_x_lag = 2, data_is_log_log = FALSE,
                              y_include_drift = TRUE, rgdp_order_list = NULL,
-                             force.constant = FALSE) {
+                             force.constant = FALSE,
+                             use_demetra = FALSE, x_order_list = NULL) {
   
   # demetra_rgdp_mean_logical <-  rgdp_order_list[["mean_logical"]]
   
@@ -2819,7 +2843,9 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names,
                                 xreg_lags = 0:i, 
                                 data_is_log_log = data_is_log_log, 
                                 y_include_drift = y_include_drift,
-                                force.constant = force.constant)
+                                force.constant = force.constant,
+                                use_demetra = use_demetra, 
+                                x_order_list = x_order_list)
     
     list_cv_of_arimax[[i + 1]]  <- this_cv_arimax
   }
@@ -2833,7 +2859,9 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names,
 get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag, 
                                    rgdp_order_list, n_cv, test_length, 
                                    data_is_log_log, training_length, h_max,
-                                   force.constant = FALSE) {
+                                   force.constant = FALSE,
+                                   x_order_list = NULL,
+                                   use_demetra = FALSE) {
   
   gdp_order <- get_order_from_arima(rgdp_arima)[[1]]
   rgdp_order <-  gdp_order[c("p", "d", "q")]
@@ -2848,7 +2876,8 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
     y_seasonal = rgdp_seasonal, x_names = monthly_names, 
     data_is_log_log = data_is_log_log, n_cv = n_cv,
     max_x_lag = max_x_lag, y_include_drift = rgdp_mean_logical, 
-    force.constant = force.constant
+    force.constant = force.constant, use_demetra = use_demetra,
+    x_order_list = x_order_list
   )
   
   cv_rgdp_arima_list <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
@@ -3101,7 +3130,7 @@ get_demetra_params <- function(data_path) {
 
 
 get_extended_monthly_variables <- function(
-  monthly_data_ts, monthly_data_external_ts, final_date, order_list, 
+  monthly_data_ts, monthly_data_external_ts, order_list, 
   order_list_external, data_path, use_demetra = TRUE,
   do_dm_force_constant = FALSE, do_dm_strict = TRUE, do_auto = FALSE,
   print_comments_on_constant = FALSE,
@@ -3267,7 +3296,7 @@ get_extended_monthly_variables <- function(
 
 
 get_extended_quarterly_variables <- function(
-  quarterly_data_ts, final_date, order_list, 
+  quarterly_data_ts, order_list, 
   order_list_external, data_path, use_demetra = FALSE,
   do_dm_force_constant = FALSE, do_dm_strict = TRUE, do_auto = TRUE,
   print_comments_on_constant = FALSE,
