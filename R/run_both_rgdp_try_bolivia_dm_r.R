@@ -126,14 +126,21 @@ toc()
 
 internal_mdata_ext_ts <- extended_data[[this_non_external]][["quarterly_series_ts"]]
 external_mdata_ext_ts <- extended_data[[this_external]][["quarterly_series_ts"]]
-
 mdata_ext_ts <- ts.union(internal_mdata_ext_ts, external_mdata_ext_ts)
 monthly_names <- c(internal_monthly_names, external_monthly_names)
 colnames(mdata_ext_ts) <- monthly_names
 
+internal_mdata_ext_ts_monthly <- extended_data[[this_non_external]][["monthly_series_ts"]]
+external_mdata_ext_ts_monthly <- extended_data[[this_external]][["monthly_series_ts"]]
+mdata_ext_ts_monthly <- ts.union(internal_mdata_ext_ts_monthly, external_mdata_ext_ts_monthly)
+colnames(mdata_ext_ts_monthly) <- monthly_names
+
+
+
 ####### ----------- gob   ---
 tic()
 cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
+                              xreg_ts_monthly = mdata_ext_ts_monthly,
                               xreg_ts = mdata_ext_ts,
                               rgdp_arima = this_rgdp_arima,
                               max_x_lag = max_x_lag,
