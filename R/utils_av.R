@@ -1215,124 +1215,47 @@ cv_arimax <- function(y_ts, xreg_ts, h_max, n_cv, training_length,
                        start = start_test_index_y,
                        end = end_test_index_y)
       
-      if(use_demetra) {
+      end_ym_for_ext <-  as.yearmon(max(time(test_y)))
+      fin_date_for_ext <- c(year(end_ym_for_ext), month(end_ym_for_ext))
+      
+      if (use_demetra) {
         this_x_order_list <- x_order_list[[x]]
-        this_x_order <- this_x_order_list[["order"]]
-        this_x_seasonal <- this_x_order_list[["order"]]
+        
+        print(this_x_order_list)
 
-        this_x_d <- this_x_order[2]
-        this_x_D <- this_x_seasonal[2]
+        this_x_extended <- get_extended_one_monthly_variable(
+          monthly_variable_ts = training_x, order_list = this_x_order_list, 
+          use_demetra = TRUE,
+          do_dm_force_constant = force.constant,
+          do_auto = FALSE,
+          print_comments_on_constant = FALSE,
+          final_forecast_horizon = fin_date_for_ext, method = "ML",
+          start_date = start(training_x))
+        
+        print("jyyyyyyyyy")
+        
+      }
 
-        condition_for_sq_trend <- force.constant & (this_x_d + this_x_D >= 2)
+      if (!use_demetra) {
+        this_x_order_list <- x_order_list[[x]]
 
-        if(condition_for_sq_trend) {
-
-          sq_trend_x_arima <- seq(1, length(training_x))^2
-          this_x_arima <- try(
-            Arima(y = training_x, order = this_x_order, 
-                  seasonal = this_x_seasonal, xreg = sq_trend_x_arima,
-                  include.constant = TRUE, method = method))
-          class_x_arima <- class(this_x_arima)[1]
-          
-          if (class_x_arima == "try-error") {
-            warn_msg <- paste("in cv_arimax, extending xreg", 
-                              vec_of_names[x],", ML fails. Swtiching to CSS-ML")
-            warning(warn_msg)
-            new_method <- "CSS-ML"
-            
-            this_x_arima <- try(Arima(y = training_x, order = this_x_order, 
-                      seasonal = this_x_seasonal, xreg = sq_trend_x_arima,
-                      include.constant = TRUE, method = method))
-             
-            class_x_arima_2 <- class(this_x_arima)[1]
-            
-            if (class_x_arima_2 == "try-error") {
-              warn_msg <- paste("in cv_arimax, extending xreg", 
-                                vec_of_names[x],", CSS-ML fails. Swtiching to CSS")
-              warning(warn_msg)
-              new_new_method <- "CSS"
-              
-              this_x_arima <- try(Arima(y = training_x, order = this_x_order, 
-                                        seasonal = this_x_seasonal, xreg = sq_trend_x_arima,
-                                        include.constant = FALSE, method = "CSS"))
-              
-              class_x_arima_3 <- class(this_x_arima)[1]
-              
-              if (class_x_arima_3 == "try-error") {
-                warn_msg <- paste("in cv_arimax, extending xreg", 
-                                  vec_of_names[x],", CSS fails. Swtiching to auto.arima")
-                warning(warn_msg)
-                
-                this_x_arima <- auto.arima(y = training_x, approximation = FALSE, 
-                                           stepwise = FALSE, xreg = sq_trend_x_arima)
-              }
-            }
-          }
-          sq_trend_x_fc <- seq(length(training_x) + 1,
-                               length(training_x) + length(test_y))^2
-          
-          fc_this_x <- forecast(this_x_arima, h = length(test_y), 
-                                xreg = sq_trend_x_fc)
-        } else {
-          this_x_arima <- try(
-            Arima(y = training_x, order = this_x_order, 
-                  seasonal = this_x_seasonal, 
-                  include.constant = TRUE, method = method)
-          )
-          
-          class_x_arima <- class(this_x_arima)[1]
-
-          if (class_x_arima == "try-error") {
-            # print("doing CSS-ML non sq") 
-            warn_msg <- paste("in cv_arimax, extending xreg", 
-                              vec_of_names[x],", ML fails. Swtiching to CSS-ML")
-            warning(warn_msg)
-            new_method <- "CSS-ML"
-            this_x_arima <- try(
-                Arima(y = training_x, order = this_x_order, 
-                      seasonal = this_x_seasonal,
-                      include.constant = TRUE, method = method))
-            class_x_arima_2 <- class(this_x_arima)[1]
-            print("class_x_arima_2")
-            print(class_x_arima_2)
-            
-            if (class_x_arima_2 == "try-error") {
-              
-              warn_msg <- paste("in cv_arimax, extending xreg", 
-                                vec_of_names[x],", CSS-ML fails. Swtiching to CSS")
-              warning(warn_msg)
-              
-              new_new_method <- "CSS"
-              
-              this_x_arima <- try(Arima(y = training_x, order = this_x_order, 
-                                        seasonal = this_x_seasonal,
-                                        include.constant = FALSE, method = "CSS"))
-              
-              class_x_arima_3 <- class(this_x_arima)[1]
-              print("class_x_arima_3")
-              print(class_x_arima_3)
-              
-              if (class_x_arima_3 == "try-error") {
-                print("ML, CSS-ML and CSS failed. Trying auto.arima")
-                
-                this_x_arima <- auto.arima(y = training_x, approximation = FALSE, 
-                                           stepwise = FALSE)
-                
-              }
-            }
-          }
-          
-
-          fc_this_x <- forecast(this_x_arima, h = length(test_y))
-        }
+        this_x_extended <- get_extended_one_monthly_variable(
+          monthly_variable_ts = training_x, this_x_order_list, 
+          use_demetra = FALSE,
+          do_dm_force_constant = FALSE,
+          do_auto = TRUE,
+          print_comments_on_constant = FALSE,
+          final_forecast_horizon = fin_date_for_ext, method = "ML",
+          start_date = start(training_x))
       }
       
 
-      test_x <- fc_this_x$mean
-      x_series_pre_test <- window(x_series, end = end(training_y))
-      x_series_with_fc <- ts(c(x_series_pre_test, test_x), frequency = 4,
-                             start = start(x_series_pre_test))
+      # test_x <- fc_this_x$mean
+      # x_series_pre_test <- window(x_series, end = end(training_y))
+      # x_series_with_fc <- ts(c(x_series_pre_test, test_x), frequency = 4,
+      #                        start = start(x_series_pre_test))
       
+      x_series_with_fc <- this_x_extended
       
       test_x_perfect_foresight <- window(x_series,
                        start = stats::start(test_y),
@@ -1795,8 +1718,6 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   ext_series_xts_monthly <- tk_xts(ext_monthly_series_tbl, date_var = date,
                                    silent = TRUE)
   
-  
-  
   ext_series_xts_quarterly <- apply.quarterly(ext_series_xts_monthly , 
                                               mean, na.rm = TRUE)
   ext_series_xts_quarterly <- ext_series_xts_quarterly[start_gdp_str]
@@ -1812,9 +1733,7 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   # chop off any obs previous to the start of gdp
   
   return(list(quarterly_series_ts = ext_series_ts_quarterly,
-              quarterly_series_xts = ext_series_xts_quarterly,
-              monthly_series_ts = ext_monthly_series_mts,
-              monthly_series_xts = ext_series_xts_monthly))
+              quarterly_series_xts = ext_series_xts_quarterly))
   
   # return(ext_series_ts_quarterly)
   
@@ -2142,6 +2061,15 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
 
       this_d <- this_order[2]
       this_D <- this_seasonal[2]
+      
+      print("this_order")
+      print(this_order)
+      
+      print("this_D")
+      print(this_D)
+
+      print("this_d")
+      print(this_d)
 
       if ( (this_D + this_d) >= 2) {
         
@@ -3222,6 +3150,80 @@ get_demetra_params <- function(data_path) {
 }
 
 
+get_extended_one_monthly_variable <- function(
+  monthly_variable_ts, order_list, 
+  use_demetra = TRUE,
+  do_dm_force_constant = FALSE, do_auto = FALSE,
+  print_comments_on_constant = FALSE,
+  final_forecast_horizon = c(2019, 12), method = "ML",
+  start_date = NULL) {
+  # print("final_forecast_horizon")
+  # print(final_forecast_horizon)
+  
+  
+  monthly_variable_name <- colnames(monthly_variable_ts)
+  
+  # at first all NULL and changed only if condition is true
+  fit_arima_monthly <- NULL
+  mdata_ext  <- NULL
+
+  if (use_demetra) {
+      # print("names(order_list)")
+      # print(names(order_list))
+      # 
+      # print("order_list[[monthly_order_list]]")
+      # print(order_list[["monthly_order_list"]])
+      # print("method")
+      # print(method)
+    
+    print("order_list[[monthly_order_list]]")
+    print(order_list[["monthly_order_list"]])
+    
+    fit_arima_monthly <- fit_arimas(
+        y_ts = monthly_variable_ts, order_list = order_list[["monthly_order_list"]],
+        this_arima_names = monthly_variable_name,  
+        force_constant = do_dm_force_constant, freq = 12,
+        print_comments_on_constant = print_comments_on_constant, method = method)
+      
+      # print("fit_arima_monthly")
+      # print(fit_arima_monthly)
+      
+      mdata_ext <- extend_and_qtr(
+        data_mts = monthly_variable_ts, 
+        final_horizon_date = final_forecast_horizon , 
+        vec_of_names = monthly_variable_name,
+        fitted_arima_list = fit_arima_monthly,
+        start_date_gdp = start_date,
+        force_constant = TRUE,
+        order_list = order_list[["monthly_order_list"]])
+    } 
+    
+    
+
+  if (do_auto) {
+    fit_arima_monthly <- fit_arimas(
+      y_ts = monthly_variable_ts, auto = TRUE, my_lambda = NULL, 
+      do_approximation = TRUE,
+      freq = 12, this_arima_names = monthly_variable_name)
+
+    mdata_ext <- extend_and_qtr(
+      data_mts = monthly_variable_ts, 
+      final_horizon_date = final_forecast_horizon , 
+      vec_of_names = monthly_variable_name, 
+      fitted_arima_list = fit_arima_monthly,
+      start_date_gdp = start_date,
+      order_list = order_list[["monthly_order_list"]])
+  } 
+
+  return(list(non_external = mdata_ext,
+              fit_arima = fit_arima_monthly))
+}
+
+
+
+
+
+
 get_extended_monthly_variables <- function(
   monthly_data_ts, monthly_data_external_ts, order_list, 
   order_list_external, data_path, use_demetra = TRUE,
@@ -3386,6 +3388,9 @@ get_extended_monthly_variables <- function(
               fit_arima_m_list_auto = fit_arima_monthly_list_auto,
               fit_arima_e_list_auto = fit_arima_external_monthly_list_auto))
 }
+
+
+
 
 
 get_extended_quarterly_variables <- function(
