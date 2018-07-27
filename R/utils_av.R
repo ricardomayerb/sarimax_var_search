@@ -2916,8 +2916,8 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal, x_names,
   
   list_cv_of_arimax <- list()
   
-  # print("in get_cv_of_arimax max_x_lag is")
-  # print(max_x_lag)
+  print("in get_cv_of_arimax x_order_list is")
+  print(x_order_list)
   
   for (i in 0:max_x_lag) {
     this_cv_arimax <- cv_arimax(y_ts = y_ts, 
@@ -2957,6 +2957,10 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, rgdp_arima, max_x_lag,
   rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
   rgdp_mean_logical <- rgdp_order_list[["mean_logical"]]
   monthly_names <- colnames(xreg_ts)
+  
+  
+  print("in cv_arimax, x_order_list:")
+  print(x_order_list)
   
   
   cv_arimax_0_to_2 <- get_cv_of_arimax(
