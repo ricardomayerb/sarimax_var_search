@@ -1119,13 +1119,16 @@ cv_obs_fc_back_from_diff <- function(yoy_ts, diff_ts, training_length,
 
 
 cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
-                      training_length, y_order, y_seasonal, x_order,
-                      x_seasonal, y_include_drift = TRUE, vec_of_names = NULL,
+                      training_length, y_order, y_seasonal,
+                      y_include_drift = TRUE, vec_of_names = NULL,
                       method = "ML", s4xreg = FALSE, xreg_lags = NULL,
                       data_is_log_log = FALSE, force.constant = FALSE,
                       use_demetra = FALSE, x_order_list = NULL) {
   
   
+  
+  # print("starting cv_arimx, force.constant is")
+  # print(force.constant)
   
   # print("in cv_arimx, x_order_list is")
   # print(x_order_list)
@@ -1220,34 +1223,34 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
                        end = end_test_index_y)
       
       
-      print("training_y")
-      print(training_y)
-      print("training_x")
-      print(training_x)
-      print("x_series")
-      print(x_series)
-      print("test_y")
-      print(test_y)
+      # print("training_y")
+      # print(training_y)
+      # print("training_x")
+      # print(training_x)
+      # print("x_series")
+      # print(x_series)
+      # print("test_y")
+      # print(test_y)
       
       # end_ym_for_ext <-  as.yearmon(max(time(test_y)))
       end_yq_of_training <- as.yearqtr(max(time(training_y)))
       final_year_month_of_training <- c(year(end_yq_of_training ), 3*quarter(end_yq_of_training ))
-      print("final_year_month_of_training")
-      print(final_year_month_of_training)
+      # print("final_year_month_of_training")
+      # print(final_year_month_of_training)
       x_series_monthly <- window(x_series_monthly, end = final_year_month_of_training)
       
-      print("x_series_monthly")
-      print(x_series_monthly)
+      # print("x_series_monthly")
+      # print(x_series_monthly)
       
       
       
       
       end_yq_for_ext <-  as.yearqtr(max(time(test_y)))
       final_year_month_for_ext <- c(year(end_yq_for_ext), 3*quarter(end_yq_for_ext))
-      print("final_year_month_for_ext")
-      print(final_year_month_for_ext)
+      # print("final_year_month_for_ext")
+      # print(final_year_month_for_ext)
       
-      if(is.null(dim(training_x))) {
+      if (is.null(dim(training_x))) {
         dim(training_x) <- c(length(training_x), 1)
         dim(x_series_monthly) <- c(length(x_series_monthly), 1)
       }
@@ -1255,6 +1258,8 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
       colnames(training_x) <- this_arima_name
       colnames(x_series_monthly) <- this_arima_name
       
+      # print("in cv arimax, x series monthly is")
+      # print(x_series_monthly)
       
       if (use_demetra) {
         
@@ -1265,6 +1270,9 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
         # print(this_x_order_list)
         # print("in cv_arimax, use demetra if, x_order_list")
         # print(x_order_list)
+        
+        # print("in cvarimax, demetra if, right before getextendedone, force.constant is")
+        # print(force.constant)
 
         this_x_extended_output <- get_extended_one_monthly_variable(
           monthly_variable_ts = x_series_monthly, 
@@ -1277,33 +1285,23 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
           method = "ML",
           start_date = start(training_y))
         
-        print("juuuuuuuu x cv dem")
-        
-        print("names(this_x_extended_output)")
-        print(names(this_x_extended_output))
-        
         this_x_extended <- this_x_extended_output[["data_ext_output"]][["quarterly_series_ts"]]
         
-        print("names(this_x_extended)")
-        print(names(this_x_extended))
-        
-        print("this_x_extended")
-        print(this_x_extended)
         
       }
 
       if (!use_demetra) {
         this_x_order_list <- x_order_list[[x]]
-        
 
         this_x_extended <- get_extended_one_monthly_variable(
-          monthly_variable_ts = training_x, this_x_order_list, 
+          monthly_variable_ts = x_series_monthly, 
+          order_list = this_x_order_list, 
           use_demetra = FALSE,
-          do_dm_force_constant = FALSE,
+          do_dm_force_constant = force.constant,
           do_auto = TRUE,
           print_comments_on_constant = FALSE,
           final_forecast_horizon = fin_date_for_ext, method = "ML",
-          start_date = start(training_x))
+          start_date = start(training_y))
       }
       
 
@@ -1312,13 +1310,25 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
       # x_series_with_fc <- ts(c(x_series_pre_test, test_x), frequency = 4,
       #                        start = start(x_series_pre_test))
       
+      
+      
       x_series_with_fc <- this_x_extended
+      # print("colnames(x_series_with_fc)")
+      # print(colnames(x_series_with_fc))
+      
       
       test_x_perfect_foresight <- window(x_series,
                        start = stats::start(test_y),
                        end = stats::end(test_y))
       
-      print("in cvarimax will try the my arimax with new x data")
+      # print("in cvarimax will try the my arimax with new x data")
+      
+      # print("x_series_with_fc")
+      # print("x_series_with_fc")
+      # print("x_series_with_fc")
+      # print("x_series_with_fc")
+      # print("x_series_with_fc")
+      # print(x_series_with_fc)
       
       this_arimax_list <- my_arimax(y_ts = y_ts, xreg_ts = x_series_with_fc, 
                                     y_order = y_order, y_seasonal = y_seasonal,
@@ -1664,8 +1674,11 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
                            force_constant = FALSE, order_list = NULL,
                            is_single_x = FALSE) {
   
-  # print("final_horizon_date")
-  # print(final_horizon_date)
+  # print("in extend and qrt, force_constant")
+  # print(force_constant)
+  
+  # print("in extend and qrt, data_mts")
+  # print(data_mts)
   
   fc_list_m <- list() 
   extended_m_ts_list <- list()
@@ -1675,11 +1688,11 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   
   final_horizon_decimal <- final_year + final_month/12
   
-  # print("final_horizon_decimal")
+  # print("in extend and qrt final_horizon_decimal")
   # print(final_horizon_decimal)
   
-  print("in extend and qtr, vec of names is")
-  print(vec_of_names)
+  # print("in extend and qtr, vec of names is")
+  # print(vec_of_names)
   
   for (i in seq_along(vec_of_names)) {
     
@@ -1697,13 +1710,14 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
     
     diff_in_month <- series_to_final_interval %/% months(1)
     
-    # print("diff_in_month")
+    # print("in extend and qrt diff_in_month")
     # print(diff_in_month)
     # 
-    
-    
-    # print("fc_mean")
-    # print(fc_mean)
+    # print("in extend and qrt summary this_arima")
+    # print(summary(this_arima))
+    # 
+    # print("in extend and qrt this_arima$x")
+    # print(this_arima$x)
     
     
     if (force_constant) {
@@ -1725,22 +1739,41 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
       this_d <- this_order[2]
       this_D <- this_seasonal[2]
       
-      if (this_d + this_D >= 2) {
+      if (force_constant & (this_d + this_D >= 2)) {
         t <- seq(1, length(this_arima$x) + diff_in_month)
         t_sq <- t^2
         
         t_fc <- seq(length(this_arima$x) + 1, length(this_arima$x) + diff_in_month)
         t_fc_sq <- t_fc^2
         
+        # print("t_fc_sq")
+        # print(t_fc_sq)
+        # 
+        # print("in extend and qrt dD2 print(forecast(this_arima, h = diff_in_month))")
+        # print(forecast(this_arima, h = diff_in_month, xreg = t_fc_sq))
+        
+        
         this_fc <- forecast(this_arima, h = diff_in_month, xreg = t_fc_sq)
         fc_mean <- this_fc$mean  
 
+      } else {
+        # print("in extend and qrt demetra dD<2 print(forecast(this_arima, h = diff_in_month))")
+        # print(forecast(this_arima, h = diff_in_month))
+        
+        this_fc <- forecast(this_arima, h = diff_in_month)
+        fc_mean <- this_fc$mean
       }
       
     } else {
+      # print("in extend and qrt not demetra print(forecast(this_arima, h = diff_in_month))")
+      # print(forecast(this_arima, h = diff_in_month))
+      
       this_fc <- forecast(this_arima, h = diff_in_month)
       fc_mean <- this_fc$mean
     }
+    
+    # print("In extend_and_qtr, this_fc is")
+    # print(this_fc)
     
     # extended_monthly_series <- glue_x_mean(monthly_series, fc_mean)
     extended_monthly_series <- ts(data = c(na.omit(monthly_series), fc_mean),
@@ -1748,9 +1781,9 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
                                   frequency = 12)
     
     
-    
-    print("extended_monthly_series")
-    print(extended_monthly_series)
+    # print("in extend and qrt, extended monthly series is")
+    # # print("extended_monthly_series")
+    # print(extended_monthly_series)
     
     
     # print("tail(extended_monthly_series)")
@@ -1767,12 +1800,12 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   
   names(extended_m_ts_list) <- vec_of_names
   
-  print("in extended_and_qtr")
-  print("vec_of_names")
-  print(vec_of_names)
-  
-  print("extended_m_ts_list")
-  print(extended_m_ts_list)
+  # print("in extended_and_qtr")
+  # print("vec_of_names")
+  # print(vec_of_names)
+  # 
+  # print("extended_m_ts_list")
+  # print(extended_m_ts_list)
   
   
   if (length(vec_of_names) == 1) {
@@ -1801,7 +1834,8 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   
   ext_series_xts_quarterly <- apply.quarterly(ext_series_xts_monthly , 
                                               mean, na.rm = TRUE)
-  ext_series_xts_quarterly <- ext_series_xts_quarterly[start_gdp_str]
+  
+  # ext_series_xts_quarterly <- ext_series_xts_quarterly[start_gdp_str]
   
   xts_q_start <- min(date(ext_series_xts_quarterly))
   
@@ -1809,9 +1843,12 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
                                    start = c(year(xts_q_start), 
                                              quarter(xts_q_start)), 
                                    frequency = 4)
-  
+  # print("In extend and qrt, ext_series_xts_quarterly is")
+  # print(ext_series_xts_quarterly)
   
   # chop off any obs previous to the start of gdp
+  
+  
   
   return(list(quarterly_series_ts = ext_series_ts_quarterly,
               quarterly_series_xts = ext_series_xts_quarterly,
@@ -1856,17 +1893,17 @@ extend_qtr_variables <- function(data_mts, final_horizon_date_q, vec_of_names,
     # series_to_final_interval <- lubridate::interval(series_date_max_yq,
     #                                                 final_horizon_decimal_yq)
     
-    print("final_horizon_date_q")
-    print(final_horizon_date_q)
+    # print("final_horizon_date_q")
+    # print(final_horizon_date_q)
     
-    print("series_date_max_yq")
-    print(series_date_max_yq)
+    # print("series_date_max_yq")
+    # print(series_date_max_yq)
     
     diff_in_quarter <- get_hmax_q(final_horizon_date_q, 
                                   current_data = quarterly_series %>% na.omit())
     
-    print("diff_in_quarter")
-    print(diff_in_quarter)
+    # print("diff_in_quarter")
+    # print(diff_in_quarter)
     
     # print("diff_in_month")
     # print(diff_in_month)
@@ -2931,6 +2968,9 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, y_order, y_seasonal
                              force.constant = FALSE,
                              use_demetra = FALSE, x_order_list = NULL) {
   
+  # print("in get cv of arimax force.constant is")
+  # print(force.constant)
+  
   # demetra_rgdp_mean_logical <-  rgdp_order_list[["mean_logical"]]
   
   list_cv_of_arimax <- list()
@@ -2982,6 +3022,8 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, xreg_ts_monthly, rgdp_arima, m
   # print("in cv_arimax, x_order_list:")
   # print(x_order_list)
   
+  # print("in get cv obj cond uncond force.constant")
+  # print(force.constant)
   
   cv_arimax_0_to_2 <- get_cv_of_arimax(
     y_ts = y_ts, xreg_ts = xreg_ts, xreg_ts_monthly = xreg_ts_monthly, 
@@ -3250,15 +3292,18 @@ get_extended_one_monthly_variable <- function(
   print_comments_on_constant = FALSE,
   final_forecast_horizon = c(2019, 12), method = "ML",
   start_date = NULL) {
+  
   # print("final_forecast_horizon")
   # print(final_forecast_horizon)
   
   
   monthly_variable_name <- colnames(monthly_variable_ts)
   
-  print("in get extended one x variable")
-  print("monthly_variable_name")
-  print(monthly_variable_name)
+  # print("in get extended one x variable")
+  # print("monthly_variable_name")
+  # print(monthly_variable_name)
+  # print("monthly_variable_ts")
+  # print(monthly_variable_ts)
   
   # at first all NULL and changed only if condition is true
   fit_arima_monthly <- NULL
@@ -3282,17 +3327,14 @@ get_extended_one_monthly_variable <- function(
         force_constant = do_dm_force_constant, freq = 12,
         print_comments_on_constant = print_comments_on_constant, 
         method = method)
-      
-      # print("fit_arima_monthly")
-      # print(fit_arima_monthly)
-      
+
       mdata_ext <- extend_and_qtr(
         data_mts = monthly_variable_ts, 
         final_horizon_date = final_forecast_horizon , 
         vec_of_names = monthly_variable_name,
         fitted_arima_list = fit_arima_monthly,
         start_date_gdp = start_date,
-        force_constant = TRUE,
+        force_constant = do_dm_force_constant,
         order_list = order_list, is_single_x = TRUE)
     } 
     
@@ -5621,13 +5663,27 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     # print("colnames(x_series)")
     # print(colnames(x_series))
     
-    print("in my_arimax")
-    print(x_series)
+
     
+    # x_series_and_lags <-  map(seq(0,max(xreg_lags)),
+    #                           ~ lag.xts(x_series, k = .)) %>% 
+    #   reduce(ts.union) %>% na.omit()
+
     x_series_and_lags <-  map(seq(0,max(xreg_lags)),
                               ~ lag.xts(x_series, k = .)) %>% 
-      reduce(ts.union) %>% na.omit()
+      reduce(ts.union) 
     
+    # print("in my_arimax")
+    # print("x_series")
+    # print(x_series)
+    # print("x_series_and_lags")
+    # print(x_series_and_lags)
+    
+    # print("y_ts")
+    # print(y_ts)
+    
+    
+        
     # x_time <- time(x_series)
     x_time <- time(x_series_and_lags)
     
@@ -5661,6 +5717,8 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     
     if (is.null(procrust_start)) {
       
+      # print("mark1")
+      
       procrustean_y <- window(y_ts, start = latest_start, end = earliest_end, frequency = 4)
       
       
@@ -5671,6 +5729,8 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
                                        frequency = 4)
     } else {
       
+      # print("mark2")
+      
       procrustean_y <- window(y_ts, start = procrust_start, 
                               end = procrust_end, frequency = 4)
       
@@ -5680,6 +5740,9 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       
       procrustean_x_and_lags <- window(x_series_and_lags, start = procrust_start, 
                                        end = procrust_end, frequency = 4)
+      
+      # print("in my_arimax procrustean x and lags")
+      # print(procrustean_x_and_lags)
     }
 
     
@@ -5699,10 +5762,15 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     # print(procrustean_x)
     
     n_x <- length(procrustean_x)
-    
     # print("n_x")
     # print(n_x)
 
+    n_xal <- nrow(procrustean_x_and_lags)
+    # print("n_xal")
+    # print(n_xal)
+    
+    
+    
     # procrustean_x_and_lags <- map(seq(0,max(xreg_lags)),
     #                               ~ lag.xts(procrustean_x, k = .)) %>% 
     #   reduce(ts.union)
@@ -5732,22 +5800,22 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     # print(procrustean_x_and_lags)
     
     
-    
-    if (any(is.na(procrustean_x_and_lags))) {
-      print(paste("Warning, xreg series",   vec_of_names[x_regressor],
-          "is too short and lags introduced NAs"))
-      
-      
-      
-      procrustean_x_and_lags <- na.omit(procrustean_x_and_lags)
-      procrustean_y <- window(procrustean_y, start = stats::start(procrustean_x_and_lags),
-                              end = stats::end(procrustean_x_and_lags))
-      
-      print(paste("New number of rows:", nrow(procrustean_y), "and",
-                  nrow(procrustean_x_and_lags)))
-      print(paste("New start date:", as.yearqtr(stats::start(procrustean_y))))
-      print(paste("New end date:", as.yearqtr(stats::end(procrustean_y))))
-    }
+    # 
+    # if (any(is.na(procrustean_x_and_lags))) {
+    #   print(paste("Warning, xreg series",   vec_of_names[x_regressor],
+    #       "is too short and lags introduced NAs"))
+    #   
+    #   
+    #   
+    #   procrustean_x_and_lags <- na.omit(procrustean_x_and_lags)
+    #   procrustean_y <- window(procrustean_y, start = stats::start(procrustean_x_and_lags),
+    #                           end = stats::end(procrustean_x_and_lags))
+    #   
+    #   print(paste("New number of rows:", nrow(procrustean_y), "and",
+    #               nrow(procrustean_x_and_lags)))
+    #   print(paste("New start date:", as.yearqtr(stats::start(procrustean_y))))
+    #   print(paste("New end date:", as.yearqtr(stats::end(procrustean_y))))
+    # }
 
     
     
@@ -5759,6 +5827,15 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       
       nam <- colnames(procrustean_x_and_lags)
       
+      # print("in my arimax, xtrend is")
+      # print(xtrend)
+      
+      # print("in my arimax, procrustean_x_and_lags is (WHY LEN 15????)")
+      # print(procrustean_x_and_lags)
+
+      # print("in my arimax, procrustean_y)")
+      # print(procrustean_y)
+
       procrustean_x_and_lags <- ts.union(xtrend, procrustean_x_and_lags)
       
       colnames(procrustean_x_and_lags) <- c("sq_trend", nam)

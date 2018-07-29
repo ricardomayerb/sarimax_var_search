@@ -1,9 +1,9 @@
 source('./R/utils_av.R')
 library(scales)
 
-arima_res_suffix <- "_dm_s"
+arima_res_suffix <- "_auto"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Bolivia"
+country_name <- "Bolivia_activ"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -11,9 +11,9 @@ final_forecast_horizon <- c(2019, 12)
 # h_max <- 8 # last rgdp data is 2017 Q4
 number_of_cv = 8
 train_span = 16
-use_demetra <- TRUE
+use_demetra <- FALSE
 
-use_dm_force_constant <- TRUE
+use_dm_force_constant <- FALSE
 is_log_log <- TRUE
 lambda_0_in_auto <- FALSE
 mean_logical_in_auto <- TRUE 
@@ -135,6 +135,14 @@ external_mdata_ext_ts_monthly <- extended_data[[this_external]][["monthly_series
 mdata_ext_ts_monthly <- ts.union(internal_mdata_ext_ts_monthly, external_mdata_ext_ts_monthly)
 colnames(mdata_ext_ts_monthly) <- monthly_names
 
+if (!use_demetra) {
+  all_monthly_auto_arimas <- c(extended_data$fit_arima_m_list_auto, 
+                               extended_data$fit_arima_e_list_auto)
+  all_monthly_auto_arma <- map(all_monthly_auto_arimas, ~ .[["arma"]])
+  auto_arima_monthly_order_list <- map(all_monthly_auto_arma,
+                                       ~ list(order = .[c(1,6,2)], 
+                                              seasonal = .[c(3,7,4)]))
+}
 
 
 ####### ----------- gob   ---
