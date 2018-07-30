@@ -91,9 +91,7 @@ generate_best_10_models_plus_negative_corr_models <- function(models_and_errors,
     selected_model_8 <- ifelse(sum(neg_cor_error_8)==0, "", b8 )
     selected_model_9 <- ifelse(sum(neg_cor_error_9)==0, "", b9 )
     selected_model_10 <- ifelse(sum(neg_cor_error_10)==0, "", b10 )
-    
-    print("selected_model_1")
-    print(selected_model_1)
+
     
     selected_model_list[[i]] <- as.vector(c(selected_model_1, selected_model_2, selected_model_3, selected_model_4, 
                                             selected_model_5, selected_model_6, selected_model_7, selected_model_8, 
