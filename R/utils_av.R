@@ -2252,7 +2252,7 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
         }
       } else {
         
-        print("in fit arimas, not auto, but not forcing constant")
+        # print("in fit arimas, not auto, but not forcing constant")
         fit <- try(Arima(y = this_y, order = this_order, seasonal = this_seasonal,
                      include.constant =  include.constant, lambda = my_lambda, 
                      biasadj = my_biasadj, method = method))
@@ -5947,16 +5947,33 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
         # print("procrustean_x_and_lags")
         # print(procrustean_x_and_lags)
         
+        new_new_method <-  "CSS"
         
         this_mssg <- paste0("For xreg variable ", vec_of_names[x_regressor], 
                             ", CSS-ML method failed in Arima. Switched to CSS.")
         warning(this_mssg)
-        new_method <-  "CSS"
-        this_arimax <- Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
+        
+        print(this_mssg)
+        print("procrustean_y")
+        print(procrustean_y)
+        print("procrustean_x_and_lags")
+        print(procrustean_x_and_lags)
+        this_arimax <- try(Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
                              order = y_order,
                              seasonal = y_seasonal,
                              include.mean = y_include_mean,
-                             method = new_method)
+                             method = new_new_method))
+        class_this_arimax <- class(this_arimax)[1]
+        if (class_this_arimax == "try-error") {
+          this_mssg <- paste0("For xreg variable ", vec_of_names[x_regressor], 
+                              ", CSS method failed in Arima. Switched to auto.arima with default values")
+          warning(this_mssg)
+          print(this_mssg)
+          this_arimax = auto.arima(y = procrustean_y, 
+                                   xreg = procrustean_x_and_lags)
+          
+        }
+        
       }
       
     }
