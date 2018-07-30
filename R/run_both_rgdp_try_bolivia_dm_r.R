@@ -30,7 +30,6 @@ this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 # print("this_rgdp_ts")
 # print(this_rgdp_ts)
 
-
 h_max <- get_hmax_q(final_forecast_horizon, current_data = this_rgdp_ts,
                     type = "monthly")
 

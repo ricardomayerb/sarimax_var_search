@@ -397,8 +397,8 @@ if(arima_rgdp_is_log) {
 ########################## IMPORT ARIMAX AND VAR FILES #############################
 # Automatically imports the data matching the country_name
 
-path_models_and_accu <- paste("./data/", country_name, "_by_step_12345.rds", sep = "")
-path_cv_objects <- paste("./data/", country_name, "_by_step_12345_cv_objects.rds", sep = "")
+path_models_and_accu <- paste("./data/", country_name, "_by_step_12345_32.rds", sep = "")
+path_cv_objects <- paste("./data/", country_name, "_by_step_12345_32_cv_objects.rds", sep = "")
 path_VAR_data <- paste("./data/VAR_data_", country_name, ".rds", sep = "")
 models_and_accu <- readRDS(path_models_and_accu)
 cv_objects <- readRDS(path_cv_objects)
