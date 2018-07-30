@@ -1,6 +1,6 @@
 source('./R/utils_av.R')
 
-country_name <- "Bolivia"
+country_name <- "Uruguay"
 
 country_data_level_ts <- get_raw_data_ts(country = country_name)
 rgdp_level_ts <- country_data_level_ts[,"rgdp"]
@@ -48,7 +48,7 @@ country_transformed_data <- follow_rec(country_data_level_ts,
                                        reco_all_variables)
 
 VAR_data_for_estimation  <- na.omit(country_transformed_data)
-saveRDS(VAR_data_for_estimation , "./data/VAR_data_Bolivia.rds")
+saveRDS(VAR_data_for_estimation , "./data/VAR_data_Uruguay.rds")
 
 rgdp_rec <- reco_all_variables[reco_all_variables$variable == "rgdp", ][["kpss_05_level"]]
 
@@ -87,7 +87,7 @@ ret_cv = TRUE
 # tictoc::tic()
 # var_res <- try_sizes_vbls_lags(vec_size = vec_n_varsize, 
 #                                vec_lags = vec_max_lags,
-#                                var_data = VAR_data_for_estimation,
+#                                var_data = VAR_data_for_estimation, 
 #                                rgdp_yoy_ts = rgdp_yoy_ts,
 #                                rgdp_level_ts = rgdp_level_ts, 
 #                                target_v = target_rgdp,
@@ -103,7 +103,7 @@ ret_cv = TRUE
 
 # cv <- var_res_1$cv_objects
 # models_ranking <- var_res_1$accu_rankings_models 
-# 
+
 # models_and_accu <- var_res[["accu_rankings_models"]]
 # cv_objects <- var_res[["cv_objects"]]
 
@@ -172,7 +172,6 @@ tictoc::toc()
 models_and_accu_3 <- var_res_3[["accu_rankings_models"]]
 cv_objects_3 <- var_res_3[["cv_objects"]]
 
-
 tictoc::tic()
 var_res_4 <- try_sizes_vbls_lags(vec_size = 4, 
                                  vec_lags = c(1, 4, 5),
@@ -180,7 +179,7 @@ var_res_4 <- try_sizes_vbls_lags(vec_size = 4,
                                  rgdp_yoy_ts = rgdp_yoy_ts,
                                  rgdp_level_ts = rgdp_level_ts, 
                                  target_v = target_rgdp,
-                                 pre_selected_v = c("exp_hydrocarbon"), 
+                                 pre_selected_v = c("ip_sinancap"), 
                                  is_cv = TRUE,
                                  training_length = train_span,
                                  h_max = fc_horizon, n_cv = number_of_cv,
@@ -194,13 +193,34 @@ models_and_accu_4 <- var_res_4[["accu_rankings_models"]]
 cv_objects_4 <- var_res_4[["cv_objects"]]
 
 tictoc::tic()
+var_res_4b <- try_sizes_vbls_lags(vec_size = 4, 
+                                 vec_lags = c(1, 4, 5),
+                                 var_data = VAR_data_for_estimation,
+                                 rgdp_yoy_ts = rgdp_yoy_ts,
+                                 rgdp_level_ts = rgdp_level_ts, 
+                                 target_v = target_rgdp,
+                                 pre_selected_v = c("rpc"), 
+                                 is_cv = TRUE,
+                                 training_length = train_span,
+                                 h_max = fc_horizon, n_cv = number_of_cv,
+                                 bt_factor = 0, maxlag_ccm = 8,
+                                 return_cv = ret_cv,
+                                 rgdp_current_form = rgdp_rec)
+
+tictoc::toc()
+
+models_and_accu_4b <- var_res_4b[["accu_rankings_models"]]
+cv_objects_4b <- var_res_4b[["cv_objects"]]
+
+# 130.22 min
+tictoc::tic()
 var_res_5 <- try_sizes_vbls_lags(vec_size = 5, 
                                  vec_lags = c(2, 3),
                                  var_data = VAR_data_for_estimation,
                                  rgdp_yoy_ts = rgdp_yoy_ts,
                                  rgdp_level_ts = rgdp_level_ts, 
                                  target_v = target_rgdp,
-                                 pre_selected_v = c("exp_hydrocarbon"), 
+                                 pre_selected_v = c(""), 
                                  is_cv = TRUE,
                                  training_length = train_span,
                                  h_max = fc_horizon, n_cv = number_of_cv,
@@ -214,23 +234,15 @@ models_and_accu_5 <- var_res_5[["accu_rankings_models"]]
 cv_objects_5 <- var_res_5[["cv_objects"]]
 
 # how to delete the same models? something with unique?
-models_and_accu_12345 <- rbind(models_and_accu_1, models_and_accu_2, models_and_accu_3, models_and_accu_4, models_and_accu_5) %>%
+models_and_accu_12345 <- rbind(models_and_accu_1, models_and_accu_2, models_and_accu_3, models_and_accu_4, models_and_accu_5,
+                               models_and_accu_4b) %>%
   mutate(rank_1 = rank(rmse_1), rank_2 = rank(rmse_2), rank_3 = rank(rmse_3), rank_4 = rank(rmse_4), rank_5 = rank(rmse_5), 
          rank_6 = rank(rmse_6), rank_7 = rank(rmse_7), rank_8 = rank(rmse_8))
 
-# mmmmm maybe you could play around with "distinct" from dplyr and use variables + lags to determine uniqueness
-# 
-# foo <- myObjectWithCvStuff %>% distinct(variables, lags)
-# ?distinct
-# 
-# foo <- models_and_accu_12345 %>% distinct(variables, lags)
-# models_and_accu_12345_test <- distinct(models_and_accu_12345, variables, lags, .keep_all = FALSE)
 
-# models_and_accu_1 <- var_res_1[["accu_rankings_models"]]
-
-saveRDS(models_and_accu_12345, "./data/Bolivia_by_step_12345.rds")
+saveRDS(models_and_accu_12345, "./data/Uruguay_by_step_12345.rds")
 
 
-cv_objects_12345 <- rbind(cv_objects_1, cv_objects_2, cv_objects_3, cv_objects_4, cv_objects_5)
+cv_objects_12345 <- rbind(cv_objects_1, cv_objects_2, cv_objects_3, cv_objects_4, cv_objects_4b, cv_objects_5)
 
-saveRDS(cv_objects_12345, "./data/Bolivia_by_step_12345_cv_objects.rds")
+saveRDS(cv_objects_12345, "./data/Uruguay_by_step_12345_cv_objects.rds")
