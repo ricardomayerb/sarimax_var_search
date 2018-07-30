@@ -1,5 +1,6 @@
-source('./R/utils_av_older_version.R')
-# source('./R/utils_av_ricardo.R')
+# source('./R/utils_av_older_version.R')
+# source('./R/utils_av.R')
+source('./R/utils_av_ricardo.R')
 library(ggthemes)
 library(ggThemeAssist)
 library(RColorBrewer)
@@ -307,20 +308,24 @@ watermark_cepal <- matrix(rgb(img[,,1],img[,,2],img[,,3], img[,,3.5] * 0.4), nro
 
 # Start of the Script
 
-country_name <- "Peru"
+country_name <- "Chile"
 
 # Optional: Estimate (and Save) new Arimax RDS file
 
-# final_forecast_horizon <- c(2020, 12)
-# h_max = 6 # last rgdp data is 2017 Q4
-# number_of_cv = 8
-# train_span = 16
-# arima_res2 <- get_arima_results(country_name = country_name, h_max = 6,
-#                                number_of_cv = 8, train_span = 16,
-#                                final_ext_horizon = final_forecast_horizon)
+final_forecast_horizon <- c(2019, 12)
 
-# Run Saved ARimax RDS File
-arima_res <- get_arima_results(country_name = country_name, read_results = TRUE)
+arima_res_suffix <- "_dm_s"
+use_demetra <- TRUE
+use_dm_force_constant <- TRUE
+
+# # To run (and save) the arima script
+arima_res <- get_arima_results(
+  country_name = country_name, use_dm_force_constant = use_dm_force_constant,
+  arima_res_suffix = arima_res_suffix, use_demetra = use_demetra)
+
+# # Or, just load previously saved arima res objects
+# arima_res <- get_arima_results(country_name = country_name, read_results = TRUE,
+#   arima_res_suffix = arima_res_suffix)
 
 extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
