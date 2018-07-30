@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_auto"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Bolivia_activ"
+country_name <- "Peru"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -144,6 +144,14 @@ if (!use_demetra) {
                                               seasonal = .[c(3,7,4)]))
 }
 
+if (use_demetra) {
+  x_order_list <- demetra_order_internal_external
+}
+
+if (!use_demetra) {
+  x_order_list <- auto_arima_monthly_order_list
+}
+
 
 ####### ----------- gob   ---
 tic()
@@ -153,14 +161,15 @@ cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               rgdp_arima = this_rgdp_arima,
                               max_x_lag = max_x_lag,
                               rgdp_order_list = rgdp_order_list,
-                              x_order_list = demetra_order_internal_external,
+                              x_order_list = x_order_list,
                               use_demetra = use_demetra,
                               n_cv = number_of_cv, 
                               test_length = test_length,
                               data_is_log_log = is_log_log, 
                               training_length = train_span,
                               h_max = h_max,
-                              force.constant = use_dm_force_constant)
+                              force.constant = use_dm_force_constant,
+                              method = "CSS-ML")
 toc()
 
 

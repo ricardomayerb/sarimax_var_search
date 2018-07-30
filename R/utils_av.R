@@ -1126,7 +1126,8 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
                       use_demetra = FALSE, x_order_list = NULL) {
   
   
-  
+  # print("starting cv_arimx, x_order_list is")
+  # print(x_order_list)
   # print("starting cv_arimx, force.constant is")
   # print(force.constant)
   
@@ -1292,16 +1293,26 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
 
       if (!use_demetra) {
         this_x_order_list <- x_order_list[[x]]
-
-        this_x_extended <- get_extended_one_monthly_variable(
+         # print("cv arima, if !usedemetra, force. constan and usedm")
+         # print(force.constant)
+         # print(use_demetra)
+         # print("cv arimax, if !usedemetra, this_x_order_list")
+         # print(this_x_order_list)
+         # print("cv arimax, if !usedemetra, x_order_list")
+         # print(x_order_list)
+         
+        this_x_extended_output <- get_extended_one_monthly_variable(
           monthly_variable_ts = x_series_monthly, 
           order_list = this_x_order_list, 
-          use_demetra = FALSE,
+          use_demetra = use_demetra,
           do_dm_force_constant = force.constant,
           do_auto = TRUE,
           print_comments_on_constant = FALSE,
-          final_forecast_horizon = fin_date_for_ext, method = "ML",
+          final_forecast_horizon = final_year_month_for_ext, 
+          method = "ML",
           start_date = start(training_y))
+        
+        this_x_extended <- this_x_extended_output[["data_ext_output"]][["quarterly_series_ts"]]
       }
       
 
@@ -1676,6 +1687,7 @@ extend_and_qtr <- function(data_mts, final_horizon_date, vec_of_names,
   
   # print("in extend and qrt, force_constant")
   # print(force_constant)
+  # print(order_list)
   
   # print("in extend and qrt, data_mts")
   # print(data_mts)
@@ -2150,11 +2162,15 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
                        num.cores = 2, print_comments_on_constant = FALSE,
                        method = "ML") {
   
+  # print("in fit arimas, order list is")
+  # print(order_list)
+  
   n_of_series <- ncol(y_ts)
   
   if (is.null(n_of_series)) {
     n_of_series <- 1
   }
+  
   
   
   
@@ -2200,7 +2216,7 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
       # print("this_d")
       # print(this_d)
 
-      if ( (this_D + this_d) >= 2) {
+      if (force_constant & (this_D + this_d) >= 2) {
         
         if (print_comments_on_constant) {
           print(paste("In arima for", this_arima_names[i], ", D+d =", 
@@ -2236,9 +2252,40 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
         }
       } else {
         
-        fit <- Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+        print("in fit arimas, not auto, but not forcing constant")
+        fit <- try(Arima(y = this_y, order = this_order, seasonal = this_seasonal,
                      include.constant =  include.constant, lambda = my_lambda, 
-                     biasadj = my_biasadj, method = method)
+                     biasadj = my_biasadj, method = method))
+        class_fit_1 <- class(fit)[1]
+        if (class_fit_1 == "try-error") {
+          print("ML failed")
+          new_method <- "CSS-ML"
+          this_msg <- paste0("ML failed for ",  this_arima_names[i], ". Switching to CSS-ML")
+          warning(this_msg)
+          fit <- try(Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+                           include.constant =  include.constant, lambda = my_lambda, 
+                           biasadj = my_biasadj, method = new_method))
+          class_fit_2 <- class(fit)[1]
+          if (class_fit_2 == "try-error") {
+            print("CSS-ML failed")
+            new_new_method <- "CSS"
+            this_msg <- paste0("CSS-ML failed for ",  this_arima_names[i], ". Switching to CSS")
+            warning(this_msg)
+            fit <- try(Arima(y = this_y, order = this_order, seasonal = this_seasonal,
+                             include.constant =  include.constant, lambda = my_lambda, 
+                             biasadj = my_biasadj, method = new_new_method))
+            class_fit_3 <- class(fit)[1]
+            if (class_fit_3 == "try-error") {
+              print("CSS failed, enter auto.arima")
+              this_msg <- paste0("CSS failed for ",  this_arima_names[i], ". Switching to auto.arima with default values")
+              warning(this_msg)
+              fit <- auto.arima(y = this_y)
+            }
+          }
+        }
+        
+        # print("kokomo")
+        
       }
     } else {
       
@@ -3010,7 +3057,8 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, xreg_ts_monthly, rgdp_arima, m
                                    data_is_log_log, training_length, h_max,
                                    force.constant = FALSE,
                                    x_order_list = NULL,
-                                   use_demetra = FALSE) {
+                                   use_demetra = FALSE,
+                                   method = "ML") {
   
   gdp_order <- get_order_from_arima(rgdp_arima)[[1]]
   rgdp_order <-  gdp_order[c("p", "d", "q")]
@@ -3026,14 +3074,17 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, xreg_ts_monthly, rgdp_arima, m
   # print(force.constant)
   
   cv_arimax_0_to_2 <- get_cv_of_arimax(
-    y_ts = y_ts, xreg_ts = xreg_ts, xreg_ts_monthly = xreg_ts_monthly, 
+    y_ts = y_ts, xreg_ts = xreg_ts, 
+    xreg_ts_monthly = xreg_ts_monthly, 
     y_order = rgdp_order, 
-    training_length = training_length, test_length = test_length,
+    training_length = training_length,
+    test_length = test_length,
     y_seasonal = rgdp_seasonal, x_names = monthly_names, 
     data_is_log_log = data_is_log_log, n_cv = n_cv,
     max_x_lag = max_x_lag, y_include_drift = rgdp_mean_logical, 
     force.constant = force.constant, use_demetra = use_demetra,
-    x_order_list = x_order_list
+    x_order_list = x_order_list, 
+    method = method
   )
   
   cv_rgdp_arima_list <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
@@ -3299,7 +3350,11 @@ get_extended_one_monthly_variable <- function(
   
   monthly_variable_name <- colnames(monthly_variable_ts)
   
-  # print("in get extended one x variable")
+  # print("in get extended one x variable, use demetra, order list are")
+  # print("use_demetra")
+  # print(use_demetra)
+  # print("order_lsit")
+  # print(order_list)
   # print("monthly_variable_name")
   # print(monthly_variable_name)
   # print("monthly_variable_ts")
@@ -3341,19 +3396,32 @@ get_extended_one_monthly_variable <- function(
     
 
   if (do_auto) {
+    # print("in get ext one variable, doauto, dodmfc, use demtra")
+    # print("do_auto")
+    # print(do_auto)
+    # print("do_dm_force_constant")
+    # print(do_dm_force_constant)
+    # print("use_demetra")
+    # print(use_demetra)
+    
     fit_arima_monthly <- fit_arimas(
-      y_ts = monthly_variable_ts, auto = TRUE, my_lambda = NULL, 
-      do_approximation = TRUE,
-      freq = 12, this_arima_names = monthly_variable_name)
-
+      y_ts = monthly_variable_ts, order_list = order_list,
+      this_arima_names = monthly_variable_name,  
+      force_constant = FALSE, freq = 12,
+      print_comments_on_constant = print_comments_on_constant, 
+      method = method)
+    
+    # print("fit_arima_monthly")
+    # print(fit_arima_monthly)
+    
     mdata_ext <- extend_and_qtr(
       data_mts = monthly_variable_ts, 
       final_horizon_date = final_forecast_horizon , 
-      vec_of_names = monthly_variable_name, 
+      vec_of_names = monthly_variable_name,
       fitted_arima_list = fit_arima_monthly,
       start_date_gdp = start_date,
-      order_list = order_list, is_single_x = TRUE)
-  } 
+      force_constant = FALSE,
+      order_list = order_list, is_single_x = TRUE)  } 
 
   return(list(data_ext_output = mdata_ext,
               fit_arima = fit_arima_monthly))
@@ -5459,6 +5527,8 @@ my_arima_one_x <- function(y_ts, y_order, y_seasonal, xreg_lags, x_name,
     x_series <-  na.omit(xreg_data[, x_name])
   }
   
+  print("in mt arimax one x, xseries ")
+  print(x_series)
 
   x_series_and_lags <-  map(seq(0,max(xreg_lags)),
                             ~ lag.xts(x_series, k = .)) %>% 
