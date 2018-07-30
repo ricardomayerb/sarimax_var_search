@@ -1240,7 +1240,10 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
       # print(final_year_month_of_training)
       x_series_monthly <- window(x_series_monthly, end = final_year_month_of_training)
       
-      # print("x_series_monthly")
+      
+      # print("in cv_arimax")
+      # print(colnames(x_series_monthly))
+      # print("x_series_monthly before extension")
       # print(x_series_monthly)
       
       
@@ -1333,7 +1336,7 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
                        end = stats::end(test_y))
       
       # print("in cvarimax will try the my arimax with new x data")
-      
+      # 
       # print("x_series_with_fc")
       # print("x_series_with_fc")
       # print("x_series_with_fc")
@@ -3254,6 +3257,11 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, y_order, y_seasonal
   
   # print("in get_cv_of_arimax x_order_list is")
   # print(x_order_list)
+  
+  
+  print("in get_cv_of_arimax x_names")
+  print(x_names)
+  
   
   for (i in 0:max_x_lag) {
     this_cv_arimax <- cv_arimax(y_ts = y_ts, 
@@ -5971,8 +5979,13 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       x_series <-  na.omit(xreg_ts[ , x_regressor])
     }
     
-    # print("colnames(x_series)")
-    # print(colnames(x_series))
+    # print("in my arimax")
+    # # print("colnames(x_series)")
+    # # print(colnames(x_series))
+    # print("x_series")
+    # print(x_series)
+    # print("x_regressor")
+    # print(x_regressor)
     
 
     
@@ -6033,11 +6046,11 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       procrustean_y <- window(y_ts, start = latest_start, end = earliest_end, frequency = 4)
       
       
-      procrustean_x <- window(x_series, start = latest_start, end = earliest_end,
-                              frequency = 4)
+      procrustean_x <- window(x_series,  start = start(procrustean_y),
+                              end = end(procrustean_y),  frequency = 4)
       
-      procrustean_x_and_lags <- window(x_series_and_lags, start = latest_start, end = earliest_end,
-                                       frequency = 4)
+      procrustean_x_and_lags <- window(x_series_and_lags, start = start(procrustean_y),
+                                       end = end(procrustean_y), frequency = 4)
     } else {
       
       # print("mark2")
@@ -6046,16 +6059,24 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
                               end = procrust_end, frequency = 4)
       
       
-      procrustean_x <- window(x_series, start = procrust_start, 
-                              end = procrust_end, frequency = 4)
+      procrustean_x <- window(x_series, start = start(procrustean_y), 
+                              end = end(procrustean_y), frequency = 4)
       
-      procrustean_x_and_lags <- window(x_series_and_lags, start = procrust_start, 
-                                       end = procrust_end, frequency = 4)
+      procrustean_x_and_lags <- window(x_series_and_lags, start = start(procrustean_y), 
+                                       end = end(procrustean_y), frequency = 4)
       
+      # print("in my_arimax procrustean y")
+      # print(procrustean_y)
+      # print("x_regressor")
+      # print(x_regressor)
+      # print("x_series")
+      # print(x_series)
+      # print("in my_arimax procrustean x")
+      # print(procrustean_x)
       # print("in my_arimax procrustean x and lags")
       # print(procrustean_x_and_lags)
     }
-
+    
     
     if (is.null(dim(procrustean_x))) {
           dim(procrustean_x) <- c(length(procrustean_x), 1)
@@ -6065,6 +6086,14 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
       dim(procrustean_x_and_lags) <- c(length(procrustean_x_and_lags), 1)
       
     }
+    
+    n_x <- length(procrustean_x)
+    # print("n_x")
+    # print(n_x)
+    
+    n_xal <- nrow(procrustean_x_and_lags)
+    # print("n_xal")
+    # print(n_xal)
       
     # print("post-window")
     # print("procrustean_y")
@@ -6072,13 +6101,7 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     # print("procrustean_x")
     # print(procrustean_x)
     
-    n_x <- length(procrustean_x)
-    # print("n_x")
-    # print(n_x)
 
-    n_xal <- nrow(procrustean_x_and_lags)
-    # print("n_xal")
-    # print(n_xal)
     
     
     
@@ -6110,23 +6133,6 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
     # print("procrustean_x_and_lags")
     # print(procrustean_x_and_lags)
     
-    
-    # 
-    # if (any(is.na(procrustean_x_and_lags))) {
-    #   print(paste("Warning, xreg series",   vec_of_names[x_regressor],
-    #       "is too short and lags introduced NAs"))
-    #   
-    #   
-    #   
-    #   procrustean_x_and_lags <- na.omit(procrustean_x_and_lags)
-    #   procrustean_y <- window(procrustean_y, start = stats::start(procrustean_x_and_lags),
-    #                           end = stats::end(procrustean_x_and_lags))
-    #   
-    #   print(paste("New number of rows:", nrow(procrustean_y), "and",
-    #               nrow(procrustean_x_and_lags)))
-    #   print(paste("New start date:", as.yearqtr(stats::start(procrustean_y))))
-    #   print(paste("New end date:", as.yearqtr(stats::end(procrustean_y))))
-    # }
 
     
     
@@ -6210,6 +6216,12 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
                               ", CSS method failed in Arima. Switched to auto.arima with default values")
           warning(this_mssg)
           print(this_mssg)
+          
+          # print("procrustean_y")
+          # print(procrustean_y)
+          # print("procrustean_x_and_lags")
+          # print(procrustean_x_and_lags)
+          
           this_arimax = auto.arima(y = procrustean_y, 
                                    xreg = procrustean_x_and_lags)
           

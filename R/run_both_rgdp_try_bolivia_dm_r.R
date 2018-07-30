@@ -1,9 +1,9 @@
-source('./R/utils_av.R')
+source('./R/utils_av_ricardo.R')
 library(scales)
 
-arima_res_suffix <- "_auto"
+arima_res_suffix <- "_trial"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Peru"
+country_name <- "Chile"
 # data_path <- "./data/excel/Chile.xlsx"
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -11,9 +11,9 @@ final_forecast_horizon <- c(2019, 12)
 # h_max <- 8 # last rgdp data is 2017 Q4
 number_of_cv = 8
 train_span = 16
-use_demetra <- FALSE
+use_demetra <- TRUE
 
-use_dm_force_constant <- FALSE
+use_dm_force_constant <- TRUE
 is_log_log <- TRUE
 lambda_0_in_auto <- FALSE
 mean_logical_in_auto <- TRUE 
@@ -109,6 +109,7 @@ if (use_demetra) {
 rgdp_uncond_fc <- forecast(this_rgdp_arima[["rgdp"]], h = h_max)
 rgdp_uncond_fc_mean <- rgdp_uncond_fc$mean
 
+
 tic()
 extended_data <- get_extended_monthly_variables(
   do_auto = do_auto,
@@ -169,7 +170,7 @@ cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts,
                               training_length = train_span,
                               h_max = h_max,
                               force.constant = use_dm_force_constant,
-                              method = "CSS-ML")
+                              method = "ML")
 toc()
 
 
@@ -230,9 +231,6 @@ arima_res <- c(arima_res_1, arima_res_2, arima_res_3)
 # 
 # qoo <- window(internal_mdata_ext_ts[,1], end = c(2017, 3))
 # qoo
-
-
-
 
 
 rds_file_name = paste0(arima_rds_path, country_name, arima_res_suffix, ".rds")
