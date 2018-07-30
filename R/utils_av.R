@@ -5954,10 +5954,10 @@ my_arimax <- function(y_ts, xreg_ts, y_order, y_seasonal,
         warning(this_mssg)
         
         print(this_mssg)
-        print("procrustean_y")
-        print(procrustean_y)
-        print("procrustean_x_and_lags")
-        print(procrustean_x_and_lags)
+        # print("procrustean_y")
+        # print(procrustean_y)
+        # print("procrustean_x_and_lags")
+        # print(procrustean_x_and_lags)
         this_arimax <- try(Arima(y = procrustean_y, xreg = procrustean_x_and_lags,
                              order = y_order,
                              seasonal = y_seasonal,
