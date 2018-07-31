@@ -2437,15 +2437,24 @@ follow_rec <- function(data_tbl_ts, table_of_recommendations) {
 
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
-                               mat_x_ext, h, force.constant = force.constant) {
+                               mat_x_ext, h_arima, h_var, force.constant = force.constant) {
+  
+  # print("in forecast_VAR_Arima")
+  # print("mat_x_ext[,1]")
+  # print(mat_x_ext[,1])
+  # print("variables")
+  # print(variables)
+  # print("force.constant")
+  # print(force.constant)
   
   if (model_function == "VAR") {
-    fc <- forecast(fit, h = h)
+    fc <- forecast(fit, h = h_var)
   } 
   
   if (model_function == "Arima") {
+    # print("in forecast_VAR_Arima, if Arima")
     if (variables == "rgdp") {
-      fc <- forecast(object = fit, h = h)
+      fc <- forecast(object = fit, h = h_arima)
     } else {
       
       # fc <- forecast_xreg(arimax_list = list(fit), xreg_mts , h, 
@@ -2453,8 +2462,12 @@ forecast_VAR_Arima <- function(model_function, variables, lags, fit,
       #                           force.constant = FALSE)
       
       fc <- forecast_from_arimax_obj(arimax_obj = fit, x_variable = variables, 
-                                     mat_x_ext = mat_x_ext, lags = lags, h = h,
+                                     mat_x_ext = mat_x_ext, lags = lags, h = h_arima,
                                      force.constant = force.constant)
+      # print("in forecastVARArima")
+      # print("passed fc")
+      # print("fc")
+      # print(fc)
     }
   } 
   return(fc)
@@ -2471,19 +2484,53 @@ forecast_from_arimax_obj <- function(arimax_obj, x_variable, mat_x_ext, lags, h,
   maxtime_arimax <- max(time(rgdp_in_arimax))
   start_forecast <- c(year(as.yearqtr(0.25 + maxtime_arimax)),
                       quarter(as.yearqtr(0.25 + maxtime_arimax)))
+  # print("forecast from arima obj")
+  # print("x_variable")
+  # print(x_variable)
+  # # print("mat_x_ext")
+  # # print(mat_x_ext)
+  # print("lags")
+  # print(lags)
+  # print("start_forecast")
+  # print(start_forecast)
+  # print("h")
+  # print(h)
   xreg_for_fc <- make_xreg_fc(variable_name = x_variable, mx_ext = mat_x_ext,
                               lags = lags,  start_fc = start_forecast, h = h)
+  
+  # print("forecast from arima obj")
+  # print("xreg_for_fc")
+  # print(xreg_for_fc)
   
   this_arma <- arimax_model$arma
   this_d <- this_arma[6]
   this_D <- this_arma[7]
   
+  # print("this_arma")
+  # print(this_arma)
+  # print("this_D")
+  # print(this_D)
+  # print("this_d")
+  # print(this_d)
+  # print("force.constant")
+  # print(force.constant)
+  
   if (force.constant & (this_d + this_D >= 2)) {
+    # print("inside the if")
     xtrend_fc <- seq( length(rgdp_in_arimax) + 1, length(rgdp_in_arimax) + h)^2
     
     xreg_for_fc  <- ts.union(xtrend_fc, xreg_for_fc)
+    # print("inside force+d+D,  xtrend_fc")
+    # print(xtrend_fc)
   }
   
+
+  
+  # print("xreg_for_fc")
+  # print(xreg_for_fc)
+  # 
+  # print("arimax model")
+  # print(arimax_model)
   
   fc <- forecast(object = arimax_model, h = h, xreg = xreg_for_fc)
   return(fc)
@@ -3259,8 +3306,8 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, y_order, y_seasonal
   # print(x_order_list)
   
   
-  print("in get_cv_of_arimax x_names")
-  print(x_names)
+  # print("in get_cv_of_arimax x_names")
+  # print(x_names)
   
   
   for (i in 0:max_x_lag) {
@@ -4565,15 +4612,29 @@ get_sets_of_variables <- function(df, this_size, all_variables,
   tiao_box_treshold <- 2 / sqrt(nrow(df))
   tresh <- bt_factor * tiao_box_treshold
   
-  p_and_ccm_mat <- ccm(df, output = FALSE, lags = maxlag_ccm)
+  # p_and_ccm_mat <- ccm(df, output = FALSE, lags = maxlag_ccm)
+  # 
+  # ccm_mat <- p_and_ccm_mat$ccm
+  # ccm_mat_rgdp <- ccm_mat[1:ncol(df) ,]
+  # geq_cor <- abs(ccm_mat_rgdp) >= tresh
+  # geq_cor_row_sums <- rowSums(geq_cor) 
+  # geq_cor_variables <- geq_cor_row_sums >= 1
+  # 
+  # passing_variables <- all_variables[geq_cor_variables]
   
-  ccm_mat <- p_and_ccm_mat$ccm
-  ccm_mat_rgdp <- ccm_mat[1:ncol(df) ,]
-  geq_cor <- abs(ccm_mat_rgdp) >= tresh
-  geq_cor_row_sums <- rowSums(geq_cor) 
-  geq_cor_variables <- geq_cor_row_sums >= 1
   
-  passing_variables <- all_variables[geq_cor_variables]
+  p_and_ccm_mat <- 1
+  
+  ccm_mat <- 1
+  ccm_mat_rgdp <- 1
+  geq_cor <- 1
+  geq_cor_row_sums <- 1 
+  geq_cor_variables <- 1
+  
+  passing_variables <- all_variables
+  
+  
+  
   
   passing_not_alr_chosen <- passing_variables[!passing_variables %in% already_chosen]
   
@@ -4755,7 +4816,7 @@ logyoy <- function(logfc_ts, log_data_ts) {
 
 
 
-indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
+indiv_weigthed_fcs_semiold <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
                                rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL,
                                force.constant = FALSE) {
@@ -4879,6 +4940,124 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
               fc_for_plot = fc_for_plot))
 }
 
+
+
+indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
+                               rgdp_ts_in_arima, var_data, max_rank_h = NULL,
+                               model_type = NULL, chosen_rmse_h = NULL,
+                               force.constant = FALSE,
+                               h_arima = NULL, h_var = NULL) {
+  
+  if (!is.null(model_type)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(model_function == model_type) %>% 
+      group_by(rmse_h) %>% 
+      mutate(rank_h = rank(rmse)) %>% 
+      arrange(rmse_h, rank_h)
+  }
+  
+  if (!is.null(chosen_rmse_h)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(rmse_h == chosen_rmse_h) %>% 
+      mutate(rank_h )
+  }
+  
+  if (!is.null(max_rank_h)) {
+    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
+      filter(rank_h <= max_rank_h)
+  }
+  
+  
+  my_stability_fun <- function(model_type, model_object) {
+    
+    # print(model_type)
+    # print(model_object)
+    
+    if (model_type == "Arima") {
+      is.stable <- TRUE
+      
+    }
+    if (model_type == "VAR"){
+      is.stable <- all(roots(model_object) < 1)
+    }
+    
+    return(is.stable)
+  }
+  
+
+
+  tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
+    group_by(rmse_h) %>% 
+    mutate(sum_invmse_h = sum(inv_mse),
+           model_weight_h = inv_mse/sum_invmse_h,
+           horizon = as.numeric(substr(rmse_h, 6, 6)),
+           fit = pmap(list(model_function, variables, lags, arima_order, 
+                           arima_seasonal),
+                      ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                      lags = ..3, order = ..4, seasonal = ..5,
+                                      extended_x_data_ts = extended_x_data_ts,
+                                      arima_rgdp_ts = rgdp_ts_in_arima,
+                                      force.constant = force.constant)),
+           fc_obj = pmap(list(model_function, variables, lags, fit),
+                         ~ forecast_VAR_Arima(model_function = ..1, 
+                                              variables = ..2, lags = ..3,
+                                              fit = ..4, h_arima = h_arima, 
+                                              h_var = h_var,
+                                              mat_x_ext = extended_x_data_ts,
+                                              force.constant = force.constant)),
+           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+           rgdp_transformation = map(
+             model_function, ~ what_rgdp_transformation(country_name = country_name,
+                                                        model_type = .)),
+           fc_yoy = map2(fc_mean, rgdp_transformation,
+                         ~ any_fc_2_fc_yoy(current_fc = .x,
+                                           rgdp_transformation = .y,
+                                           rgdp_level_ts = rgdp_level_ts)),
+           weighted_fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
+                                   ~ subset(..1 * ..2, start = ..3, end = ..3)),
+           fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
+                          ~ subset(..2, start = ..3, end = ..3)),
+           is_stable = map2(model_function, fit, ~my_stability_fun(model_type = .x, model_object = .y))
+           ) %>% 
+    ungroup() %>% filter(is_stable == TRUE)
+  
+  w_ave_fc_tbl <- tibble_fit_and_fcs %>% 
+    group_by(horizon) %>%
+    summarise(sum_one_h = reduce(weighted_fc_at_h, sum))
+  
+  # print(" w_ave_fc_tbl ")
+  # print( w_ave_fc_tbl )
+  
+  
+  if (is.null(model_type)) {
+    w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
+  } else {
+    if (model_type == "Arima") {
+      w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = rgdp_ts_in_arima)
+    }
+    
+    
+    if (model_type == "VAR") {
+      w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
+    }
+  }
+  
+  fc_for_plot <- tibble_fit_and_fcs %>% 
+    select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse, 
+           model_weight_h)
+  
+  ensemble_model_tbl <- tibble(short_name = "ensemble", 
+                               model_function = "weighted_average",
+                               fc_yoy = w_fc_yoy_ts, fc_at_h = NA, rmse_h = "rmse_1",
+                               rmse = 0.00001, model_weight_h = 1)
+  
+  fc_for_plot <- rbind(fc_for_plot, ensemble_model_tbl)
+  
+  
+  return(list(info_fit_ifcs = tibble_fit_and_fcs,
+              w_fc_yoy_ts = w_fc_yoy_ts,
+              fc_for_plot = fc_for_plot))
+}
 
 
 
@@ -5706,9 +5885,19 @@ make_test_dates_list <- function(ts_data, type = "tscv", n = 8, h_max = 6,
 
 
 make_xreg_fc <- function(variable_name, mx_ext, lags, start_fc, h) {
+  
   this_x <- mx_ext[ , variable_name]
   x_lagmat <- c()
   x_lagmat <- this_x
+  
+  
+  # print("in make_xreg_fc")
+  # print("this_x")
+  # print(this_x)
+  # print("lags")
+  # print(lags)
+  # print("start_fc")
+  # print(start_fc)
   
   if(lags > 0) {
     for (i in 1:lags) {
@@ -5718,8 +5907,17 @@ make_xreg_fc <- function(variable_name, mx_ext, lags, start_fc, h) {
     }
   }
   
+  # print("x_lagmat")
+  # print(x_lagmat)
+  
   x_lagmat_rest <- window(x_lagmat, start = start_fc)
+  # print("x_lagmat_rest")
+  # print(x_lagmat_rest)
+  
   x_lagmat_for_fc <- subset(x_lagmat_rest, end = h)
+  # print("x_lagmat_for_fc")
+  # print(x_lagmat_for_fc)
+  
   
   return(x_lagmat_for_fc)
 }
