@@ -6616,9 +6616,63 @@ to_ts_q <- function(df_xts){
 }
 
 
+
+transform_cv_new <- function(list_series, series_name, current_form,
+                         auxiliary_ts) {
+  
+ 
+  
+  current_form <- current_form
+  print("in transform_cv, current form")
+  print(current_form)
+  
+  series_name <- series_name
+  new_series_list <- list_along(1:number_of_cv)
+  
+  if (current_form == "diff_yoy") {
+    len_initial_cond <- 1
+    
+    for (td in seq_along(1:number_of_cv)) {
+      
+      this_test_data <- list_series[[td]]
+      test_time <- time(this_test_data)
+      start_test <- min(test_time)
+      end_initial_cond <- start_test - 0.25
+      start_initial_cond <- start_test - 0.25*len_initial_cond
+      end_initial_cond_y_q <- c(year(as.yearqtr(end_initial_cond)),
+                                quarter(as.yearqtr(end_initial_cond))
+      )
+      start_initial_cond_y_q <- c(year(as.yearqtr(start_initial_cond)),
+                                  quarter(as.yearqtr(start_initial_cond))
+      )
+      initial_cond_ts <- window(auxiliary_ts, start = start_initial_cond_y_q,
+                                end = end_initial_cond_y_q)
+      
+      if (current_form == "diff_yoy") {
+        new_test_data <- un_diff_ts(initial_cond_ts, this_test_data)
+      }
+      
+      new_series_list[[td]] <- new_test_data
+      
+    }
+    
+  }
+  
+  if (current_form == "diff") {
+    a <- 1
+  }
+  
+
+  return(new_series_list)
+  
+}
+
+
+
 transform_cv <- function(list_series, series_name, current_form,
                          auxiliary_ts) {
   
+
   current_form <- current_form
   
   series_name <- series_name
@@ -6826,6 +6880,7 @@ try_sizes_vbls_lags <- function(var_data, rgdp_yoy_ts, rgdp_level_ts, target_v, 
     if (rgdp_current_form == "diff_yoy") {
       
       auxiliary_ts <-  rgdp_yoy_ts
+      
       results_all_models <- results_all_models %>% 
         rename(cv_test_data_diff_yoy = cv_test_data,
                cv_fcs_diff_yoy = cv_fcs)
@@ -6846,10 +6901,29 @@ try_sizes_vbls_lags <- function(var_data, rgdp_yoy_ts, rgdp_level_ts, target_v, 
           cv_errors = map2(cv_test_data, cv_fcs, ~ map2(.x, .y, ~ .x - .y) )
         )
     }
-    
+    ##### ESTA PARTE HAY QUE CAMBIAR: DIFF
     if (rgdp_current_form == "diff") {
       auxiliary_ts <-  rgdp_level_ts
       
+      auxiliary_ts <-  rgdp_yoy_ts
+      
+      results_all_models <- results_all_models %>% 
+        rename(cv_test_data_diff = cv_test_data,
+               cv_fcs_diff = cv_fcs)
+      
+      results_all_models <- results_all_models %>% 
+        mutate(cv_test_data = map(
+          cv_test_data_diff, ~ transform_cv(list_series  = ., 
+                                                series_name = "cv_test_data",
+                                                current_form = rgdp_rec,
+                                                auxiliary_ts = auxiliary_ts) ),
+          cv_fcs = map(
+            cv_fcs_diff,  ~ transform_cv(list_series  = .,
+                                             series_name = "cv_fcs",
+                                             current_form = rgdp_rec,
+                                             auxiliary_ts = auxiliary_ts) ),
+          cv_errors = map2(cv_test_data, cv_fcs, ~ map2(.x, .y, ~ .x - .y) )
+        )
       
       
       
