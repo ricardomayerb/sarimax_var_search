@@ -4565,15 +4565,29 @@ get_sets_of_variables <- function(df, this_size, all_variables,
   tiao_box_treshold <- 2 / sqrt(nrow(df))
   tresh <- bt_factor * tiao_box_treshold
   
-  p_and_ccm_mat <- ccm(df, output = FALSE, lags = maxlag_ccm)
+  # p_and_ccm_mat <- ccm(df, output = FALSE, lags = maxlag_ccm)
+  # 
+  # ccm_mat <- p_and_ccm_mat$ccm
+  # ccm_mat_rgdp <- ccm_mat[1:ncol(df) ,]
+  # geq_cor <- abs(ccm_mat_rgdp) >= tresh
+  # geq_cor_row_sums <- rowSums(geq_cor) 
+  # geq_cor_variables <- geq_cor_row_sums >= 1
+  # 
+  # passing_variables <- all_variables[geq_cor_variables]
   
-  ccm_mat <- p_and_ccm_mat$ccm
-  ccm_mat_rgdp <- ccm_mat[1:ncol(df) ,]
-  geq_cor <- abs(ccm_mat_rgdp) >= tresh
-  geq_cor_row_sums <- rowSums(geq_cor) 
-  geq_cor_variables <- geq_cor_row_sums >= 1
   
-  passing_variables <- all_variables[geq_cor_variables]
+  p_and_ccm_mat <- 1
+  
+  ccm_mat <- 1
+  ccm_mat_rgdp <- 1
+  geq_cor <- 1
+  geq_cor_row_sums <- 1 
+  geq_cor_variables <- 1
+  
+  passing_variables <- all_variables
+  
+  
+  
   
   passing_not_alr_chosen <- passing_variables[!passing_variables %in% already_chosen]
   
