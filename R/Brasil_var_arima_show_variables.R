@@ -978,5 +978,78 @@ ggsave(filename = filename_annual_forecast_plot, path = plots_path)
 
 annual_forecast_bar_plot
 
+### extract info from best-model tibbes
+
+freq_n_of_variables <- function(tbl_of_models, tbl_models_only = FALSE, 
+                                h_max = 8) {
+  
+  if (tbl_models_only) {
+    this_models_tbl <- tbl_of_models
+  } else {
+    this_models_tbl <- tbl_of_models$info_fit_ifcs
+  }
+  
+  variable_n_tbl <- this_models_tbl %>% 
+    dplyr::select(variables, rmse_h, rank_h, long_name, horizon) %>% 
+    group_by(horizon) %>% 
+    summarise(unique_variables = list(unique(unlist(variables))),
+              non_unique_variables = list(unlist(variables)),
+              n = length(unlist(unique_variables)) - 1) %>% 
+    select(horizon, n, unique_variables, non_unique_variables)
+  
+  all_variables <- unlist(this_models_tbl$variables)
+  
+  all_variables_freq_table <- tibble::as.tibble(table(all_variables)) %>% 
+    arrange(desc(n))
+  
+  all_variables_h_freqs <- this_models_tbl %>% 
+    dplyr::select(variables, rmse_h, rank_h, long_name, horizon) %>% 
+    group_by(horizon) %>% 
+    summarise(freq = list(tibble::as.tibble(table(unlist(variables)))) ) 
+  
+  
+  tbl_with_freqs_per_h <- reduce(all_variables_h_freqs$freq,
+                                 full_join, by = "Var1") 
+  
+  names(tbl_with_freqs_per_h) <- c("variable", paste0("n_", 1:h_max))
+  
+  tbl_with_freqs_per_h <- tbl_with_freqs_per_h %>% 
+    mutate(ave = rowSums(.[2:(h_max+1)], na.rm = TRUE)/h_max) %>% 
+    arrange(desc(ave), desc(n_1), desc(n_2), desc(n_3), desc(n_4) ) 
+  
+  return(list(variable_n_tbl = variable_n_tbl,
+              all_variables_freq_table = all_variables_freq_table,
+              tbl_with_freqs_per_h = tbl_with_freqs_per_h))
+  
+}
+
+
+
+foo <- freq_n_of_variables(tbl_of_models = VAR_fcs_all)
+foo1 <- foo$variable_n_tbl
+foo1 
+foo2 <- foo$all_variables_freq_table
+foo2 
+foo3 <- foo$tbl_with_freqs_per_h
+foo3 
+
+
+moo <- freq_n_of_variables(tbl_of_models = VAR_fcs_all_best_5)
+moo1 <- moo$variable_n_tbl
+moo1 
+moo2 <- moo$all_variables_freq_table
+moo2 
+moo3 <- moo$tbl_with_freqs_per_h
+moo3 
+
+
+
+
+
+
+
+
+
+
 
 

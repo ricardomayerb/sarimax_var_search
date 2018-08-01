@@ -2364,11 +2364,11 @@ fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables,
                           force.constant = FALSE) {
   if (model_function == "VAR") {
     
-    print("in fit var arima")
-    print("colnames(var_data)")
-    print(colnames(var_data))
-    print("variables")
-    print(variables)
+    # print("in fit var arima")
+    # print("colnames(var_data)")
+    # print(colnames(var_data))
+    # print("variables")
+    # print(variables)
     
     
     fit <- vars::VAR(y = var_data[, variables], p = lags)
@@ -4954,7 +4954,8 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts,
                                       lags = ..3, order = ..4, seasonal = ..5,
                                       extended_x_data_ts = extended_x_data_ts,
                                       arima_rgdp_ts = rgdp_ts_in_arima,
-                                      force.constant = force.constant)),
+                                      force.constant = force.constant,
+                                      var_data = var_data)),
            fc_obj = pmap(list(model_function, variables, lags, fit),
                          ~ forecast_VAR_Arima(model_function = ..1, 
                                               variables = ..2, lags = ..3,
