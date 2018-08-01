@@ -317,17 +317,18 @@ use_demetra <- TRUE
 use_dm_force_constant <- TRUE
 
 # # To run (and save) the arima script
-arima_res <- get_arima_results(
-  country_name = country_name, use_dm_force_constant = use_dm_force_constant,
-  arima_res_suffix = arima_res_suffix, use_demetra = use_demetra)
+# arima_res <- get_arima_results(
+#   country_name = country_name, use_dm_force_constant = use_dm_force_constant,
+#   arima_res_suffix = arima_res_suffix, use_demetra = use_demetra)
 
 # # Or, just load previously saved arima res objects
-# arima_res <- get_arima_results(country_name = country_name, read_results = TRUE,
-#   arima_res_suffix = arima_res_suffix)
+arima_res <- get_arima_results(country_name = country_name, read_results = TRUE,
+  arima_res_suffix = arima_res_suffix)
 
 extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
 do.force.constant <- TRUE
+h_max_arima <- 7
 
 
 # foo <- rgdp_ts_in_arima
@@ -477,7 +478,7 @@ models_tbl_ssel <- models_tbl_ssel %>%
 
 # First have a look at the VAR models
 VAR_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                h_var = h_max, extended_x_data_ts = extended_x_data_ts,
                                 rgdp_ts_in_arima = rgdp_ts_in_arima,
                                 model_type = "VAR", max_rank_h = 30,
                                 var_data = VAR_data)
@@ -489,28 +490,28 @@ rgdp_yoy_VAR_timespan
 
 
 VAR_fcs_all_best_10 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                   h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                   h_var = h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
                                    model_type = "VAR", max_rank_h = 10,
                                    var_data = VAR_data)
 
 
 VAR_fcs_all_best_5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                         h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                         h_var = h_max, extended_x_data_ts = extended_x_data_ts,
                                          rgdp_ts_in_arima = rgdp_ts_in_arima,
                                          model_type = "VAR", max_rank_h = 5,
                                          var_data = VAR_data)
 
 
 VAR_fcs_all_best_15 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                   h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                   h_var = h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
                                    model_type = "VAR", max_rank_h = 15,
                                    var_data = VAR_data)
 
 
 VAR_fcs_all_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                   h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                   h_var =  h_max, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
                                    model_type = "VAR", max_rank_h = 20,
                                    var_data = VAR_data)
@@ -570,10 +571,13 @@ rgdp_arimax <- make_yoy_ts(exp(rgdp_ts_in_arima))
 #                                   rgdp_ts_in_arima = rgdp_ts_in_arima,
 #                                   model_type = "Arima")
 
+
 arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                     h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                     h_arima = h_max_arima, h_var = h_max,
+                                     extended_x_data_ts = extended_x_data_ts,
                                      rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                     model_type = "Arima", force.constant = do.force.constant)
+                                     model_type = "Arima", 
+                                     force.constant = do.force.constant)
 
 # summ_arimax_fcs_all <- arimax_fcs_all %>%
 #   group_by(horizon) %>%
@@ -590,7 +594,8 @@ arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
 
 
 arimax_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                       h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                          h_arima = h_max_arima, h_var = h_max,
+                                          extended_x_data_ts = extended_x_data_ts,
                                        rgdp_ts_in_arima = rgdp_ts_in_arima,
                                        model_type = "Arima", force.constant = do.force.constant)
 
@@ -689,7 +694,8 @@ print(forecast_plot_best_vars_arimax)
 
 # Get the best Forecasts out of all Models: all VARs and all ARIMAX
 comb_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                            h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                   h_arima = h_max_arima, h_var = h_max,
+                                   extended_x_data_ts = extended_x_data_ts,
                             rgdp_ts_in_arima = rgdp_ts_in_arima,
                             max_rank_h = 30, force.constant = do.force.constant,
                             var_data = VAR_data)
@@ -774,7 +780,8 @@ rank_arima <- models_tbl_ssel %>% dplyr::filter(model_function == "Arima") %>% s
 #   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
 comb_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                 h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                        h_arima = h_max_arima, h_var = h_max,
+                                        extended_x_data_ts = extended_x_data_ts,
                                  rgdp_ts_in_arima = rgdp_ts_in_arima,
                                  max_rank_h = 30, force.constant = do.force.constant,
                                  var_data = VAR_data)
@@ -790,7 +797,8 @@ number_of_models_per_h_ssel
 # for consistency with stata i focus on ssel method
 
 comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                    h = h_max, extended_x_data_ts = extended_x_data_ts,
+                                            h_arima = h_max_arima, h_var = h_max,
+                                            extended_x_data_ts = extended_x_data_ts,
                                     rgdp_ts_in_arima = rgdp_ts_in_arima,
                                     max_rank_h = 20, force.constant = do.force.constant,
                                     var_data = VAR_data)
