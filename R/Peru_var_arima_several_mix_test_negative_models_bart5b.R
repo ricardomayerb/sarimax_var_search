@@ -309,21 +309,27 @@ watermark_cepal <- matrix(rgb(img[,,1],img[,,2],img[,,3], img[,,3.5] * 0.4), nro
 country_name <- "Chile"
 
 # Optional: Estimate (and Save) new Arimax RDS file
-
-final_forecast_horizon <- c(2019, 12)
+set_manual_h <- TRUE
+# final_forecast_horizon <- c(2019, 12)
+h_max <- 8
+h_max_arima <- h_max
 
 arima_res_suffix <- "_dm_s"
 use_demetra <- TRUE
 use_dm_force_constant <- TRUE
 
-# # To run (and save) the arima script
-# arima_res <- get_arima_results(
-#   country_name = country_name, use_dm_force_constant = use_dm_force_constant,
-#   arima_res_suffix = arima_res_suffix, use_demetra = use_demetra)
+arima_res <- get_arima_results(
+  country_name = country_name, use_dm_force_constant = use_dm_force_constant,
+  arima_res_suffix = arima_res_suffix, use_demetra = use_demetra,
+  h_max = h_max, set_manual_h = set_manual_h)
+
 
 # # Or, just load previously saved arima res objects
-arima_res <- get_arima_results(country_name = country_name, read_results = TRUE,
-  arima_res_suffix = arima_res_suffix)
+# arima_res <- get_arima_results(country_name = country_name, read_results = TRUE,
+#   arima_res_suffix = arima_res_suffix)
+
+
+
 
 extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
@@ -398,8 +404,8 @@ if(arima_rgdp_is_log) {
 ########################## IMPORT ARIMAX AND VAR FILES #############################
 # Automatically imports the data matching the country_name
 
-path_models_and_accu <- paste("./data/", country_name, "_by_step_12345_32.rds", sep = "")
-path_cv_objects <- paste("./data/", country_name, "_by_step_12345_32_cv_objects.rds", sep = "")
+path_models_and_accu <- paste("./data/", country_name, "_by_step_12345.rds", sep = "")
+path_cv_objects <- paste("./data/", country_name, "_by_step_12345_cv_objects.rds", sep = "")
 path_VAR_data <- paste("./data/VAR_data_", country_name, ".rds", sep = "")
 models_and_accu <- readRDS(path_models_and_accu)
 cv_objects <- readRDS(path_cv_objects)
@@ -409,7 +415,7 @@ rgdp_yoy_VAR_timespan <-  window(make_yoy_ts(rgdp_level_ts),
                                  start = start(VAR_data_rgdp),
                                  end = end(VAR_data_rgdp))
 
-
+rgdp_yoy_VAR_timespan
 # # check var data
 # VAR_data_rgdp
 # 
@@ -429,7 +435,7 @@ rgdp_yoy_VAR_timespan <-  window(make_yoy_ts(rgdp_level_ts),
 cv_objects <- cv_objects %>% mutate(id = 1:n())
 models_and_accu <- models_and_accu %>% mutate(id = 1:n())
 
-h_max <- 8
+h_max_var <- 7
 
 # Get the table with all models from both the VARs and ARIMAX
 # I adjusted the make_model_tbl function in utils_av: each_h_just_model_and_ave_rmse_sarimax is adjusted so it selects the id variable
@@ -478,7 +484,7 @@ models_tbl_ssel <- models_tbl_ssel %>%
 
 # First have a look at the VAR models
 VAR_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                h_var = h_max, extended_x_data_ts = extended_x_data_ts,
+                                h_var = h_max_var, extended_x_data_ts = extended_x_data_ts,
                                 rgdp_ts_in_arima = rgdp_ts_in_arima,
                                 model_type = "VAR", max_rank_h = 30,
                                 var_data = VAR_data)
@@ -490,28 +496,28 @@ rgdp_yoy_VAR_timespan
 
 
 VAR_fcs_all_best_10 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                   h_var = h_max, extended_x_data_ts = extended_x_data_ts,
+                                   h_var = h_max_var, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
                                    model_type = "VAR", max_rank_h = 10,
                                    var_data = VAR_data)
 
 
 VAR_fcs_all_best_5 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                         h_var = h_max, extended_x_data_ts = extended_x_data_ts,
+                                         h_var = h_max_var, extended_x_data_ts = extended_x_data_ts,
                                          rgdp_ts_in_arima = rgdp_ts_in_arima,
                                          model_type = "VAR", max_rank_h = 5,
                                          var_data = VAR_data)
 
 
 VAR_fcs_all_best_15 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                   h_var = h_max, extended_x_data_ts = extended_x_data_ts,
+                                   h_var = h_max_var, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
                                    model_type = "VAR", max_rank_h = 15,
                                    var_data = VAR_data)
 
 
 VAR_fcs_all_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                   h_var =  h_max, extended_x_data_ts = extended_x_data_ts,
+                                   h_var =  h_max_var, extended_x_data_ts = extended_x_data_ts,
                                    rgdp_ts_in_arima = rgdp_ts_in_arima,
                                    model_type = "VAR", max_rank_h = 20,
                                    var_data = VAR_data)
@@ -567,13 +573,13 @@ forecast_plot_best_vars
 rgdp_arimax <- make_yoy_ts(exp(rgdp_ts_in_arima))
 
 # arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-#                                   h = h_max, extended_x_data_ts = extended_x_data_ts,
+#                                   h = h_max_var, extended_x_data_ts = extended_x_data_ts,
 #                                   rgdp_ts_in_arima = rgdp_ts_in_arima,
 #                                   model_type = "Arima")
 
 
 arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                     h_arima = h_max_arima, h_var = h_max,
+                                     h_arima = h_max_arima, h_var = h_max_var,
                                      extended_x_data_ts = extended_x_data_ts,
                                      rgdp_ts_in_arima = rgdp_ts_in_arima,
                                      model_type = "Arima", 
@@ -594,7 +600,7 @@ arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
 
 
 arimax_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                          h_arima = h_max_arima, h_var = h_max,
+                                          h_arima = h_max_arima, h_var = h_max_var,
                                           extended_x_data_ts = extended_x_data_ts,
                                        rgdp_ts_in_arima = rgdp_ts_in_arima,
                                        model_type = "Arima", force.constant = do.force.constant)
@@ -694,7 +700,7 @@ print(forecast_plot_best_vars_arimax)
 
 # Get the best Forecasts out of all Models: all VARs and all ARIMAX
 comb_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
-                                   h_arima = h_max_arima, h_var = h_max,
+                                   h_arima = h_max_arima, h_var = h_max_var,
                                    extended_x_data_ts = extended_x_data_ts,
                             rgdp_ts_in_arima = rgdp_ts_in_arima,
                             max_rank_h = 30, force.constant = do.force.constant,
@@ -780,7 +786,7 @@ rank_arima <- models_tbl_ssel %>% dplyr::filter(model_function == "Arima") %>% s
 #   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
 comb_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                        h_arima = h_max_arima, h_var = h_max,
+                                        h_arima = h_max_arima, h_var = h_max_var,
                                         extended_x_data_ts = extended_x_data_ts,
                                  rgdp_ts_in_arima = rgdp_ts_in_arima,
                                  max_rank_h = 30, force.constant = do.force.constant,
@@ -797,7 +803,7 @@ number_of_models_per_h_ssel
 # for consistency with stata i focus on ssel method
 
 comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                            h_arima = h_max_arima, h_var = h_max,
+                                            h_arima = h_max_arima, h_var = h_max_var,
                                             extended_x_data_ts = extended_x_data_ts,
                                     rgdp_ts_in_arima = rgdp_ts_in_arima,
                                     max_rank_h = 20, force.constant = do.force.constant,
