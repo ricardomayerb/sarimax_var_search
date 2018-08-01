@@ -29,9 +29,26 @@ this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
 
 # print("this_rgdp_ts")
 # print(this_rgdp_ts)
+manual_set_h <- TRUE
 
-h_max <- get_hmax_q(final_forecast_horizon, current_data = this_rgdp_ts,
-                    type = "monthly")
+h_max <- 9
+final_forecast_horizon <- c(2019, 12)
+
+if (manual_set_h) {
+  h_max <-  h_max
+  final_date_dec <- max(time(na.omit(this_rgdp_ts))) + 0.25*h_max
+  final_date_ym <- as.yearmon(final_date_dec)
+  final_forecast_horizon <- c(year(final_date_ym), month(final_date_ym) + 2)
+  print(final_forecast_horizon)
+}
+
+if (!manual_set_h) {
+  h_max <- get_hmax_q(final_forecast_horizon, current_data = this_rgdp_ts,
+                      type = "monthly")
+  print(h_max)
+  
+}
+
 
 test_length <- h_max
 

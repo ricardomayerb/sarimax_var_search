@@ -2360,10 +2360,18 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
 
 fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables, 
                           lags, order, seasonal, extended_x_data_ts,
+                          var_data,
                           force.constant = FALSE) {
   if (model_function == "VAR") {
     
-    fit <- vars::VAR(y = VAR_data[, variables], p = lags)
+    print("in fit var arima")
+    print("colnames(var_data)")
+    print(colnames(var_data))
+    print("variables")
+    print(variables)
+    
+    
+    fit <- vars::VAR(y = var_data[, variables], p = lags)
   } 
   
   if (model_function == "Arima") {
@@ -2945,7 +2953,8 @@ get_arima_results <- function(country_name, read_results = FALSE,
                               data_is_log_log = TRUE, lambda_0_in_auto = FALSE,
                               mean_logical_in_auto = FALSE, max_x_lag = 2,
                               external_data_path = "./data/external/external.xlsx",
-                              arima_res_suffix = "_dm_s") {
+                              arima_res_suffix = "_dm_s",
+                              h_max = NULL, set_manual_h = FALSE) {
   
   if(read_results) {
     print("Reading previously estimated arima results")
@@ -2971,10 +2980,21 @@ get_arima_results <- function(country_name, read_results = FALSE,
     this_rgdp_ts <- all_arima_data[["rgdp_ts"]]
     this_internal_monthly_ts <- all_arima_data[["monthly_ts"]]
     this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
-
-    h_max <- get_hmax_q(final_forecast_horizon, current_data = this_rgdp_ts,
-                        type = "monthly")
     
+    if (set_manual_h) {
+      h_max <-  h_max
+      final_date_dec <- max(time(na.omit(this_rgdp_ts))) + 0.25*h_max
+      final_date_ym <- as.yearmon(final_date_dec)
+      final_forecast_horizon <- c(year(final_date_ym), month(final_date_ym) + 2)
+      
+    }
+    
+    if (!set_manual_h) {
+      h_max <- get_hmax_q(final_forecast_horizon, current_data = this_rgdp_ts,
+                          type = "monthly")
+    }
+    
+
     print("I get_arima_results, final forcast horizon is")
     print(final_forecast_horizon)
     print("Final date of real GDP is")
@@ -4816,10 +4836,11 @@ logyoy <- function(logfc_ts, log_data_ts) {
 
 
 
-indiv_weigthed_fcs_semiold <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
+indiv_weigthed_fcs_debug <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
                                rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL,
-                               force.constant = FALSE) {
+                               force.constant = FALSE,
+                               h_arima = NULL, h_var = NULL) {
   
   if (!is.null(model_type)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
@@ -4858,12 +4879,6 @@ indiv_weigthed_fcs_semiold <- function(tbl_of_models_and_rmse, h, extended_x_dat
   }
   
   
-  # tibble_fit_and_fcs_deb <- tbl_of_models_and_rmse 
-  # 
-  # print("tibble_fit_and_fcs_deb")
-  # print(tibble_fit_and_fcs_deb)
-  
-  
   tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
     group_by(rmse_h) %>% 
     mutate(sum_invmse_h = sum(inv_mse),
@@ -4875,69 +4890,11 @@ indiv_weigthed_fcs_semiold <- function(tbl_of_models_and_rmse, h, extended_x_dat
                                       lags = ..3, order = ..4, seasonal = ..5,
                                       extended_x_data_ts = extended_x_data_ts,
                                       arima_rgdp_ts = rgdp_ts_in_arima,
-                                      force.constant = force.constant)),
-           fc_obj = pmap(list(model_function, variables, lags, fit),
-                         ~ forecast_VAR_Arima(model_function = ..1, 
-                                              variables = ..2, lags = ..3,
-                                              fit = ..4, h = h_max, 
-                                              mat_x_ext = extended_x_data_ts,
-                                              force.constant = force.constant)
-           ),
-           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
-           rgdp_transformation = map(
-             model_function, ~ what_rgdp_transformation(country_name = country_name,
-                                                        model_type = .)),
-           fc_yoy = map2(fc_mean, rgdp_transformation, 
-                         ~ any_fc_2_fc_yoy(current_fc = .x, 
-                                           rgdp_transformation = .y, 
-                                           rgdp_level_ts = rgdp_level_ts)),
-           weighted_fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
-                                   ~ subset(..1 * ..2, start = ..3, end = ..3)),
-           fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
-                                   ~ subset(..2, start = ..3, end = ..3)),
-           is_stable = map2(model_function, fit, ~my_stability_fun(model_type = .x, model_object = .y))
-    ) %>% 
-    ungroup() %>% filter(is_stable == TRUE)
-
-  w_ave_fc_tbl <- tibble_fit_and_fcs %>% 
-    group_by(horizon) %>%
-    summarise(sum_one_h = reduce(weighted_fc_at_h, sum))
+                                      force.constant = force.constant,
+                                      var_data = var_data))
+           )
   
-  print(" w_ave_fc_tbl ")
-  print( w_ave_fc_tbl )
-  
-  
-  if (is.null(model_type)) {
-    w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
-  } else {
-    if (model_type == "Arima") {
-      w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = rgdp_ts_in_arima)
-    }
-    
-    
-    if (model_type == "VAR") {
-      w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
-    }
-  }
-  
-  
-  
-  
-  
-  fc_for_plot <- tibble_fit_and_fcs %>% 
-  select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse, 
-         model_weight_h)
-
-  ensemble_model_tbl <- tibble(short_name = "ensemble", 
-                              model_function = "weighted_average",
-                             fc_yoy = w_fc_yoy_ts, fc_at_h = NA, rmse_h = "rmse_1",
-                             rmse = 0.00001, model_weight_h = 1)
-  
-  fc_for_plot <- rbind(fc_for_plot, ensemble_model_tbl)
-  
-  return(list(info_fit_ifcs = tibble_fit_and_fcs,
-              w_fc_yoy_ts = w_fc_yoy_ts,
-              fc_for_plot = fc_for_plot))
+  return(list(info_fit_ifcs = tibble_fit_and_fcs))
 }
 
 
@@ -6620,11 +6577,15 @@ to_ts_q <- function(df_xts){
 transform_cv_new <- function(list_series, series_name, current_form,
                          auxiliary_ts) {
   
- 
+  # print("in transform_cv_new")
+  # current_form <- current_form
+  # print("in transform_cv, current form")
+  # print(current_form)
+  # print("auxiliary_ts")
+  # print(auxiliary_ts)
+  # print("list_series")
+  # print(list_series)
   
-  current_form <- current_form
-  print("in transform_cv, current form")
-  print(current_form)
   
   series_name <- series_name
   new_series_list <- list_along(1:number_of_cv)
@@ -6648,9 +6609,8 @@ transform_cv_new <- function(list_series, series_name, current_form,
       initial_cond_ts <- window(auxiliary_ts, start = start_initial_cond_y_q,
                                 end = end_initial_cond_y_q)
       
-      if (current_form == "diff_yoy") {
-        new_test_data <- un_diff_ts(initial_cond_ts, this_test_data)
-      }
+      new_test_data <- un_diff_ts(initial_cond_ts, this_test_data)
+      
       
       new_series_list[[td]] <- new_test_data
       
@@ -6659,7 +6619,37 @@ transform_cv_new <- function(list_series, series_name, current_form,
   }
   
   if (current_form == "diff") {
-    a <- 1
+    len_initial_cond <- 1
+    
+    for (td in seq_along(1:number_of_cv)) {
+      
+      this_test_data <- list_series[[td]]
+      test_time <- time(this_test_data)
+      start_test <- min(test_time)
+      end_initial_cond <- start_test - 0.25
+      start_initial_cond <- start_test - 0.25*len_initial_cond
+      end_initial_cond_y_q <- c(year(as.yearqtr(end_initial_cond)),
+                                quarter(as.yearqtr(end_initial_cond))
+      )
+      start_initial_cond_y_q <- c(year(as.yearqtr(start_initial_cond)),
+                                  quarter(as.yearqtr(start_initial_cond))
+      )
+      initial_cond_ts <- window(auxiliary_ts, start = start_initial_cond_y_q,
+                                end = end_initial_cond_y_q)
+      level_test_data <- un_diff_ts(initial_cond_ts, this_test_data)
+      pre_test_level_data <- window(auxiliary_ts, end = end_initial_cond_y_q)
+      data_and_test_level <- ts(c(pre_test_level_data, level_test_data),
+                                frequency = 4, start = start(auxiliary_ts))
+      
+      data_and_test_yoy <- make_yoy_ts(data_and_test_level, freq = 4, 
+                                       is_log = FALSE)
+      
+      new_test_data <- window(data_and_test_yoy, start = start(this_test_data),
+                              end = end(this_test_data))
+      
+      new_series_list[[td]] <- new_test_data
+    }
+      
   }
   
 
@@ -6904,21 +6894,19 @@ try_sizes_vbls_lags <- function(var_data, rgdp_yoy_ts, rgdp_level_ts, target_v, 
     ##### ESTA PARTE HAY QUE CAMBIAR: DIFF
     if (rgdp_current_form == "diff") {
       auxiliary_ts <-  rgdp_level_ts
-      
-      auxiliary_ts <-  rgdp_yoy_ts
-      
+     
       results_all_models <- results_all_models %>% 
         rename(cv_test_data_diff = cv_test_data,
                cv_fcs_diff = cv_fcs)
       
       results_all_models <- results_all_models %>% 
         mutate(cv_test_data = map(
-          cv_test_data_diff, ~ transform_cv(list_series  = ., 
+          cv_test_data_diff, ~ transform_cv_new(list_series  = ., 
                                                 series_name = "cv_test_data",
                                                 current_form = rgdp_rec,
                                                 auxiliary_ts = auxiliary_ts) ),
           cv_fcs = map(
-            cv_fcs_diff,  ~ transform_cv(list_series  = .,
+            cv_fcs_diff,  ~ transform_cv_new(list_series  = .,
                                              series_name = "cv_fcs",
                                              current_form = rgdp_rec,
                                              auxiliary_ts = auxiliary_ts) ),
