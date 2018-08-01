@@ -265,7 +265,7 @@ models_and_accu_12345 <- rbind(models_and_accu_1, models_and_accu_2, models_and_
 
 # models_and_accu_1 <- var_res_1[["accu_rankings_models"]]
 
-saveRDS(models_and_accu_12345, "./data/Ecuador_by_step_12345.rds")
+saveRDS(models_and_accu_12345, "./data/Ecuador_by_step_12345. rds")
 
 
 cv_objects_12345 <- rbind(cv_objects_1, cv_objects_2, cv_objects_3, cv_objects_4, cv_objects_4b, cv_objects_5)
