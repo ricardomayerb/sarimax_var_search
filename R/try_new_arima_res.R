@@ -1,7 +1,7 @@
 source('./R/utils_av_ricardo.R')
 
 final_forecast_horizon <- c(2019, 12)
-country_name <- "Brasil"
+country_name <- "Bolivia"
 arima_res_suffix <- "_dm_s"
 use_demetra <- TRUE
 use_dm_force_constant <- TRUE

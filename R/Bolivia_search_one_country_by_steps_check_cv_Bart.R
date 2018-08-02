@@ -1,4 +1,4 @@
-source('./R/utils_av.R')
+source('./R/utils_av_ricardo.R')
 
 country_name <- "Bolivia"
 
@@ -63,6 +63,19 @@ vec_n_varsize <- c(4, 5)
 n_best <- 5
 number_of_cv <- 8
 fc_horizon <- 8
+max_lag <- 5
+min_train_span <- max_lag + fc_horizon ; min_train_span
+max_train_span <- nrow(VAR_data_for_estimation) - fc_horizon - number_of_cv; max_train_span
+train_span_80_rule <- (fc_horizon/0.2) - fc_horizon; train_span_80_rule
+train_span_80_rule_possible <- train_span_80_rule <= max_train_span ; train_span_80_rule_possible
+# Once the train_span_80_rule of 32 is reached (given max h = 8), we can start to increase the number of cv rounds from 8 to more
+possible_increase_cv_rounds <- max_train_span - train_span_80_rule; possible_increase_cv_rounds
+
+train_span <- if (train_span_80_rule_possible == TRUE){
+  train_span_test <- train_span_80_rule
+} else train_span_test <- max_train_span
+train_span
+# We first stick to train_span 25
 train_span <- 25
 
 if (train_span+fc_horizon+number_of_cv > nrow(VAR_data_for_estimation)) {
@@ -224,7 +237,7 @@ models_and_accu_12345 <- rbind(models_and_accu_1, models_and_accu_2, models_and_
 # ?distinct
 # 
 # foo <- models_and_accu_12345 %>% distinct(variables, lags)
-# models_and_accu_12345_test <- distinct(models_and_accu_12345, variables, lags, .keep_all = FALSE)
+# models_and_accu_1234 5_test <- distinct(models_and_accu_12345, variables, lags, .keep_all = FALSE)
 
 # models_and_accu_1 <- var_res_1[["accu_rankings_models"]]
 

@@ -1025,22 +1025,23 @@ freq_n_of_variables <- function(tbl_of_models, tbl_models_only = FALSE,
 
 
 
-foo <- freq_n_of_variables(tbl_of_models = VAR_fcs_all)
-foo1 <- foo$variable_n_tbl
-foo1 
-foo2 <- foo$all_variables_freq_table
-foo2 
-foo3 <- foo$tbl_with_freqs_per_h
-foo3 
+variables_info_VAR30 <- freq_n_of_variables(tbl_of_models = VAR_fcs_all)
+variables_count_VAR30 <- variables_info_VAR30$variable_n_tbl
+variables_count_VAR30 
+variables_overall_freq_VAR30 <- variables_info_VAR30$all_variables_freq_table
+variables_overall_freq_VAR30
+variables_by_h_freq_VAR30 <- variables_info_VAR30$tbl_with_freqs_per_h
+variables_by_h_freq_VAR30 
 
 
-moo <- freq_n_of_variables(tbl_of_models = VAR_fcs_all_best_5)
-moo1 <- moo$variable_n_tbl
-moo1 
-moo2 <- moo$all_variables_freq_table
-moo2 
-moo3 <- moo$tbl_with_freqs_per_h
-moo3 
+variables_info_VAR5 <- freq_n_of_variables(tbl_of_models = VAR_fcs_all_best_5)
+variables_count_VAR5 <- variables_info_VAR5$variable_n_tbl
+variables_count_VAR5 
+variables_overall_freq_VAR5 <- variables_info_VAR5$all_variables_freq_table
+variables_overall_freq_VAR5
+variables_by_h_freq_VAR5 <- variables_info_VAR5$tbl_with_freqs_per_h
+variables_by_h_freq_VAR5 
+
 
 
 
