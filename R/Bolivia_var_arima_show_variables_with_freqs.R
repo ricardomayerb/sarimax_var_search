@@ -323,15 +323,15 @@ arima_res_suffix <- "_dm_s"
 use_demetra <- TRUE
 use_dm_force_constant <- TRUE
 
-arima_res <- get_arima_results(
-  country_name = country_name, use_dm_force_constant = use_dm_force_constant,
-  arima_res_suffix = arima_res_suffix, use_demetra = use_demetra,
-  h_max = h_max, set_manual_h = set_manual_h)
+# arima_res <- get_arima_results(
+#   country_name = country_name, use_dm_force_constant = use_dm_force_constant,
+#   arima_res_suffix = arima_res_suffix, use_demetra = use_demetra,
+#   h_max = h_max, set_manual_h = set_manual_h)
 
 
-# # Or, just load previously saved arima res objects
-# arima_res <- get_arima_results(country_name = country_name, read_results = TRUE,
-#   arima_res_suffix = arima_res_suffix)
+# Or, just load previously saved arima res objects
+arima_res <- get_arima_results(country_name = country_name, read_results = TRUE,
+  arima_res_suffix = arima_res_suffix)
 
 extended_x_data_ts <- arima_res$mdata_ext_ts
 rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
@@ -864,12 +864,11 @@ best_30_vars_and_errors <- left_join(VAR_fcs_all$info_fit_ifcs, cv_objects, by =
 best_10_VAR_models_plus_negative_corr_models <- generate_best_10_models_plus_negative_corr_models(
   models_and_errors = best_30_vars_and_errors, 
   all_best_models = VAR_fcs_all$info_fit_ifcs)
-best_10_VAR_models_plus_negative_corr_models[["best_10_vars_plus_neg_corr_models"]]
+foo <- best_10_VAR_models_plus_negative_corr_models[["best_10_vars_plus_neg_corr_models"]]
 # drop the h = 8 forecast 
 summ_best10_vars_and_negative_corr_models <- best_10_VAR_models_plus_negative_corr_models[["best_10_vars_plus_neg_corr_models"]] %>% 
   group_by(horizon) %>% 
-  summarise(sum_one_h = reduce(w_fc, sum)) %>% 
-  filter(grepl('1|2|3|4|5|6|7', horizon))
+  summarise(sum_one_h = reduce(w_fc, sum))
 
 summ_best10_vars_and_negative_corr_models <- summ_best10_vars_and_negative_corr_models %>% add_row(horizon = 0, sum_one_h = last(rgdp_var)) %>% arrange(horizon)
 
