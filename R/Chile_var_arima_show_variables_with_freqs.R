@@ -323,10 +323,21 @@ arima_res_suffix <- "_dm_s"
 use_demetra <- TRUE
 use_dm_force_constant <- TRUE
 
+<<<<<<< HEAD
 arima_res <- get_arima_results(
   country_name = country_name, use_dm_force_constant = use_dm_force_constant,
   arima_res_suffix = arima_res_suffix, use_demetra = use_demetra,
   h_max = h_max, set_manual_h = set_manual_h)
+=======
+use_final_stata_variables <- TRUE
+# use_final_stata_variables <- FALSE
+
+arima_res <- get_arima_results(
+  country_name = country_name, use_dm_force_constant = use_dm_force_constant,
+  arima_res_suffix = arima_res_suffix, use_demetra = use_demetra,
+  h_max = h_max, set_manual_h = set_manual_h, 
+  use_final_stata_variables = use_final_stata_variables)
+>>>>>>> c5fabf9a8ff0101eb470048cb154e450c5cef883
 
 
 # # Or, just load previously saved arima res objects

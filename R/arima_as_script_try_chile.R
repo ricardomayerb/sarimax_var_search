@@ -58,23 +58,23 @@ test_length <- h_max
 internal_monthly_names <- colnames(this_internal_monthly_ts)
 external_monthly_names <- colnames(this_external_monthly_ts)
 
-if (use_final_stata_variables) {
-  
-  print("using stata final variables")
-  
-  final_stata_variables <- readRDS("./data/final_stata_variables.rds")
-  country_fsv <- final_stata_variables[[country_name]]
-  
-  country_fsv_external <-  country_fsv[country_fsv %in% external_monthly_names]
-  country_fsv_internal <-  country_fsv[country_fsv %in% internal_monthly_names]
-  
-  this_internal_monthly_ts <- this_internal_monthly_ts[, country_fsv_internal]
-  this_external_monthly_ts <- this_external_monthly_ts[, country_fsv_external]
-  
-  internal_monthly_names <- country_fsv_internal
-  external_monthly_names <- country_fsv_external
-}
-
+# if (use_final_stata_variables) {
+#   
+#   print("using stata final variables")
+#   
+#   final_stata_variables <- readRDS("./data/final_stata_variables.rds")
+#   country_fsv <- final_stata_variables[[country_name]]
+#   
+#   country_fsv_external <-  country_fsv[country_fsv %in% external_monthly_names]
+#   country_fsv_internal <-  country_fsv[country_fsv %in% internal_monthly_names]
+#   
+#   this_internal_monthly_ts <- this_internal_monthly_ts[, country_fsv_internal]
+#   this_external_monthly_ts <- this_external_monthly_ts[, country_fsv_external]
+#   
+#   internal_monthly_names <- country_fsv_internal
+#   external_monthly_names <- country_fsv_external
+# 
+# }
 
 
 
@@ -187,6 +187,20 @@ if (!use_demetra) {
 }
 
 
+if (use_final_stata_variables) {
+  
+  print("using stata final variables")
+  
+  final_stata_variables <- readRDS("./data/final_stata_variables.rds")
+  country_fsv <- final_stata_variables[[country_name]]
+  
+  mdata_ext_ts_monthly <- mdata_ext_ts_monthly[, country_fsv]
+  mdata_ext_ts <- mdata_ext_ts[, country_fsv]
+  monthly_names <- country_fsv 
+  
+  x_order_list <- x_order_list[country_fsv]
+}
+
 ####### ----------- gob   ---
 tic()
 cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
@@ -250,20 +264,6 @@ arima_res_3 <- list(
 )
 
 arima_res <- c(arima_res_1, arima_res_2, arima_res_3)
-
-
-# make_arima_growth_tables <- function(){
-#   
-# }
-# 
-# make_arima_fcs_plots <- function(){}
-
-
-# moo <- window(this_internal_monthly_ts[,1], end = c(2017, 2))
-# moo
-# 
-# qoo <- window(internal_mdata_ext_ts[,1], end = c(2017, 3))
-# qoo
 
 
 rds_file_name = paste0(arima_rds_path, country_name, arima_res_suffix, ".rds")
