@@ -2954,7 +2954,8 @@ get_arima_results <- function(country_name, read_results = FALSE,
                               mean_logical_in_auto = FALSE, max_x_lag = 2,
                               external_data_path = "./data/external/external.xlsx",
                               arima_res_suffix = "_dm_s",
-                              h_max = NULL, set_manual_h = FALSE) {
+                              h_max = NULL, set_manual_h = FALSE,
+                              use_final_stata_variables = FALSE) {
   
   if(read_results) {
     print("Reading previously estimated arima results")
@@ -3005,6 +3006,27 @@ get_arima_results <- function(country_name, read_results = FALSE,
 
     internal_monthly_names <- colnames(this_internal_monthly_ts)
     external_monthly_names <- colnames(this_external_monthly_ts)
+    
+    
+    if (use_final_stata_variables) {
+      
+      print("using stata final variables")
+      
+      final_stata_variables <- readRDS("./data/final_stata_variables.rds")
+      country_fsv <- final_stata_variables[[country_name]]
+      
+      country_fsv_external <-  country_fsv[country_fsv %in% external_monthly_names]
+      country_fsv_internal <-  country_fsv[country_fsv %in% internal_monthly_names]
+      
+      this_internal_monthly_ts <- this_internal_monthly_ts[, country_fsv_internal]
+      this_external_monthly_ts <- this_external_monthly_ts[, country_fsv_external]
+      
+      internal_monthly_names <- country_fsv_internal
+      external_monthly_names <- country_fsv_external
+      
+    }
+    
+    
     
     if (use_demetra) {
       do_auto <- FALSE
