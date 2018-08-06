@@ -1,7 +1,7 @@
 source('./R/utils_av_ricardo.R')
 
 seas_yr_growth <- function(data_ts, freq = 4 , is_log = TRUE, 
-                           do_just_log = FALSE) {
+                           do_just_log = FALSE, year_1 = 2016, year_2 = 2017) {
   
   seas_gr <- tsibble::as_tsibble(data_ts)
   
@@ -59,41 +59,50 @@ seas_yr_growth <- function(data_ts, freq = 4 , is_log = TRUE,
   
   
   if (freq == 4) {
-    return(list(seasonal_growth = seas_gr, year_growth = year_gr))
+    q_y1_logic <- year(seas_gr$index) >= year_1 
+    q_y2_logic <- year(seas_gr$index) <= year_2
+    q_y1_y2_logic <- q_y1_logic & q_y2_logic
+    seas_gr_y1_y2 <- seas_gr %>% filter(q_y1_y2_logic)
+    
+    y_y1_logic <- year_gr$year_index >= year_1
+    y_y2_logic <- year_gr$year_index <= year_2
+    y_y1_y2_logic <- y_y1_logic & y_y2_logic
+    year_gr_y1_y2 <- year_gr %>% filter(y_y1_y2_logic)
+    
+    return(list(seasonal_growth = seas_gr,
+                year_growth = year_gr,
+                seasonal_growth_y1_y2 = seas_gr_y1_y2,
+                year_growth_y1_y2 = year_gr_y1_y2))
   }
   
   if (freq == 12) {
-    return(list(seasonal_growth = seas_gr, year_growth = year_gr,
-                quarter_growth = quarter_gr))
-  }
-  
-  
-  
-}
+    m_y1_logic <- year(seas_gr$index) >= year_1 
+    m_y2_logic <- year(seas_gr$index) <= year_2
+    m_y1_y2_logic <- m_y1_logic & m_y2_logic
+    seas_gr_y1_y2 <- seas_gr %>% filter(m_y1_y2_logic)
 
-print_growths <- function(seas_and_yr_gr) {
-  seas_gr <- seas_and_yr_gr[["seasonal_growth"]]
-  year_gr <- seas_and_yr_gr[["year_growth"]]
-  quarter_gr <- seas_and_yr_gr[["quarter_growth"]]
-  
-  seas <- knitr::kable(tail(as_tibble(seas_gr) %>% select(-value), n = 8), 
-                       digits = 1, align = 'lcc')
-  
-  yr <- knitr::kable(tail(as_tibble(year_gr) %>% select(-y_rgdp), n = 5),
-                     digits = 1, align = 'lccc')  
-  
-  if (is.null(quarter_gr)) {
     
-    walk(list(seas, yr), print)
+    q_y1_logic <- year(quarter_gr$quarter_index) >= year_1
+    q_y2_logic <- year(quarter_gr$quarter_index) <= year_2
+    q_y1_y2_logic <- q_y1_logic & q_y2_logic
+    quarter_gr_y1_y2 <- quarter_gr %>% filter(q_y1_y2_logic)
+
     
-  } else {
+    y_y1_logic <- year_gr$year_index >= year_1
+    y_y2_logic <- year_gr$year_index <= year_2
+    y_y1_y2_logic <- y_y1_logic & y_y2_logic
+    year_gr_y1_y2 <- year_gr %>% filter(y_y1_y2_logic)
     
-    qtr <- knitr::kable(tail(as_tibble(quarter_gr) %>% select(-q_rgdp), n = 5),
-                        digits = 1, align = 'lccc') 
-    
-    walk(list(seas, yr, qtr), print)
-    
+    return(list(seasonal_growth = seas_gr, 
+                quarter_growth = quarter_gr,
+                year_growth = year_gr,
+                seasonal_growth_y1_y2 = seas_gr_y1_y2, 
+                quarter_growth_y1_y2 = quarter_gr_y1_y2,
+                year_growth_y1_y2 = year_gr_y1_y2
+                ))
   }
+  
+  
   
 }
 
@@ -141,32 +150,20 @@ autoplot(yoy_data_and_fc_unc_dm_s) +
   autolayer(yoy_data_and_fc_unc_dm_r) +
   autolayer(yoy_data_and_fc_unc_auto) 
 
-gr_qrt_data_and_fc_unc_dm_s <- seas_yr_growth(data_and_fc_unc_dm_s)[["seasonal_growth"]]
-gr_qrt_data_and_fc_unc_dm_r <- seas_yr_growth(data_and_fc_unc_dm_r)[["seasonal_growth"]]
-gr_qrt_data_and_fc_unc_auto <- seas_yr_growth(data_and_fc_unc_auto)[["seasonal_growth"]]
-
-q_2018_logic <- year(gr_qrt_data_and_fc_unc_dm_r$index) >= 2018 
-q_2019_logic <- year(gr_qrt_data_and_fc_unc_dm_r$index) <= 2019 
-q_2018_2019_logic <- q_2018_logic & q_2019_logic
-
-gr_qrt_data_and_fc_unc_dm_s_2018_2019 <- gr_qrt_data_and_fc_unc_dm_s %>% filter(q_2018_2019_logic)
-gr_qrt_data_and_fc_unc_dm_r_2018_2019 <- gr_qrt_data_and_fc_unc_dm_r %>% filter(q_2018_2019_logic)
-gr_qrt_data_and_fc_unc_auto_2018_2019 <- gr_qrt_data_and_fc_unc_auto %>% filter(q_2018_2019_logic)
+gr_qrt_data_and_fc_unc_dm_s_2018_2019 <- seas_yr_growth(data_and_fc_unc_dm_s,
+                                                        year_1 = 2018, year_2 = 2019)[["seasonal_growth_y1_y2"]]
+gr_qrt_data_and_fc_unc_dm_r_2018_2019 <- seas_yr_growth(data_and_fc_unc_dm_r,
+                                                        year_1 = 2018, year_2 = 2019)[["seasonal_growth_y1_y2"]]
+gr_qrt_data_and_fc_unc_auto_2018_2019 <- seas_yr_growth(data_and_fc_unc_auto,
+                                                        year_1 = 2018, year_2 = 2019)[["seasonal_growth_y1_y2"]]
 
 
-gr_yr_data_and_fc_unc_dm_r <- seas_yr_growth(data_and_fc_unc_dm_r)[["year_growth"]] %>% filter(year_index <= 2019)
-gr_yr_data_and_fc_unc_dm_s <- seas_yr_growth(data_and_fc_unc_dm_s)[["year_growth"]] %>% filter(year_index <= 2019)
-gr_yr_data_and_fc_unc_auto <- seas_yr_growth(data_and_fc_unc_auto)[["year_growth"]] %>% filter(year_index <= 2019)
-
-y_2018_logic <- gr_yr_data_and_fc_unc_dm_r$year_index >= 2018 
-y_2019_logic <- gr_yr_data_and_fc_unc_dm_r$year_index <= 2019 
-y_2018_2019_logic <- y_2018_logic & y_2019_logic
-
-
-gr_yr_data_and_fc_unc_dm_s_2018_2019 <- gr_yr_data_and_fc_unc_dm_s %>% filter(y_2018_2019_logic)
-gr_yr_data_and_fc_unc_dm_r_2018_2019 <- gr_yr_data_and_fc_unc_dm_r %>% filter(y_2018_2019_logic)
-gr_yr_data_and_fc_unc_auto_2018_2019 <- gr_yr_data_and_fc_unc_auto %>% filter(y_2018_2019_logic)
-
+gr_yr_data_and_fc_unc_dm_r_2018_2019 <- seas_yr_growth(data_and_fc_unc_dm_r,
+                                                       year_1 = 2018, year_2 = 2019)[["seasonal_growth_y1_y2"]]
+gr_yr_data_and_fc_unc_dm_s_2018_2019 <- seas_yr_growth(data_and_fc_unc_dm_s,
+                                                       year_1 = 2018, year_2 = 2019)[["seasonal_growth_y1_y2"]]
+gr_yr_data_and_fc_unc_auto_2018_2019 <- seas_yr_growth(data_and_fc_unc_auto,
+                                                       year_1 = 2018, year_2 = 2019)[["seasonal_growth_y1_y2"]]
 
 
 gr_qrt_201819_3_arimas <- dplyr::left_join(gr_qrt_data_and_fc_unc_dm_s, 
@@ -185,9 +182,9 @@ gr_yr_201819_3_arimas <- dplyr::left_join(gr_yr_data_and_fc_unc_dm_s, gr_yr_data
   select(year_index, y_ave_gr_dm_s, y_ave_gr_dm_r, y_ave_gr) %>% 
   filter(year_index >= 2018, year_index <= 2019)
 
-gr_qrt_201819_3_arimas
+print(gr_qrt_201819_3_arimas)
 
-gr_yr_201819_3_arimas  
+print(gr_yr_201819_3_arimas)  
 
 
 

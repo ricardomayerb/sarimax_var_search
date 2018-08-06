@@ -120,6 +120,18 @@ add_column_cv_yoy_errors <- function(data = cv_objects){
   return(data)
 }
 
+
+# add an extra row with horizon = 0 and sum_one_h is the last observation of rgdp_var
+add_row_fcs_summary <- function(summary_model, rgdp_ts){
+  summary_model %>% add_row(horizon = 0, sum_one_h = last(rgdp_ts)) %>% arrange(horizon)
+}
+
+add_last_obs_to_fcs <- function(fcs_ts, rgdp_ts){
+  new_fc_ts <- ts(c(last(rgdp_ts), fcs_ts), frequency = 4, end = end(fcs_ts))
+  return(new_fc_ts)
+}
+
+
 aggregate_and_transform_fcs <- function(arimax_and_fcs, cv_cond_uncond,
                                         rgdp_ts, rgdp_uncond_fc_mean, 
                                         test_length = 8, h_max = 8,
@@ -1669,6 +1681,102 @@ compute_rmse <- function(mycv, h_max = 8, n_cv, col_weights_vec = NULL,
 }
 
 
+
+
+# use this function for diff_yoy countries VAR forecast and data
+diffyoy_2_yoy_data_and_fc <- function(var_fcs_ts, var_data, rgdp_level_ts, 
+                                      freq = 4) {
+  
+  var_fcs_all_and_data_ts <- ts(data = c(var_data[,"rgdp"], var_fcs_ts), 
+                                frequency = 4, start = start(var_data[,"rgdp"]))
+  
+  # print("var_fcs_all_and_data_ts")
+  # print(var_fcs_all_and_data_ts)
+  
+  rgdp_yoy_ts <-make_yoy_ts(rgdp_level_ts)
+  # print("rgdp_yoy_ts")
+  # print(rgdp_yoy_ts)
+  
+  # print("diff(rgdp_yoy_ts)")
+  # print(diff(rgdp_yoy_ts))
+  
+  yq_pre_var_data <- as.yearqtr(min(time(VAR_data[, "rgdp"])) - 0.25)
+  last_undiffed_start_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  last_undiffed_end_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  
+  this_last_undiffed_var_data <- window(rgdp_yoy_ts, 
+                                        start = last_undiffed_start_vd, 
+                                        end = last_undiffed_end_vd)
+  
+  # print("this_last_undiffed_var_data")
+  # print(this_last_undiffed_var_data)
+  
+  VAR_rgdp_yoy_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_data,
+                                diffed_ts = var_data[, "rgdp"])
+  
+  yq_pre_var_fcs <- as.yearqtr(min(time(var_fcs_ts)) - 0.25)
+  last_undiffed_start_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  last_undiffed_end_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  
+  this_last_undiffed_var_fc <- window(rgdp_yoy_ts, 
+                                      start = last_undiffed_start_vf, 
+                                      end = last_undiffed_end_vf)
+  
+  VAR_rgdp_yoy_fc_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_fc,
+                                   diffed_ts = var_fcs_ts)
+  
+  return(list(yoy_rgdp_fc = VAR_rgdp_yoy_fc_ts, 
+              yoy_rgdp_data =  VAR_rgdp_yoy_ts))
+}
+
+
+
+# use this function for diff countries (so far, ECUADOR) VAR forecast and data
+diff_2_yoy_data_and_fc <- function(var_fcs_ts, var_data, rgdp_level_ts, 
+                                   freq = 4) {
+  
+  var_fcs_all_and_data_ts <- ts(data = c(var_data[,"rgdp"], var_fcs_ts), 
+                                frequency = 4, start = start(var_data[,"rgdp"]))
+  
+  # rgdp_yoy_ts <-make_yoy_ts(rgdp_level_ts)
+  
+  yq_pre_var_data <- as.yearqtr(min(time(var_data[, "rgdp"])) - 0.25)
+  last_undiffed_start_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  last_undiffed_end_vd <- c(year(yq_pre_var_data), quarter(yq_pre_var_data))
+  
+  this_last_undiffed_var_data <- window(rgdp_level_ts, 
+                                        start = last_undiffed_start_vd, 
+                                        end = last_undiffed_end_vd)
+  
+  VAR_rgdp_level_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_data,
+                                  diffed_ts = var_data[, "rgdp"])
+  
+  yq_pre_var_fcs <- as.yearqtr(min(time(var_fcs_ts)) - 0.25)
+  last_undiffed_start_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  last_undiffed_end_vf <- c(year(yq_pre_var_fcs), quarter(yq_pre_var_fcs))
+  
+  this_last_undiffed_var_fc <- window(rgdp_level_ts, 
+                                      start = last_undiffed_start_vf, 
+                                      end = last_undiffed_end_vf)
+  
+  VAR_rgdp_level_fc_ts <- un_diff_ts(last_undiffed = this_last_undiffed_var_fc,
+                                     diffed_ts = var_fcs_ts)
+  
+  data_and_fc_lev <- ts(c(VAR_rgdp_level_ts, VAR_rgdp_level_fc_ts),
+                        frequency = freq, start = start(VAR_rgdp_level_ts))
+  
+  data_and_fc_yoy <- make_yoy_ts(data_and_fc_lev)
+  
+  VAR_rgdp_yoy_ts <- make_yoy_ts(VAR_rgdp_level_ts)
+  VAR_rgdp_yoy_fc_ts <- window(data_and_fc_yoy, frequency = freq,
+                               start = start(VAR_rgdp_level_fc_ts))
+  
+  return(list(yoy_rgdp_fc = VAR_rgdp_yoy_fc_ts, 
+              yoy_rgdp_data =  VAR_rgdp_yoy_ts))
+}
+
+
+
 drop_this_vars <- function(df, vars_to_drop) {
   new_df <- df[,!(names(df) %in% vars_to_drop)]
 }
@@ -2146,6 +2254,23 @@ fc_mean_var_arima <- function(model, fc_obj) {
   
   return(fc_mean)
 }
+
+
+
+fc_summ_to_ts <- function(summ_tbl, var_data, freq = 4 ) {
+  
+  start_yq_fc <- as.yearqtr(max(time(var_data[, "rgdp"])) + 0.25)
+  
+  fcs_as_ts <- ts(data = summ_tbl$sum_one_h, 
+                  start = c(year(start_yq_fc), quarter(start_yq_fc)),
+                  frequency = 4)
+  
+  return(fcs_as_ts)
+  
+}
+
+
+
 
 
 fcs_accu <- function(fc_mat, test_data_mat) {
@@ -2724,6 +2849,52 @@ forecast_xreg <- function(arimax_list, xreg_mts, h,
 }
 
 
+
+freq_n_of_variables <- function(tbl_of_models, tbl_models_only = FALSE, 
+                                h_max = 8) {
+  
+  if (tbl_models_only) {
+    this_models_tbl <- tbl_of_models
+  } else {
+    this_models_tbl <- tbl_of_models$info_fit_ifcs
+  }
+  
+  variable_n_tbl <- this_models_tbl %>% 
+    dplyr::select(variables, rmse_h, rank_h, long_name, horizon) %>% 
+    group_by(horizon) %>% 
+    summarise(unique_variables = list(unique(unlist(variables))),
+              non_unique_variables = list(unlist(variables)),
+              n = length(unlist(unique_variables)) - 1) %>% 
+    select(horizon, n, unique_variables, non_unique_variables)
+  
+  all_variables <- unlist(this_models_tbl$variables)
+  
+  all_variables_freq_table <- tibble::as.tibble(table(all_variables)) %>% 
+    arrange(desc(n))
+  
+  all_variables_h_freqs <- this_models_tbl %>% 
+    dplyr::select(variables, rmse_h, rank_h, long_name, horizon) %>% 
+    group_by(horizon) %>% 
+    summarise(freq = list(tibble::as.tibble(table(unlist(variables)))) ) 
+  
+  
+  tbl_with_freqs_per_h <- reduce(all_variables_h_freqs$freq,
+                                 full_join, by = "Var1") 
+  
+  names(tbl_with_freqs_per_h) <- c("variable", paste0("n_", 1:h_max))
+  
+  tbl_with_freqs_per_h <- tbl_with_freqs_per_h %>% 
+    mutate(ave = rowSums(.[2:(h_max+1)], na.rm = TRUE)/h_max) %>% 
+    arrange(desc(ave), desc(n_1), desc(n_2), desc(n_3), desc(n_4) ) 
+  
+  return(list(variable_n_tbl = variable_n_tbl,
+              all_variables_freq_table = all_variables_freq_table,
+              tbl_with_freqs_per_h = tbl_with_freqs_per_h))
+  
+}
+
+
+
 from_diff_to_yoy_accu <- function(yoy_ts, diff_ts, level_ts, training_length,
                                   n_cv, h_max, cv_fcs_one_model, 
                                   return_all_ts = FALSE ) {
@@ -2777,6 +2948,142 @@ from_diff_to_lev_accu <- function(yoy_ts, diff_ts, level_ts, training_length,
   }
   
 }
+
+
+
+generate_best_10_models_plus_negative_corr_models <- function(models_and_errors, all_best_models) {
+  selected_model_list <- list()
+  horizon_names <- c("h = 1", "h = 2", "h = 3", "h = 4", "h = 5", "h = 6", "h = 7", "h = 8")
+  
+  for (i in seq_along(horizon_names)){
+    models_and_errors_h <- models_and_errors %>% filter(horizon == i) %>% 
+      arrange(rmse) %>% 
+      mutate(cv_errors_all_h_mat = map(cv_errors, ~ reduce(., rbind)),
+             cv_errors_this_h = map(cv_errors_all_h_mat, ~ .[,i]))
+    
+    just_errors_h <- models_and_errors_h %>% select(cv_errors_this_h)
+    
+    errors_cv_h <- reduce(just_errors_h[[1]], rbind)
+    row.names(errors_cv_h ) <- models_and_errors_h$id
+    colnames(errors_cv_h) <- paste0("cv_", 1:8)
+    errors_cv_h  <- t(errors_cv_h )
+    errors_cv_h  <- as_data_frame(errors_cv_h)
+    cor_error_h <- cor(errors_cv_h)
+    neg_cor_error_1 <- cor_error_h[1, ] < 0
+    min_cor_error_1 <-  min(min(cor_error_h[1, ] ))
+    neg_cor_error_2 <- cor_error_h[2, ] < 0
+    min_cor_error_2 <-  min(min(cor_error_h[2, ] ))
+    neg_cor_error_3 <- cor_error_h[3, ] < 0
+    min_cor_error_3 <-  min(min(cor_error_h[3, ] )) 
+    neg_cor_error_4 <- cor_error_h[4, ] < 0
+    min_cor_error_4 <-  min(min(cor_error_h[4, ] ))
+    neg_cor_error_5 <- cor_error_h[5, ] < 0
+    min_cor_error_5 <-  min(min(cor_error_h[5, ] ))
+    neg_cor_error_6 <- cor_error_h[6, ] < 0
+    min_cor_error_6 <-  min(min(cor_error_h[6, ] ))
+    neg_cor_error_7 <- cor_error_h[7, ] < 0
+    min_cor_error_7 <-  min(min(cor_error_h[7, ] ))
+    neg_cor_error_8 <- cor_error_h[8, ] < 0
+    min_cor_error_8 <-  min(min(cor_error_h[8, ] )) 
+    neg_cor_error_9 <- cor_error_h[9, ] < 0
+    min_cor_error_9 <-  min(min(cor_error_h[9, ] ))
+    neg_cor_error_10 <- cor_error_h[10, ] < 0
+    min_cor_error_10 <-  min(min(cor_error_h[10, ] ))
+    a1 <- names(errors_cv_h)[neg_cor_error_1] 
+    b1 <- names(errors_cv_h)[cor_error_h[1,] == min_cor_error_1]
+    a2 <- names(errors_cv_h)[neg_cor_error_2] 
+    b2 <- names(errors_cv_h)[cor_error_h[2,] == min_cor_error_2]
+    a3 <- names(errors_cv_h)[neg_cor_error_3]
+    b3 <- names(errors_cv_h)[cor_error_h[3,] == min_cor_error_3]
+    a4 <- names(errors_cv_h)[neg_cor_error_4]
+    b4 <- names(errors_cv_h)[cor_error_h[4,] == min_cor_error_4]
+    a5 <- names(errors_cv_h)[neg_cor_error_5]
+    b5 <- names(errors_cv_h)[cor_error_h[5,] == min_cor_error_5]
+    a6 <- names(errors_cv_h)[neg_cor_error_6] 
+    b6 <- names(errors_cv_h)[cor_error_h[6,] == min_cor_error_6]
+    a7 <- names(errors_cv_h)[neg_cor_error_7] 
+    b7 <- names(errors_cv_h)[cor_error_h[7,] == min_cor_error_7]
+    a8 <- names(errors_cv_h)[neg_cor_error_8]
+    b8 <- names(errors_cv_h)[cor_error_h[8,] == min_cor_error_8]
+    a9 <- names(errors_cv_h)[neg_cor_error_9]
+    b9 <- names(errors_cv_h)[cor_error_h[9,] == min_cor_error_9]
+    a10 <- names(errors_cv_h)[neg_cor_error_10]
+    b10 <- names(errors_cv_h)[cor_error_h[10,] == min_cor_error_10]
+    
+    selected_model_1 <- ifelse(sum(neg_cor_error_1)==0, "", b1 )
+    selected_model_2 <- ifelse(sum(neg_cor_error_2)==0, "", b2 )
+    selected_model_3 <- ifelse(sum(neg_cor_error_3)==0, "", b3 )
+    selected_model_4 <- ifelse(sum(neg_cor_error_4)==0, "", b4 )
+    selected_model_5 <- ifelse(sum(neg_cor_error_5)==0, "", b5 )
+    selected_model_6 <- ifelse(sum(neg_cor_error_6)==0, "", b6 )
+    selected_model_7 <- ifelse(sum(neg_cor_error_7)==0, "", b7 )
+    selected_model_8 <- ifelse(sum(neg_cor_error_8)==0, "", b8 )
+    selected_model_9 <- ifelse(sum(neg_cor_error_9)==0, "", b9 )
+    selected_model_10 <- ifelse(sum(neg_cor_error_10)==0, "", b10 )
+    
+    
+    selected_model_list[[i]] <- as.vector(c(selected_model_1, selected_model_2, selected_model_3, selected_model_4, 
+                                            selected_model_5, selected_model_6, selected_model_7, selected_model_8, 
+                                            selected_model_9, selected_model_10))
+    
+    # selected_model_list[[i]] <- horizon_names[i]
+    
+  }
+  
+  names(selected_model_list) <- horizon_names
+  selected_model_list <- map(selected_model_list, ~ unique(as.numeric(.)) )
+  
+  rmse_h_vector <- c("rmse_1", "rmse_2", "rmse_3", "rmse_4", "rmse_5", "rmse_6", "rmse_7", "rmse_8")
+  ten_best_vars_each_h <- list()
+  
+  for (i in 1:8) {
+    h = rmse_h_vector[i]
+    ten_best_vars <- all_best_models %>% filter(rmse_h == h) %>% mutate(rank_h = rank(rmse)) %>% arrange(rank_h) %>%
+      filter(rank_h <= 10) %>% select(id)
+    ten_best_vars <- as.vector(ten_best_vars$id)
+    ten_best_vars <- as.numeric(ten_best_vars)
+    
+    ten_best_vars_each_h[[i]] <- ten_best_vars
+    
+  }
+  
+  names(ten_best_vars_each_h) <- horizon_names
+  
+  list_10_best_vars_plus_neg_corr_models <- map2(selected_model_list, ten_best_vars_each_h, ~ c(.x, .y))
+  list_10_best_vars_plus_neg_corr_models <- map(list_10_best_vars_plus_neg_corr_models, unique)
+  
+  # drop the na values to precent issues later
+  # must be able to map this but somehow i cant map
+  for (i in 1:8){
+    h <- horizon_names[i]
+    df <- list_10_best_vars_plus_neg_corr_models[[h]]
+    df <- df[!is.na(df)]
+    list_10_best_vars_plus_neg_corr_models[[i]] <- df
+  }
+  
+  tibble_10_best_vars_plus_neg_corr_models <- tibble()
+  for (i in 1:8) {
+    list_to_tibble <- tibble(horizon = i, id = list_10_best_vars_plus_neg_corr_models[[i]])
+    tibble_10_best_vars_plus_neg_corr_models <- rbind(tibble_10_best_vars_plus_neg_corr_models, list_to_tibble)
+  }
+  
+  best_10_vars_plus_neg_corr_models <- left_join(tibble_10_best_vars_plus_neg_corr_models,
+                                                 all_best_models, by = c("horizon", "id")) %>%
+    group_by(horizon) %>%
+    mutate(sum_invmse_h = sum(inv_mse),
+           model_weight_h = inv_mse/sum_invmse_h,
+           w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
+                       ~ subset(..1 * ..2, start = ..3, end = ..3)
+           )
+    ) %>%
+    ungroup()
+  
+  return(list(best_10_vars_plus_neg_corr_models = best_10_vars_plus_neg_corr_models, negative_correlated_models = selected_model_list))
+  
+}
+
+
+
 
 get_arima_results_semi_new <- function(country_name, read_results = FALSE, 
                               data_folder = "./data/excel/",
@@ -4855,12 +5162,14 @@ logyoy <- function(logfc_ts, log_data_ts) {
 }
 
 
-
-indiv_weigthed_fcs_debug <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
+indiv_weigthed_fcs_new <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
                                rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL,
                                force.constant = FALSE,
-                               h_arima = NULL, h_var = NULL) {
+                               h_arima = NULL, h_var = NULL,
+                               var_start =  NULL, var_end = NULL,
+                               arima_start = NULL, arima_end = NULL) {
+
   
   if (!is.null(model_type)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
@@ -4873,12 +5182,28 @@ indiv_weigthed_fcs_debug <- function(tbl_of_models_and_rmse, extended_x_data_ts,
   if (!is.null(chosen_rmse_h)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
       filter(rmse_h == chosen_rmse_h) %>% 
-      mutate(rank_h )
+      mutate(rank_h = rank(rmse))
   }
   
   if (!is.null(max_rank_h)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
       filter(rank_h <= max_rank_h)
+  }
+  
+  if (!is.null(var_start)) {
+    var_data <- window(var_data, start = var_start)
+  }
+  
+  if (!is.null(var_end)) {
+    var_data <- window(var_data, end = var_end)
+  }
+  
+  if (!is.null(arima_start)) {
+    rgdp_ts_in_arima <- window(rgdp_ts_in_arima, start = arima_start)
+  }
+  
+  if (!is.null(arima_end)) {
+    rgdp_ts_in_arima <- window(rgdp_ts_in_arima, end = arima_end)
   }
   
   
@@ -4899,6 +5224,7 @@ indiv_weigthed_fcs_debug <- function(tbl_of_models_and_rmse, extended_x_data_ts,
   }
   
   
+  
   tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
     group_by(rmse_h) %>% 
     mutate(sum_invmse_h = sum(inv_mse),
@@ -4911,12 +5237,74 @@ indiv_weigthed_fcs_debug <- function(tbl_of_models_and_rmse, extended_x_data_ts,
                                       extended_x_data_ts = extended_x_data_ts,
                                       arima_rgdp_ts = rgdp_ts_in_arima,
                                       force.constant = force.constant,
-                                      var_data = var_data))
-           )
+                                      var_data = var_data)),
+           fc_obj = pmap(list(model_function, variables, lags, fit),
+                         ~ forecast_VAR_Arima(model_function = ..1, 
+                                              variables = ..2, lags = ..3,
+                                              fit = ..4, h_arima = h_arima, 
+                                              h_var = h_var,
+                                              mat_x_ext = extended_x_data_ts,
+                                              force.constant = force.constant)),
+           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
+           rgdp_transformation = map(
+             model_function, ~ what_rgdp_transformation(country_name = country_name,
+                                                        model_type = .)),
+           fc_yoy = map2(fc_mean, rgdp_transformation,
+                         ~ any_fc_2_fc_yoy(current_fc = .x,
+                                           rgdp_transformation = .y,
+                                           rgdp_level_ts = rgdp_level_ts)),
+           weighted_fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
+                                   ~ subset(..1 * ..2, start = ..3, end = ..3)),
+           fc_at_h = pmap(list(model_weight_h, fc_yoy, horizon),
+                          ~ subset(..2, start = ..3, end = ..3)),
+           is_stable = map2(model_function, fit, ~my_stability_fun(model_type = .x, model_object = .y))
+    ) %>% 
+    ungroup() %>% filter(is_stable == TRUE)
   
-  return(list(info_fit_ifcs = tibble_fit_and_fcs))
+  w_ave_fc_tbl <- tibble_fit_and_fcs %>% 
+    group_by(horizon) %>%
+    summarise(sum_one_h = reduce(weighted_fc_at_h, sum))
+  
+  # print(" w_ave_fc_tbl ")
+  # print( w_ave_fc_tbl )
+  
+  
+  if (is.null(model_type)) {
+    w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
+  } else {
+    if (model_type == "Arima") {
+      w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = rgdp_ts_in_arima)
+    }
+    
+    
+    if (model_type == "VAR") {
+      w_fc_yoy_ts <- fc_summ_to_ts(w_ave_fc_tbl, var_data = var_data)
+    }
+  }
+  
+  w_fc_yoy_ts <- na.omit(w_fc_yoy_ts)
+  
+  return(list(info_fit_ifcs = tibble_fit_and_fcs,
+              w_fc_yoy_ts = w_fc_yoy_ts))
+  
+  # fc_for_plot <- tibble_fit_and_fcs %>% 
+  #   select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse, 
+  #          model_weight_h)
+  # 
+  # ensemble_model_tbl <- tibble(short_name = "ensemble", 
+  #                              model_function = "weighted_average",
+  #                              fc_yoy = w_fc_yoy_ts, fc_at_h = NA, rmse_h = "rmse_1",
+  #                              rmse = 0.00001, model_weight_h = 1)
+  
+  # fc_for_plot <- rbind(fc_for_plot, ensemble_model_tbl)
+  
+  
+  
+  
+  # return(list(info_fit_ifcs = tibble_fit_and_fcs,
+  #             w_fc_yoy_ts = w_fc_yoy_ts,
+  #             fc_for_plot = fc_for_plot))
 }
-
 
 
 indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
@@ -4928,6 +5316,7 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts,
   if (!is.null(model_type)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
       filter(model_function == model_type) %>% 
+      select(-rank_h) %>% 
       group_by(rmse_h) %>% 
       mutate(rank_h = rank(rmse)) %>% 
       arrange(rmse_h, rank_h)
@@ -4936,7 +5325,7 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts,
   if (!is.null(chosen_rmse_h)) {
     tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
       filter(rmse_h == chosen_rmse_h) %>% 
-      mutate(rank_h )
+      mutate(rank_h = rank(rmse))
   }
   
   if (!is.null(max_rank_h)) {
@@ -4956,6 +5345,10 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts,
     }
     if (model_type == "VAR"){
       is.stable <- all(roots(model_object) < 1)
+    }
+    
+    if(!is.stable) {
+      print("Ooops, not stable")
     }
     
     return(is.stable)
@@ -5020,21 +5413,26 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts,
     }
   }
   
-  fc_for_plot <- tibble_fit_and_fcs %>% 
-    select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse, 
-           model_weight_h)
-  
-  ensemble_model_tbl <- tibble(short_name = "ensemble", 
-                               model_function = "weighted_average",
-                               fc_yoy = w_fc_yoy_ts, fc_at_h = NA, rmse_h = "rmse_1",
-                               rmse = 0.00001, model_weight_h = 1)
-  
-  fc_for_plot <- rbind(fc_for_plot, ensemble_model_tbl)
-  
-  
   return(list(info_fit_ifcs = tibble_fit_and_fcs,
-              w_fc_yoy_ts = w_fc_yoy_ts,
-              fc_for_plot = fc_for_plot))
+              w_fc_yoy_ts = w_fc_yoy_ts))
+  
+  # fc_for_plot <- tibble_fit_and_fcs %>% 
+  #   select(short_name, model_function, fc_yoy, fc_at_h, rmse_h, rmse, 
+  #          model_weight_h)
+  # 
+  # ensemble_model_tbl <- tibble(short_name = "ensemble", 
+  #                              model_function = "weighted_average",
+  #                              fc_yoy = w_fc_yoy_ts, fc_at_h = NA, rmse_h = "rmse_1",
+  #                              rmse = 0.00001, model_weight_h = 1)
+  
+  # fc_for_plot <- rbind(fc_for_plot, ensemble_model_tbl)
+  
+
+  
+  
+  # return(list(info_fit_ifcs = tibble_fit_and_fcs,
+  #             w_fc_yoy_ts = w_fc_yoy_ts,
+  #             fc_for_plot = fc_for_plot))
 }
 
 
@@ -5099,6 +5497,8 @@ indiv_weigthed_fcs_old <- function(tbl_of_models_and_rmse, h, extended_x_data_ts
 
 
 make_model_name <- function(variables, lags, model_function = NULL) {
+  
+  variables <- sort(variables)
   
   colap_variables <- paste(variables, collapse = "_")
   # print(colap_variables)
@@ -5384,6 +5784,24 @@ make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
     group_by(rmse_h) %>% 
     mutate(rank_h = rank(rmse)) %>% 
     arrange(rmse_h, rank_h)
+  
+  
+  models_rmse_at_each_h <- models_rmse_at_each_h %>%
+    mutate(short_name = map2(variables, lags,
+                             ~ make_model_name(variables = .x, lags = .y)),
+           long_name = pmap(list(variables, lags, model_function),
+                            ~ make_model_name(variables = ..1, lags = ..2,
+                                              model_function = ..3)),
+           short_name = as_factor(unlist(short_name)),
+           long_name = as_factor(unlist(long_name))
+    ) 
+  
+
+  models_rmse_at_each_h <- models_rmse_at_each_h %>%
+    dplyr::distinct(long_name, .keep_all = TRUE) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse))
+  
   
   return(models_rmse_at_each_h)
 }
@@ -6503,6 +6921,116 @@ read_gather_qm_data <- function(data_path = "./data/pre_r_data/",
 
 
 
+
+seas_yr_growth <- function(data_ts, freq = 4 , is_log = TRUE, 
+                           do_just_log = FALSE, year_1 = 2016, year_2 = 2017) {
+  
+  seas_gr <- tsibble::as_tsibble(data_ts)
+  
+  if (is_log) {
+    seas_gr  <- seas_gr %>% 
+      mutate(difflog_gr =  100 * difference(value, lag = freq))
+    
+    year_gr <- seas_gr %>% index_by(year_index = year(index)) %>%
+      summarise(y_logdiff = mean(difflog_gr, na.rm = TRUE)) 
+    
+    if (freq == 12) {
+      quarter_gr <- seas_gr %>% index_by(quarter_index = yearquarter(index)) %>%
+        summarise(q_logdiff = mean(difflog_gr, na.rm = TRUE)) 
+    }
+    
+    if (! do_just_log) {
+      seas_gr  <-seas_gr  %>% 
+        mutate(gr = 100 * difference(exp(value), lag = freq) / 
+                 dplyr::lag(exp(value), n = freq))
+      
+      year_gr <- seas_gr %>% index_by(year_index = year(index)) %>%
+        summarise(y_logdiff = mean(difflog_gr, na.rm = TRUE),
+                  y_ave_gr = mean(gr, na.rm = TRUE),
+                  y_rgdp = sum(exp(value), na.rm = TRUE))  %>%
+        mutate(y_tot_gr = 100*difference(y_rgdp)/lag(y_rgdp)) 
+      
+      if (freq == 12) {
+        quarter_gr <- seas_gr %>% index_by(quarter_index = yearquarter(index)) %>%
+          summarise(q_logdiff = mean(difflog_gr, na.rm = TRUE),
+                    q_ave_gr = mean(gr, na.rm = TRUE),
+                    q_rgdp = sum(exp(value), na.rm = TRUE))  %>%
+          mutate(q_tot_gr = 100*difference(q_rgdp, lag = 4)/lag(q_rgdp, n = 4))
+        
+      }
+    }
+    
+  } else {
+    seas_gr  <-seas_gr  %>% 
+      mutate(gr = 100 * difference(value, lag = freq) / 
+               dplyr::lag(value, n = freq))
+    
+    year_gr <- seas_gr %>% index_by(year_index = year(index)) %>% 
+      summarise(y_ave_gr = mean(gr, na.rm = TRUE),
+                y_rgdp = sum(value)) %>%
+      mutate(y_tot_gr = 100*difference(y_rgdp)/lag(y_rgdp))
+    
+    if (freq == 12) {
+      quarter_gr <- seas_gr %>% index_by(quarter_index = yearquarter(index)) %>% 
+        summarise(q_ave_gr = mean(gr, na.rm = TRUE),
+                  q_rgdp = sum(value)) %>%
+        mutate(q_tot_gr = 100*difference(q_rgdp, lag = 4)/lag(q_rgdp, n = 4))
+    }
+    
+  }
+  
+  
+  if (freq == 4) {
+    q_y1_logic <- year(seas_gr$index) >= year_1 
+    q_y2_logic <- year(seas_gr$index) <= year_2
+    q_y1_y2_logic <- q_y1_logic & q_y2_logic
+    seas_gr_y1_y2 <- seas_gr %>% filter(q_y1_y2_logic)
+    
+    y_y1_logic <- year_gr$year_index >= year_1
+    y_y2_logic <- year_gr$year_index <= year_2
+    y_y1_y2_logic <- y_y1_logic & y_y2_logic
+    year_gr_y1_y2 <- year_gr %>% filter(y_y1_y2_logic)
+    
+    return(list(seasonal_growth = seas_gr,
+                year_growth = year_gr,
+                seasonal_growth_y1_y2 = seas_gr_y1_y2,
+                year_growth_y1_y2 = year_gr_y1_y2))
+  }
+  
+  if (freq == 12) {
+    m_y1_logic <- year(seas_gr$index) >= year_1 
+    m_y2_logic <- year(seas_gr$index) <= year_2
+    m_y1_y2_logic <- m_y1_logic & m_y2_logic
+    seas_gr_y1_y2 <- seas_gr %>% filter(m_y1_y2_logic)
+    
+    
+    q_y1_logic <- year(quarter_gr$quarter_index) >= year_1
+    q_y2_logic <- year(quarter_gr$quarter_index) <= year_2
+    q_y1_y2_logic <- q_y1_logic & q_y2_logic
+    quarter_gr_y1_y2 <- quarter_gr %>% filter(q_y1_y2_logic)
+    
+    
+    y_y1_logic <- year_gr$year_index >= year_1
+    y_y2_logic <- year_gr$year_index <= year_2
+    y_y1_y2_logic <- y_y1_logic & y_y2_logic
+    year_gr_y1_y2 <- year_gr %>% filter(y_y1_y2_logic)
+    
+    return(list(seasonal_growth = seas_gr, 
+                quarter_growth = quarter_gr,
+                year_growth = year_gr,
+                seasonal_growth_y1_y2 = seas_gr_y1_y2, 
+                quarter_growth_y1_y2 = quarter_gr_y1_y2,
+                year_growth_y1_y2 = year_gr_y1_y2
+    ))
+  }
+  
+  
+  
+}
+
+
+
+
 single_plot_rmse_all_h <- function(selected_models_tbl) {
   
   rmse_table_single_h <- selected_models_tbl %>% 
@@ -6979,6 +7507,13 @@ try_sizes_vbls_lags <- function(var_data, rgdp_yoy_ts, rgdp_level_ts, target_v, 
   }
   
 }
+
+
+
+turn_summary_in_ts <- function(summary_model, start_year_ts, start_qtr_ts, frequency = 4){
+  ts(data = summary_model$sum_one_h, frequency = frequency, start = c(start_year_ts, start_qtr_ts))
+}
+
 
 
 un_yoy <- function(init_lev, vec_yoy) {
@@ -7733,4 +8268,36 @@ var_cv <- function(var_data, this_p, this_type = "const", n_cv = 8, h_max = 6,
               cv_lag = cv_lag))
 }
 
+
+
+
+what_rgdp_transformation <- function(country_name, model_type,  var_transform_tibble = NULL,
+                                     arimas_are_logs = TRUE) {
+  
+  
+  if (model_type == "Arima") {
+    if(arimas_are_logs) {
+      this_country_gdp_transform<- "log"
+    } else {
+      this_country_gdp_transform <- "none"
+    }
+  }
+  
+  if (model_type == "VAR") {
+    
+    if (is.null(var_transform_tibble)) {
+      var_transform_tibble <- tibble(
+        country = c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia", 
+                    "Ecuador", "Mexico", "Paraguay", "Peru", "Uruguay"),
+        transformation = c("diff_yoy", "diff_yoy", "yoy", "yoy", "yoy",
+                           "diff", "yoy", "diff_yoy", "yoy", "diff_yoy"))
+    }
+    
+    this_country_gdp_transform <- subset(x = var_transform_tibble,
+                                         subset = country == country_name, 
+                                         select = transformation)$transformation
+  }
+  
+  return(this_country_gdp_transform)
+} 
 
