@@ -3007,7 +3007,8 @@ get_arima_results <- function(country_name, read_results = FALSE,
     internal_monthly_names <- colnames(this_internal_monthly_ts)
     external_monthly_names <- colnames(this_external_monthly_ts)
     
-
+    
+    
     if (use_demetra) {
       do_auto <- FALSE
       demetra_output <- get_demetra_params(data_path)
