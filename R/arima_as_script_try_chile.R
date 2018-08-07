@@ -3,7 +3,7 @@ library(scales)
 
 arima_res_suffix <- "_dm_s_sfv"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Uruguay"
+country_name <- "Peru"
 
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -187,6 +187,7 @@ if (!use_demetra) {
 }
 
 
+
 if (use_final_stata_variables) {
   
   print("using stata final variables")
@@ -200,6 +201,8 @@ if (use_final_stata_variables) {
   
   x_order_list <- x_order_list[country_fsv]
 }
+
+
 
 ####### ----------- gob   ---
 tic()

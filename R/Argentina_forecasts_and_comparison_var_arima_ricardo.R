@@ -205,10 +205,6 @@ VAR_5_fit_fc_tbl <- VAR_fcs_all_best_5$info_fit_ifcs
 VAR_5_wfc_yoy_ts <- VAR_fcs_all_best_5$w_fc_yoy_ts
 
 
-
-
-
-
 var_training_length <- 25
 var_test_length <- h_max_var
 n_cv <- 8
@@ -229,12 +225,14 @@ cv_of_ensemble <- function(var_training_length,
                            h_arima = NULL, 
                            h_var = NULL) {
   
-  cv_yq_lists <- make_test_dates_list(var_data, n = n_cv, h_max = h_var,
-                                      training_length = var_training_length)[["list_of_year_quarter"]]
+  cv_ticks_lists <- make_test_dates_list(var_data, n = n_cv, h_max = h_var,
+                                      training_length = var_training_length)
+  cv_yq_lists <- cv_ticks_lists[["list_of_year_quarter"]]
+  cv_dates_lists <- cv_ticks_lists[["list_of_dates"]]
   
-  cv_test_data_list <- list_along(1:n_cv)
-  cv_w_fcs_list <- list_along(1:n_cv)
-  cv_error_yoy_list <- list_along(1:n_cv)
+  cv_test_data_list <- list()
+  cv_w_fcs_list <- list()
+  cv_error_yoy_list <- list()
   
   for (i in 1:n_cv) {
     this_cv_yq_list <- cv_yq_lists[[i]]
@@ -265,6 +263,15 @@ cv_of_ensemble <- function(var_training_length,
     cv_test_data_list[[i]] <- rgdp_test_yoy_data
     cv_w_fcs_list[[i]] <- w_ave_fc_yoy
     cv_error_yoy_list[[i]] <- cv_error_yoy
+    
+    this_cv_dates_list <- cv_dates_lists[[i]]
+    date_start_training <- this_cv_dates_list$tra_s
+    if (date_start_training == as.yearqtr(min(time(var_data)))) {
+      print(paste("Training cannot start before this date. Current cv is",
+                  i))
+      n_cv = i
+      break
+    }
 
   }
   
@@ -286,7 +293,7 @@ cv_of_ensemble <- function(var_training_length,
 
 tic()
 cv_ensemble_VAR_5 <- cv_of_ensemble(var_training_length = var_training_length, 
-               n_cv = 16,
+               n_cv = 50,
                tbl_of_models_and_rmse = models_tbl, 
                extended_x_data_ts = extended_x_data_ts, 
                rgdp_ts_in_arima = rgdp_ts_in_arima,
@@ -316,17 +323,30 @@ rmse_ensemble_VAR_30 <- cv_ensemble_VAR_30$ensemble_rmse
 rmse_ensemble_VAR_30
 
 
+n_cv <- 15
 
-cv_yq_lists <- make_test_dates_list(VAR_data, n = n_cv, h_max = var_test_length,
-                                    training_length = var_training_length)[["list_of_year_quarter"]]
+cv_ticks_lists <- make_test_dates_list(VAR_data, n = n_cv, h_max = var_test_length,
+                                    training_length = var_training_length)
 
-cv_test_data_list <- list_along(1:n_cv)
-cv_w_fcs_list <- list_along(1:n_cv)
-cv_error_yoy_list <- list_along(1:n_cv)
+cv_yq_lists <- cv_ticks_lists[["list_of_year_quarter"]]
+cv_dates_lists <- cv_ticks_lists[["list_of_dates"]]
+
+cv_test_data_list <- list()
+cv_w_fcs_list <- list()
+cv_error_yoy_list <- list()
 
 for (i in 1:n_cv) {
-  this_cv_yq_list <- cv_yq_lists[[i]]
   
+  print(paste("i =", i))
+  
+  this_cv_dates_list <- cv_dates_lists[[i]]
+  date_start_training <- this_cv_dates_list$tra_s
+  print(date_start_training == as.yearqtr(min(time(VAR_data))))
+  
+  print(date_start_training) 
+  
+  
+  this_cv_yq_list <- cv_yq_lists[[i]]
   this_training_s <- this_cv_yq_list$tra_s
   this_training_e <- this_cv_yq_list$tra_e
   
@@ -353,7 +373,6 @@ for (i in 1:n_cv) {
   cv_w_fcs_list[[i]] <- w_ave_fc_yoy
   cv_error_yoy_list[[i]] <- cv_error_yoy
   
-  # print(paste("i =", i))
   # print("w_ave_fc_yoy")
   # print(w_ave_fc_yoy)
   # print("rgdp_test_yoy_data")
@@ -361,12 +380,21 @@ for (i in 1:n_cv) {
   # print("cv_error_yoy")
   # print(cv_error_yoy)
   
+  if (date_start_training == as.yearqtr(min(time(VAR_data)))) {
+    print(paste("Training cannot start before this date. Current cv is",
+          i))
+    break
+  }
+  
+  
 }
 
 
 mat_cv_error_yoy <- matrix(
   reduce(cv_error_yoy_list, rbind), 
   nrow = n_cv, byrow = TRUE)
+
+mat_cv_error_yoy
 
 ensemble_rmse <-   sqrt(colMeans(mat_cv_error_yoy^2))
 
