@@ -50,7 +50,7 @@ watermark_cepal <- matrix(rgb(img[,,1],img[,,2],img[,,3], img[,,3.5] * 0.4), nro
 
 # Start of the Script
 
-country_name <- "Argentina"
+country_name <- "Peru"
 
 # Optional: Estimate (and Save) new Arimax RDS file
 
@@ -144,6 +144,17 @@ var_training_length <- 25
 var_test_length <- h_max_var
 n_cv <- 8
 
+max_VAR_models_per_h <- 100
+models_and_accu_reasonable <- as.tibble(models_and_accu) %>% 
+  filter(rank_1  <= max_VAR_models_per_h | rank_2  <= max_VAR_models_per_h | 
+         rank_3  <= max_VAR_models_per_h | rank_4  <= max_VAR_models_per_h |
+         rank_5  <= max_VAR_models_per_h | rank_6  <= max_VAR_models_per_h | 
+         rank_7  <= max_VAR_models_per_h) 
+  
+
+models_and_accu_reasonable
+
+
 
 # # check var data
 # VAR_data_rgdp
@@ -163,29 +174,32 @@ n_cv <- 8
 # NEW: for negatively correlated models: add an id variable to the cv_objects and models accu of the var models
 cv_objects <- cv_objects %>% mutate(id = 1:n())
 models_and_accu <- models_and_accu %>% mutate(id = 1:n())
+models_and_accu_reasonable <- models_and_accu_reasonable %>% mutate(id = 1:n())
 
 
 # Get the table with all models from both the VARs and ARIMAX
 # I adjusted the make_model_tbl function in utils_av: each_h_just_model_and_ave_rmse_sarimax is adjusted so it selects the id variable
+
+tic()
 models_tbl <- make_models_tbl(
-  arima_res = arima_res, var_models_and_rmse = models_and_accu, 
+  arima_res = arima_res, var_models_and_rmse = models_and_accu_reasonable, 
   VAR_data = VAR_data, h_max = h_max,
   force.constant = do.force.constant)
+toc()
 
+# 
+# # ssel stands for "stata_selection" and what it does it to imitate stata-style selection 
+# models_tbl_ssel <- make_models_tbl(
+#   arima_res, var_models_and_rmse = models_and_accu, VAR_data = VAR_data,
+#   h_max = h_max, ave_rmse_sel = TRUE,
+#   force.constant = do.force.constant)
 
-
-# ssel stands for "stata_selection" and what it does it to imitate stata-style selection 
-models_tbl_ssel <- make_models_tbl(
-  arima_res, var_models_and_rmse = models_and_accu, VAR_data = VAR_data,
-  h_max = h_max, ave_rmse_sel = TRUE,
-  force.constant = do.force.constant)
-
-
+tic()
 models_tbl_fsv <- make_models_tbl(
-  arima_res = arima_res_fsv, var_models_and_rmse = models_and_accu, 
+  arima_res = arima_res_fsv, var_models_and_rmse = models_and_accu_reasonable, 
   VAR_data = VAR_data, h_max = h_max,
   force.constant = do.force.constant)
-
+toc()
 
 
 ################################### In Sample Accuracy Comparison ################################
@@ -435,12 +449,12 @@ arimax_fcs_all <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl,
 
 
 
-arimax_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                          h_arima = h_max_arima, h_var = h_max_var,
-                                          extended_x_data_ts = extended_x_data_ts,
-                                          rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                          model_type = "Arima", 
-                                          force.constant = do.force.constant)
+# arimax_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
+#                                           h_arima = h_max_arima, h_var = h_max_var,
+#                                           extended_x_data_ts = extended_x_data_ts,
+#                                           rgdp_ts_in_arima = rgdp_ts_in_arima,
+#                                           model_type = "Arima", 
+#                                           force.constant = do.force.constant)
 
 
 arimax_fcs_all_fsv <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_fsv,
@@ -466,19 +480,19 @@ cv_ensemble_arima_all  <- cv_of_ensemble(var_training_length = var_training_leng
 toc()
 
 
-tic()
-cv_ensemble_arima_all_ssel  <- cv_of_ensemble(var_training_length = var_training_length, 
-                                         arima_training_length = arima_training_length,
-                                         n_cv = n_cv,
-                                         tbl_of_models_and_rmse = models_tbl_ssel, 
-                                         extended_x_data_ts = extended_x_data_ts, 
-                                         rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                         var_data = VAR_data,
-                                         rgdp_level_ts = rgdp_level_ts,
-                                         model_type = "Arima",
-                                         h_var = h_max_var,
-                                         h_arima = h_max_arima) 
-toc()
+# tic()
+# cv_ensemble_arima_all_ssel  <- cv_of_ensemble(var_training_length = var_training_length, 
+#                                          arima_training_length = arima_training_length,
+#                                          n_cv = n_cv,
+#                                          tbl_of_models_and_rmse = models_tbl_ssel, 
+#                                          extended_x_data_ts = extended_x_data_ts, 
+#                                          rgdp_ts_in_arima = rgdp_ts_in_arima,
+#                                          var_data = VAR_data,
+#                                          rgdp_level_ts = rgdp_level_ts,
+#                                          model_type = "Arima",
+#                                          h_var = h_max_var,
+#                                          h_arima = h_max_arima) 
+# toc()
 
 
 
@@ -744,35 +758,35 @@ rank_arima <- models_tbl_ssel %>% dplyr::filter(model_function == "Arima") %>% s
 #   group_by(horizon) %>%
 #   summarise(sum_one_h = reduce(one_model_w_fc, sum))
 
-comb_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                        h_arima = h_max_arima, h_var = h_max_var,
-                                        extended_x_data_ts = extended_x_data_ts,
-                                        rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                        max_rank_h = 30, force.constant = do.force.constant,
-                                        var_data = VAR_data)
-
-number_of_models_per_h_ssel <- comb_fcs_all_ssel$info_fit_ifcs %>% group_by(horizon) %>% 
-  summarise(n_models = n(), 
-            n_VAR = sum(model_function == "VAR"),
-            n_ARIMA = sum(model_function == "Arima")
-  )
-
-number_of_models_per_h_ssel
+# comb_fcs_all_ssel <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
+#                                         h_arima = h_max_arima, h_var = h_max_var,
+#                                         extended_x_data_ts = extended_x_data_ts,
+#                                         rgdp_ts_in_arima = rgdp_ts_in_arima,
+#                                         max_rank_h = 30, force.constant = do.force.constant,
+#                                         var_data = VAR_data)
+# 
+# number_of_models_per_h_ssel <- comb_fcs_all_ssel$info_fit_ifcs %>% group_by(horizon) %>% 
+#   summarise(n_models = n(), 
+#             n_VAR = sum(model_function == "VAR"),
+#             n_ARIMA = sum(model_function == "Arima")
+#   )
+# 
+# number_of_models_per_h_ssel
 
 # for consistency with stata i focus on ssel method
 
-comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
-                                            h_arima = h_max_arima, h_var = h_max_var,
-                                            extended_x_data_ts = extended_x_data_ts,
-                                            rgdp_ts_in_arima = rgdp_ts_in_arima,
-                                            max_rank_h = 20, force.constant = do.force.constant,
-                                            var_data = VAR_data)
-# drop the h = 8 forecast, drop the 2020 Q1 forecast
-comb_fcs_all_ssel$w_fc_yoy_ts <- window(comb_fcs_all_ssel$w_fc_yoy_ts, end = 2019.75)
-comb_fcs_ssel_best_20$w_fc_yoy_ts <- window(comb_fcs_ssel_best_20$w_fc_yoy_ts, end = 2019.75)
-# comb_fcs_ssel_best_20$w_fc_yoy_ts
-fcs_combined_models <- add_last_obs_to_fcs(comb_fcs_all_ssel$w_fc_yoy_ts, rgdp_var)
-fcs_combined_models_best_20 <- add_last_obs_to_fcs(comb_fcs_ssel_best_20$w_fc_yoy_ts, rgdp_var)
+# comb_fcs_ssel_best_20 <- indiv_weigthed_fcs(tbl_of_models_and_rmse = models_tbl_ssel,
+#                                             h_arima = h_max_arima, h_var = h_max_var,
+#                                             extended_x_data_ts = extended_x_data_ts,
+#                                             rgdp_ts_in_arima = rgdp_ts_in_arima,
+#                                             max_rank_h = 20, force.constant = do.force.constant,
+#                                             var_data = VAR_data)
+# # drop the h = 8 forecast, drop the 2020 Q1 forecast
+# comb_fcs_all_ssel$w_fc_yoy_ts <- window(comb_fcs_all_ssel$w_fc_yoy_ts, end = 2019.75)
+# comb_fcs_ssel_best_20$w_fc_yoy_ts <- window(comb_fcs_ssel_best_20$w_fc_yoy_ts, end = 2019.75)
+# # comb_fcs_ssel_best_20$w_fc_yoy_ts
+# fcs_combined_models <- add_last_obs_to_fcs(comb_fcs_all_ssel$w_fc_yoy_ts, rgdp_var)
+# fcs_combined_models_best_20 <- add_last_obs_to_fcs(comb_fcs_ssel_best_20$w_fc_yoy_ts, rgdp_var)
 
 # fcs_combined_models <- turn_summary_in_ts(summary_model = summ_comb_fcs_all_ssel, 
 #                                         start_year_ts = start_ts_fcs_var_year, 

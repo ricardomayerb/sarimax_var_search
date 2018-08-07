@@ -1642,6 +1642,116 @@ cv_arima <- function(y_ts,  h_max, n_cv, training_length,
 
 
 
+cv_of_ensemble <- function(var_training_length, 
+                           arima_training_length,
+                           n_cv, 
+                           tbl_of_models_and_rmse, 
+                           extended_x_data_ts, 
+                           rgdp_ts_in_arima, 
+                           var_data, 
+                           rgdp_level_ts,
+                           max_rank_h = NULL,
+                           model_type = NULL, 
+                           chosen_rmse_h = NULL,
+                           force.constant = FALSE,
+                           h_arima = NULL, 
+                           h_var = NULL) {
+  
+  cv_ticks_lists_var <- make_test_dates_list(var_data, n = n_cv, h_max = h_var,
+                                             training_length = var_training_length)
+  cv_yq_lists_var <- cv_ticks_lists_var[["list_of_year_quarter"]]
+  cv_dates_lists_var <- cv_ticks_lists_var[["list_of_dates"]]
+  
+  
+  cv_ticks_lists_arima <- make_test_dates_list(rgdp_ts_in_arima, n = n_cv, h_max = h_arima,
+                                               training_length = arima_training_length)
+  cv_yq_lists_arima <- cv_ticks_lists_arima[["list_of_year_quarter"]]
+  cv_dates_lists_arima <- cv_ticks_lists_arima[["list_of_dates"]]
+  
+  
+  cv_test_data_list <- list()
+  cv_w_fcs_list <- list()
+  cv_error_yoy_list <- list()
+  
+  for (i in 1:n_cv) {
+    this_cv_yq_list_var <- cv_yq_lists_var[[i]]
+    this_training_s_var <- this_cv_yq_list_var$tra_s
+    this_training_e_var <- this_cv_yq_list_var$tra_e
+    this_test_s_var <- this_cv_yq_list_var$tes_s
+    this_test_e_var <- this_cv_yq_list_var$tes_e
+    
+    this_cv_yq_list_arima <- cv_yq_lists_arima[[i]]
+    this_training_s_arima <- this_cv_yq_list_arima$tra_s
+    this_training_e_arima <- this_cv_yq_list_arima$tra_e
+    this_test_s_arima <- this_cv_yq_list_arima$tes_s
+    this_test_e_arima <- this_cv_yq_list_arima$tes_e
+    
+    fcs_and_models <- indiv_weigthed_fcs(tbl_of_models_and_rmse = tbl_of_models_and_rmse,
+                                         h_var = var_test_length, 
+                                         h_arima = arima_test_length,
+                                         extended_x_data_ts = extended_x_data_ts,
+                                         rgdp_ts_in_arima = rgdp_ts_in_arima,
+                                         model_type = model_type, 
+                                         max_rank_h = max_rank_h,
+                                         var_data = var_data, 
+                                         var_start = this_training_s_var,
+                                         var_end = this_training_e_var,
+                                         arima_start = this_training_s_arima,
+                                         arima_end = this_training_e_arima)
+    
+    w_ave_fc_yoy <- fcs_and_models$w_fc_yoy_ts
+    
+    rgdp_test_yoy_data <- window(make_yoy_ts(rgdp_level_ts, is_log = FALSE),
+                                 start = this_test_s_arima, 
+                                 end = this_test_e_arima)
+    
+    cv_error_yoy <- rgdp_test_yoy_data - w_ave_fc_yoy
+    
+    cv_test_data_list[[i]] <- rgdp_test_yoy_data
+    cv_w_fcs_list[[i]] <- w_ave_fc_yoy
+    cv_error_yoy_list[[i]] <- cv_error_yoy
+    
+    this_cv_dates_list_arima <- cv_dates_lists_arima[[i]]
+    date_start_training_arima <- this_cv_dates_list_arima$tra_s
+    
+    this_cv_dates_list_var <- cv_dates_lists_var[[i]]
+    date_start_training_var <- this_cv_dates_list_var$tra_s
+    
+    
+    if (date_start_training_var == as.yearqtr(min(time(var_data)))) {
+      print(paste("Training, for VAR, cannot start before this date. Current cv is",
+                  i))
+      n_cv = i
+      break
+    }
+    
+    if (date_start_training_arima == as.yearqtr(min(time(rgdp_ts_in_arima)))) {
+      print(paste("Training, for Arima, cannot start before this date. Current cv is",
+                  i))
+      n_cv = i
+      break
+    }
+    
+  }
+  
+  
+  mat_cv_error_yoy <- matrix(
+    reduce(cv_error_yoy_list, rbind), 
+    nrow = n_cv, byrow = TRUE)
+  
+  ensemble_rmse <-   sqrt(colMeans(mat_cv_error_yoy^2))
+  
+  ensemble_rmse
+  
+  return(list(ensemble_rmse = ensemble_rmse,
+              cv_error_yoy_list = cv_error_yoy_list,
+              cv_test_data_list = cv_test_data_list,
+              cv_w_fcs_list = cv_w_fcs_list))
+  
+}
+
+
+
 
 compute_rmse <- function(mycv, h_max = 8, n_cv, col_weights_vec = NULL,
                          row_weights_vec = NULL) {
@@ -2570,7 +2680,8 @@ follow_rec <- function(data_tbl_ts, table_of_recommendations) {
 
 
 forecast_VAR_Arima <- function(model_function, variables, lags, fit, 
-                               mat_x_ext, h_arima, h_var, force.constant = force.constant) {
+                               mat_x_ext, h_arima, h_var, 
+                               force.constant = force.constant) {
   
   # print("in forecast_VAR_Arima")
   # print("mat_x_ext[,1]")
@@ -2586,6 +2697,9 @@ forecast_VAR_Arima <- function(model_function, variables, lags, fit,
   
   if (model_function == "Arima") {
     # print("in forecast_VAR_Arima, if Arima")
+    # print("in forecast_VAR_Arima, h_arima")
+    # print(h_arima)
+    
     if (variables == "rgdp") {
       fc <- forecast(object = fit, h = h_arima)
     } else {
@@ -2593,11 +2707,20 @@ forecast_VAR_Arima <- function(model_function, variables, lags, fit,
       # fc <- forecast_xreg(arimax_list = list(fit), xreg_mts , h, 
       #                           vec_of_names = NULL, xreg_lags = NULL,
       #                           force.constant = FALSE)
+      # print("in forecastVARArima about to forecast_from_arimax_obj")
+      # print(fit)
+      # print(variables)
+      # print(mat_x_ext)
+      # print(lags)
+      # print("h_arima")
+      # print(h_arima)
+      # print(force.constant)
+      
       
       fc <- forecast_from_arimax_obj(arimax_obj = fit, x_variable = variables, 
                                      mat_x_ext = mat_x_ext, lags = lags, h = h_arima,
                                      force.constant = force.constant)
-      # print("in forecastVARArima")
+      
       # print("passed fc")
       # print("fc")
       # print(fc)
@@ -5162,13 +5285,17 @@ logyoy <- function(logfc_ts, log_data_ts) {
 }
 
 
-indiv_weigthed_fcs_new <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
+indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
                                rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL,
                                force.constant = FALSE,
                                h_arima = NULL, h_var = NULL,
                                var_start =  NULL, var_end = NULL,
                                arima_start = NULL, arima_end = NULL) {
+  
+  # print("in indiv new")
+  # print("in indiv new, h_arima")
+  # print(h_arima)
 
   
   if (!is.null(model_type)) {
@@ -5224,6 +5351,8 @@ indiv_weigthed_fcs_new <- function(tbl_of_models_and_rmse, extended_x_data_ts,
   }
   
   
+  # print("in indiv new, before the tibble ")
+     
   
   tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
     group_by(rmse_h) %>% 
@@ -5307,7 +5436,7 @@ indiv_weigthed_fcs_new <- function(tbl_of_models_and_rmse, extended_x_data_ts,
 }
 
 
-indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
+indiv_weigthed_fcs_old <- function(tbl_of_models_and_rmse, extended_x_data_ts, 
                                rgdp_ts_in_arima, var_data, max_rank_h = NULL,
                                model_type = NULL, chosen_rmse_h = NULL,
                                force.constant = FALSE,
@@ -5439,60 +5568,6 @@ indiv_weigthed_fcs <- function(tbl_of_models_and_rmse, extended_x_data_ts,
 
 
 
-
-indiv_weigthed_fcs_old <- function(tbl_of_models_and_rmse, h, extended_x_data_ts,
-                               rgdp_ts_in_arima, var_data, max_rank_h = NULL,
-                               model_type = NULL, chosen_rmse_h = NULL) {
-  
-  if (!is.null(model_type)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(model_function == model_type) %>% 
-      group_by(rmse_h) %>% 
-      mutate(rank_h = rank(rmse)) %>% 
-      arrange(rmse_h, rank_h)
-  }
-  
-  if (!is.null(chosen_rmse_h)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(rmse_h == chosen_rmse_h) %>% 
-      mutate(rank_h )
-  }
-  
-  if (!is.null(max_rank_h)) {
-    tbl_of_models_and_rmse <- tbl_of_models_and_rmse %>% 
-      filter(rank_h <= max_rank_h)
-  }
-  
-  
-  tibble_fit_and_fcs <- tbl_of_models_and_rmse %>% 
-    group_by(rmse_h) %>% 
-    mutate(sum_invmse_h = sum(inv_mse),
-           model_weight_h = inv_mse/sum_invmse_h,
-           horizon = as.numeric(substr(rmse_h, 6, 6)),
-           fit = pmap(list(model_function, variables, lags, arima_order, 
-                           arima_seasonal),
-                      ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
-                                      lags = ..3, order = ..4, seasonal = ..5,
-                                      extended_x_data_ts = extended_x_data_ts,
-                                      arima_rgdp_ts = rgdp_ts_in_arima)),
-           fc_obj = pmap(list(model_function, variables, lags, fit),
-                         ~ forecast_VAR_Arima(model_function = ..1, 
-                                              variables = ..2, lags = ..3,
-                                              fit = ..4, h = h_max, 
-                                              mat_x_ext = extended_x_data_ts)
-           ),
-           fc_mean = map2(model_function, fc_obj, ~ fc_mean_var_arima(.x, .y)),
-           fc_yoy = map2(model_function, fc_mean, 
-                         ~ fc_log2yoy(model = .x, rgdp_log_ts = rgdp_ts_in_arima, 
-                                      fc_ts = .y)),
-           one_model_w_fc = pmap(list(model_weight_h, fc_yoy, horizon),
-                                 ~ subset(..1 * ..2, start = ..3, end = ..3)
-           )
-    ) %>% 
-    ungroup()
-  
-  return(tibble_fit_and_fcs)
-}
 
 
 
@@ -5694,6 +5769,154 @@ make_models_tblsemiold <- function(arima_res, var_models_and_rmse, VAR_data, h_m
 
 
 make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
+                            ave_rmse_sel = FALSE, force.constant) {
+  
+  # rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
+  # rmse_level_sarimax <- arima_res$compare_rmse
+  # add an id variable to the rmse of the arimax models
+  rmse_yoy_sarimax <- arima_res$compare_rmse_yoy %>% mutate(id = 1:n())
+  rmse_level_sarimax <- arima_res$compare_rmse %>% mutate(id = 1:n())
+  v_lags_order_season <- arima_res$var_lag_order_season 
+  extended_x_data_ts <- arima_res$mdata_ext_ts
+  rgdp_ts_in_arima <- arima_res$rgdp_ts_in_arima
+  
+  
+  rmse_yoy_sarimax <- rmse_yoy_sarimax %>% 
+    left_join(v_lags_order_season, by = c("variable", "lag"))
+  
+  # cfa110 <- comb_fcs_all[1:10, ] %>% 
+  #   mutate(short_name = map2(variables, lags,
+  #                            ~ make_model_name(variables = .x, lags = .y)),
+  #          long_name = pmap(list(variables, lags, model_function), 
+  #                           ~ make_model_name(variables = ..1, lags = ..2, model_function = ..3))
+  #   )
+  
+  each_h_just_model_and_ave_rmse_var <- models_and_accu %>% 
+    mutate(arima_order = NA, arima_seasonal = NA, model_function = "VAR") %>% 
+    dplyr::select(- starts_with("rank"))
+  
+  
+  each_h_just_model_and_ave_rmse_sarimax <- rmse_yoy_sarimax %>%
+    mutate(model_function = "Arima") %>% 
+    dplyr::select(variable, lag, id, starts_with("yoy"), arima_order, arima_seasonal, 
+                  model_function) %>% 
+    rename(variables = variable, lags = lag) %>% 
+    rename_at(vars(starts_with("yoy_rmse")), funs(sub("yoy_rmse", "rmse", .)))
+  
+  # rename(rmse_1 = yoy_rmse_1, rmse_2 = yoy_rmse_2, 
+  #        rmse_3 = yoy_rmse_3, rmse_4 = yoy_rmse_4, rmse_5 = yoy_rmse_5, 
+  #        rmse_6 = yoy_rmse_6)
+  # 
+  if (ave_rmse_sel) {
+    models_rmse_at_each_h_arima  <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      mutate(ave_rmse = rowMeans(select(., starts_with("rmse")))) %>% 
+      group_by(variables) %>%
+      mutate(min_ave_per_variable = min(ave_rmse)) %>% 
+      filter(ave_rmse == min_ave_per_variable) %>% 
+      ungroup() %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-c(ave_rmse, rgdp_rmse, min_ave_per_variable)) %>% 
+      arrange(rmse_h, variables)
+    
+  } else {
+    models_rmse_at_each_h_arima <- as_tibble(
+      each_h_just_model_and_ave_rmse_sarimax) %>% 
+      gather(key = "rmse_h", value = "rmse", starts_with("rmse")) %>% 
+      arrange(variables) %>% 
+      group_by(rmse_h, variables) %>% 
+      mutate(min_per_variable_and_h = min(rmse)) %>% 
+      filter(rmse == min_per_variable_and_h) %>% 
+      select(-min_per_variable_and_h ) %>%  
+      ungroup() %>% 
+      group_by(rmse_h) %>% 
+      mutate(rgdp_rmse = rmse[variables == "rgdp"] ) %>% 
+      filter(rmse <= rgdp_rmse) %>% 
+      ungroup() %>% 
+      select(-rgdp_rmse) %>% 
+      arrange(rmse_h, rmse)
+  }
+  
+  # models_rmse_at_each_h_arima <- models_rmse_at_each_h_arima %>%
+  #   mutate(short_name = map2(variables, lags,
+  #                          ~ make_model_name(variables = .x, lags = .y)),
+  #                          long_name = pmap(list(variables, lags, model_function),
+  #                          ~ make_model_name(variables = ..1, lags = ..2,
+  #                                            model_function = ..3))
+  #                          )
+  
+  models_rmse_at_each_h_var <- as_tibble(each_h_just_model_and_ave_rmse_var) %>% 
+    gather(key = "rmse_h", value = "rmse", starts_with("rmse"))
+  
+  models_rmse_at_each_h <- rbind(models_rmse_at_each_h_var, 
+                                 models_rmse_at_each_h_arima) %>% 
+    mutate(inv_mse = 1/rmse^2) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse)) %>% 
+    arrange(rmse_h, rank_h)
+  
+  
+  models_rmse_at_each_h <- models_rmse_at_each_h %>%
+    mutate(short_name = map2(variables, lags,
+                             ~ make_model_name(variables = .x, lags = .y)),
+           long_name = pmap(list(variables, lags, model_function),
+                            ~ make_model_name(variables = ..1, lags = ..2,
+                                              model_function = ..3)),
+           short_name = as_factor(unlist(short_name)),
+           long_name = as_factor(unlist(long_name))
+    ) 
+  
+  my_stability_fun <- function(model_type, model_object) {
+    
+    # print(model_type)
+    # print(model_object)
+    
+    if (model_type == "Arima") {
+      is.stable <- TRUE
+      
+    }
+    if (model_type == "VAR"){
+      is.stable <- all(roots(model_object) < 1)
+    }
+    
+    if(!is.stable) {
+      print("Ooops, not stable")
+    }
+    
+    return(is.stable)
+  }
+  
+  tic()
+  models_rmse_at_each_h <- models_rmse_at_each_h %>%
+    dplyr::distinct(long_name, .keep_all = TRUE) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse),
+           fit = pmap(list(model_function, variables, lags, arima_order, 
+                           arima_seasonal),
+                      ~ fit_VAR_Arima(model_function = ..1, variables = ..2, 
+                                      lags = ..3, order = ..4, seasonal = ..5,
+                                      extended_x_data_ts = extended_x_data_ts,
+                                      arima_rgdp_ts = rgdp_ts_in_arima,
+                                      force.constant = force.constant,
+                                      var_data = VAR_data)),
+           is_stable = map2(model_function, fit, 
+                            ~my_stability_fun(model_type = .x, model_object = .y))) %>% 
+    ungroup() %>% filter(is_stable == TRUE) %>% 
+    group_by(rmse_h) %>% 
+    mutate(rank_h = rank(rmse)) %>% 
+    select(-fit)
+  toc()
+  
+  return(models_rmse_at_each_h)
+}
+
+
+make_models_tbl_prefilter <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
                             ave_rmse_sel = FALSE) {
   
   # rmse_yoy_sarimax <- arima_res$compare_rmse_yoy
