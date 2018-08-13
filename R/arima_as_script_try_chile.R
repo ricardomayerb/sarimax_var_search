@@ -2,6 +2,7 @@ source('./R/utils_av_ricardo.R')
 library(scales)
 
 arima_res_suffix <- "_auto_slow_cvx_faster"
+
 arima_rds_path = "data/sarimax_objects_"
 country_name <- "Chile"
 
@@ -221,13 +222,13 @@ if (use_final_stata_variables) {
   x_order_list <- x_order_list[country_fsv]
   lead_q_monthly <- lead_q_monthly[monthly_names] 
   lead_m_monthly <- lead_m_monthly[monthly_names] 
-  
+
   all_monthly_auto_arimas <- all_monthly_auto_arimas[country_fsv]
   all_monthly_auto_arma <- map(all_monthly_auto_arimas, ~ .[["arma"]])
   auto_arima_monthly_order_list <- map(all_monthly_auto_arma,
                                        ~ list(order = .[c(1,6,2)], 
                                               seasonal = .[c(3,7,4)]))
-  
+
 }
 
 
