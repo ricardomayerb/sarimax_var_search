@@ -1,9 +1,9 @@
 source('./R/utils_av_ricardo.R')
 library(scales)
 
-arima_res_suffix <- "_dm_s_sfv"
+arima_res_suffix <- "_auto_slow_cvx_faster"
 arima_rds_path = "data/sarimax_objects_"
-country_name <- "Peru"
+country_name <- "Chile"
 
 data_path <- paste0("./data/excel/", country_name, ".xlsx")
 external_data_path <- "./data/external/external.xlsx"
@@ -11,9 +11,9 @@ final_forecast_horizon <- c(2019, 12)
 # h_max <- 8 # last rgdp data is 2017 Q4
 number_of_cv = 8
 train_span = 16
-use_demetra <- TRUE
+use_demetra <- FALSE
 
-use_dm_force_constant <- TRUE
+use_dm_force_constant <- FALSE
 is_log_log <- TRUE
 lambda_0_in_auto <- FALSE
 mean_logical_in_auto <- TRUE 
@@ -21,20 +21,31 @@ max_x_lag <- 2
 
 use_final_stata_variables <- TRUE
 
+rgdp_auto_do_stepwise <- FALSE
+rgdp_auto_do_approximation <- FALSE
+
+monthly_auto_do_stepwise <- FALSE
+monthly_auto_do_approximation <- FALSE
+
 
 all_arima_data <- ts_data_for_arima(data_path = data_path, 
                                     external_data_path = external_data_path,
                                     all_logs = is_log_log)
 
+
 this_rgdp_ts <- all_arima_data[["rgdp_ts"]]
 this_internal_monthly_ts <- all_arima_data[["monthly_ts"]]
 this_external_monthly_ts <- all_arima_data[["external_monthly_ts"]]
+lead_q_monthly <- c(all_arima_data[["lead_q"]],
+                    all_arima_data[["lead_q_external"]])
+lead_m_monthly <- c(all_arima_data[["lead_m"]],
+                    all_arima_data[["lead_m_external"]])
 
 # print("this_rgdp_ts")
 # print(this_rgdp_ts)
 manual_set_h <- TRUE
 
-h_max <- 9
+h_max <- 8
 final_forecast_horizon <- c(2019, 12)
 
 if (manual_set_h) {
@@ -79,6 +90,7 @@ external_monthly_names <- colnames(this_external_monthly_ts)
 
 
 if (use_demetra) {
+  print("demetra")
   do_auto <- FALSE
   demetra_output <- get_demetra_params(data_path)
   demetra_output_external <- get_demetra_params(external_data_path)
@@ -115,12 +127,17 @@ if (use_demetra) {
     do_dm_strict <-  TRUE
   }
 } else {
+  print("auto")
   do_auto <- TRUE
   demetra_order_internal_external <- NULL
-  fit_arima_rgdp_list_auto <- fit_arimas(y_ts = this_rgdp_ts, auto = TRUE,  
-                                         this_arima_names = "rgdp", 
-                                         my_lambda = NULL,
-                                         do_approximation = TRUE)
+  fit_arima_rgdp_list_auto <- fit_arimas(
+    y_ts = this_rgdp_ts,
+    auto = do_auto,  
+    do_stepwise = rgdp_auto_do_step_wise,  
+    this_arima_names = "rgdp", 
+    my_lambda = NULL,
+    do_approximation = rgdp_auto_do_approximation)
+  
   this_rgdp_arima <- fit_arima_rgdp_list_auto
   
   gdp_order <- get_order_from_arima(this_rgdp_arima)[[1]]
@@ -154,7 +171,9 @@ extended_data <- get_extended_monthly_variables(
   order_list = demetra_output,
   order_list_external = demetra_output_external,
   data_path = data_path,
-  final_forecast_horizon = final_forecast_horizon )
+  final_forecast_horizon = final_forecast_horizon, 
+  auto_do_stepwise = monthly_auto_do_stepwise, 
+  auto_do_approximation = monthly_auto_do_approximation)
 toc()
 
 
@@ -200,41 +219,63 @@ if (use_final_stata_variables) {
   monthly_names <- country_fsv 
   
   x_order_list <- x_order_list[country_fsv]
+  lead_q_monthly <- lead_q_monthly[monthly_names] 
+  lead_m_monthly <- lead_m_monthly[monthly_names] 
+  
+  all_monthly_auto_arimas <- all_monthly_auto_arimas[country_fsv]
+  all_monthly_auto_arma <- map(all_monthly_auto_arimas, ~ .[["arma"]])
+  auto_arima_monthly_order_list <- map(all_monthly_auto_arma,
+                                       ~ list(order = .[c(1,6,2)], 
+                                              seasonal = .[c(3,7,4)]))
+  
 }
 
 
 
 ####### ----------- gob   ---
+
 tic()
-cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
-                              xreg_ts_monthly = mdata_ext_ts_monthly,
-                              xreg_ts = mdata_ext_ts,
-                              rgdp_arima = this_rgdp_arima,
-                              max_x_lag = max_x_lag,
-                              rgdp_order_list = rgdp_order_list,
-                              x_order_list = x_order_list,
-                              use_demetra = use_demetra,
-                              n_cv = number_of_cv, 
-                              test_length = test_length,
-                              data_is_log_log = is_log_log, 
-                              training_length = train_span,
-                              h_max = h_max,
-                              force.constant = use_dm_force_constant,
-                              method = "ML")
+arimax_and_fcs <- get_arimax_and_fcs(
+  y_ts = this_rgdp_ts, 
+  xreg_ts = mdata_ext_ts,
+  rgdp_arima = this_rgdp_arima,
+  max_x_lag = max_x_lag,
+  rgdp_order_list = rgdp_order_list,
+  h_max = h_max,
+  data_is_log_log = is_log_log,
+  force.constant = use_dm_force_constant, 
+  auto_do_approximation = rgdp_auto_do_approximation, 
+  auto_do_stepwise = rgdp_auto_do_stepwise)
 toc()
 
 
 
+
 tic()
-arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
-                          xreg_ts = mdata_ext_ts,
-                          rgdp_arima = this_rgdp_arima,
-                          max_x_lag = max_x_lag,
-                          rgdp_order_list = rgdp_order_list,
-                          h_max = h_max,
-                          data_is_log_log = is_log_log,
-                          force.constant = use_dm_force_constant)
+cv_cond_uncond <- get_cv_obj_cond_uncond(
+  y_ts = this_rgdp_ts, 
+  xreg_ts_monthly = mdata_ext_ts_monthly,
+  xreg_ts = mdata_ext_ts,
+  rgdp_arima = this_rgdp_arima,
+  max_x_lag = max_x_lag,
+  rgdp_order_list = rgdp_order_list,
+  x_order_list = x_order_list,
+  use_demetra = use_demetra,
+  n_cv = number_of_cv, 
+  test_length = test_length,
+  data_is_log_log = is_log_log, 
+  training_length = train_span,
+  h_max = h_max,
+  force.constant = use_dm_force_constant,
+  method = "ML", 
+  lead_m_monthly_variables = lead_m_monthly,
+  auto_do_approximation = FALSE,
+  auto_do_stepwise = TRUE)
 toc()
+
+
+
+
 
 tic()
 fcs_aggr_transf <- aggregate_and_transform_fcs(arimax_and_fcs, cv_cond_uncond,

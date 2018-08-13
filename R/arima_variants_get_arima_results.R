@@ -4,7 +4,7 @@ final_forecast_horizon <- c(2019, 12)
 h_max <- 8
 use_manual_h <- TRUE
 
-country_name <- "Bolivia"
+country_name <- "Argentina"
 
 use_demetra <- TRUE
 use_dm_force_constant <- TRUE
