@@ -1139,7 +1139,7 @@ cv_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, h_max, n_cv,
                       lead_m_monthly_variables = NULL,
                       auto_do_approximation = TRUE,
                       auto_do_stepwise = TRUE) {
-
+  
   print("Starting cv_arimax")
   
   # print("starting cv_arimx, x_order_list is")
@@ -1824,12 +1824,12 @@ cv_of_ensemble <- function(var_training_length,
   this_name <- ensemble_name
   this_rmse <- ensemble_rmse
   this_rmse_h <- paste0("rmse_", 1:length(this_rmse))
-
+  
   ensemble_rmse_tbl <- tibble(variables = this_name, model_function = model_function_name, 
                 rmse_h = this_rmse_h, rmse = this_rmse, 
                 horizon = 1:length(this_rmse), lags = NA)
   
-
+  
   return(list(ensemble_rmse = ensemble_rmse_tbl,
               cv_error_yoy_list = cv_error_yoy_list,
               cv_test_data_list = cv_test_data_list,
@@ -2538,8 +2538,9 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
                        take_log_before = FALSE, freq = 4, 
                        print_comments_on_constant = FALSE,
                        method = "ML", this_max_d = 2, this_max_D = 1) {
-
+  
   print("Starting fit_arimas")
+  
   
   # print("in fit arimas, order list is")
   # print(order_list)
@@ -2555,7 +2556,7 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
   # print("in fit arimas")
   # print("n_of_series")
   # print(n_of_series)
-
+  
   
   fit_arimas_list <- list_along(seq.int(1, n_of_series))
   
@@ -2712,9 +2713,6 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
     # print("in fit arimas, result is")
     # print(fit)
     
-    print("in fit arimas, result is")
-    print(fit)
-    
     fit_arimas_list[[i]] <- fit
     
   }
@@ -2724,8 +2722,6 @@ fit_arimas <- function(y_ts, auto = FALSE, order_list = NULL,
   return(fit_arimas_list)
 
 }
-  
-
 
 fit_VAR_Arima <- function(arima_rgdp_ts, model_function, variables, 
                           lags, order, seasonal, extended_x_data_ts,
@@ -3522,7 +3518,12 @@ get_arima_results <- function(country_name, read_results = FALSE,
                               external_data_path = "./data/external/external.xlsx",
                               arima_res_suffix = "_dm_s",
                               h_max = NULL, set_manual_h = FALSE,
-                              use_final_stata_variables = FALSE) {
+                              use_final_stata_variables = FALSE,
+                              rgdp_auto_do_stepwise = FALSE,
+                              rgdp_auto_do_approximation = FALSE,
+                              monthly_auto_do_stepwise = TRUE,
+                              monthly_auto_do_approximation = TRUE
+) {
   
   if(read_results) {
     print("Reading previously estimated arima results")
@@ -3655,11 +3656,12 @@ get_arima_results <- function(country_name, read_results = FALSE,
       order_list = demetra_output,
       order_list_external = demetra_output_external,
       data_path = data_path,
-      final_forecast_horizon = final_forecast_horizon )
+      final_forecast_horizon = final_forecast_horizon, 
+      auto_do_stepwise = monthly_auto_do_stepwise, 
+      auto_do_approximation = monthly_auto_do_approximation)
     toc()
     
-    
-    
+
     internal_mdata_ext_ts <- extended_data[[this_non_external]][["quarterly_series_ts"]]
     external_mdata_ext_ts <- extended_data[[this_external]][["quarterly_series_ts"]]
     mdata_ext_ts <- ts.union(internal_mdata_ext_ts, external_mdata_ext_ts)
@@ -3704,48 +3706,62 @@ get_arima_results <- function(country_name, read_results = FALSE,
       x_order_list <- x_order_list[country_fsv]
       lead_q_monthly <- lead_q_monthly[monthly_names] 
       lead_m_monthly <- lead_m_monthly[monthly_names] 
+      
+      all_monthly_auto_arimas <- all_monthly_auto_arimas[country_fsv]
+      all_monthly_auto_arma <- map(all_monthly_auto_arimas, ~ .[["arma"]])
+      auto_arima_monthly_order_list <- map(all_monthly_auto_arma,
+                                           ~ list(order = .[c(1,6,2)], 
+                                                  seasonal = .[c(3,7,4)]))
     }
     
-    
-    
-    tic()
-    arimax_and_fcs <- get_arimax_and_fcs(y_ts = this_rgdp_ts, 
-                                         xreg_ts = mdata_ext_ts,
-                                         rgdp_arima = this_rgdp_arima,
-                                         max_x_lag = max_x_lag,
-                                         rgdp_order_list = rgdp_order_list,
-                                         h_max = h_max,
-                                         data_is_log_log = data_is_log_log,
-                                         force.constant = use_dm_force_constant)
-    toc()
-    
-    
-    tic()
-    cv_cond_uncond <- get_cv_obj_cond_uncond(y_ts = this_rgdp_ts, 
-                                             xreg_ts_monthly = mdata_ext_ts_monthly,
-                                             xreg_ts = mdata_ext_ts,
-                                             rgdp_arima = this_rgdp_arima,
-                                             max_x_lag = max_x_lag,
-                                             rgdp_order_list = rgdp_order_list,
-                                             x_order_list = x_order_list,
-                                             use_demetra = use_demetra,
-                                             n_cv = number_of_cv, 
-                                             test_length = test_length,
-                                             data_is_log_log = data_is_log_log, 
-                                             training_length = train_span,
-                                             h_max = h_max,
-                                             force.constant = use_dm_force_constant,
-                                             method = "ML", 
-                                             lead_m_monthly_variables = lead_m_monthly)
-    toc()
 
     tic()
-    fcs_aggr_transf <- aggregate_and_transform_fcs(arimax_and_fcs, cv_cond_uncond,
-                                                   rgdp_ts = this_rgdp_ts,
-                                                   data_is_log_log = data_is_log_log, 
-                                                   rgdp_uncond_fc_mean = rgdp_uncond_fc_mean, 
-                                                   h_max = h_max,
-                                                   test_length = test_length)
+    arimax_and_fcs <- get_arimax_and_fcs(
+      y_ts = this_rgdp_ts, 
+      xreg_ts = mdata_ext_ts,
+      rgdp_arima = this_rgdp_arima,
+      max_x_lag = max_x_lag,
+      rgdp_order_list = rgdp_order_list,
+      h_max = h_max,
+      data_is_log_log = data_is_log_log,
+      force.constant = use_dm_force_constant, 
+      auto_do_approximation = rgdp_auto_do_approximation, 
+      auto_do_stepwise = rgdp_auto_do_stepwise)
+    toc()
+    
+    
+    tic()
+    cv_cond_uncond <- get_cv_obj_cond_uncond(
+      y_ts = this_rgdp_ts, 
+      xreg_ts_monthly = mdata_ext_ts_monthly,
+      xreg_ts = mdata_ext_ts,
+      rgdp_arima = this_rgdp_arima,
+      max_x_lag = max_x_lag,
+      rgdp_order_list = rgdp_order_list,
+      x_order_list = x_order_list,
+      use_demetra = use_demetra,
+      n_cv = number_of_cv, 
+      test_length = test_length,
+      data_is_log_log = data_is_log_log, 
+      training_length = train_span,
+      h_max = h_max,
+      force.constant = use_dm_force_constant,
+      method = "ML", 
+      lead_m_monthly_variables = lead_m_monthly,
+      auto_do_approximation = FALSE,
+      auto_do_stepwise = TRUE)
+    toc()
+    
+
+
+    tic()
+    fcs_aggr_transf <- aggregate_and_transform_fcs(
+      arimax_and_fcs, cv_cond_uncond,
+      rgdp_ts = this_rgdp_ts,
+      data_is_log_log = data_is_log_log, 
+      rgdp_uncond_fc_mean = rgdp_uncond_fc_mean, 
+      h_max = h_max,
+      test_length = test_length)
     toc()
     
     arima_res_1 <- fcs_aggr_transf
@@ -3945,7 +3961,7 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, y_order,
                              auto_do_stepwise = TRUE) {
   
   print("Entered get_cv_of_arimax")
-
+  
   # print("in get cv of arimax force.constant is")
   # print(force.constant)
   
@@ -3982,7 +3998,7 @@ get_cv_of_arimax <- function(y_ts, xreg_ts, xreg_ts_monthly, y_order,
                                 lead_m_monthly_variables = lead_m_monthly_variables,
                                 auto_do_approximation = auto_do_approximation,
                                 auto_do_stepwise = auto_do_stepwise)
-
+    
     list_cv_of_arimax[[i + 1]]  <- this_cv_arimax
   }
   
@@ -4004,7 +4020,8 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, xreg_ts_monthly, rgdp_arima, m
                                    auto_do_stepwise = TRUE) {
   
   print("Entered get_cv_obj_cond_uncond")
-
+  
+  
   gdp_order <- get_order_from_arima(rgdp_arima)[[1]]
   rgdp_order <-  gdp_order[c("p", "d", "q")]
   rgdp_seasonal <-  gdp_order[c("P", "D", "Q")]
@@ -4038,7 +4055,9 @@ get_cv_obj_cond_uncond <- function(y_ts, xreg_ts, xreg_ts_monthly, rgdp_arima, m
     lead_m_monthly_variables = lead_m_monthly_variables,
     auto_do_approximation = auto_do_approximation,
     auto_do_stepwise = auto_do_stepwise)
+  
 
+  
   cv_rgdp_arima_list <- cv_arima(y_ts = y_ts, h_max = h_max, n_cv = n_cv,
                         training_length = training_length, y_order = rgdp_order, 
                         y_seasonal = rgdp_seasonal, method = "ML",  
@@ -4299,7 +4318,7 @@ get_extended_one_monthly_variable <- function(
   auto_do_approximation = FALSE) {
   
   # print("Starting get_extended_one_monthly_variable")
-
+  
   # print("final_forecast_horizon")
   # print(final_forecast_horizon)
   
@@ -4350,7 +4369,13 @@ get_extended_one_monthly_variable <- function(
     } 
 
   if (do_auto) {
+    # print("in get ext one variable, doauto, dodmfc, use demtra")
+    # print("do_auto")
+    # print(do_auto)
+    # print("monthly_variable_name")
+    # print(monthly_variable_name)
 
+    tic()
     fit_arima_monthly <- fit_arimas(
       y_ts = monthly_variable_ts, 
       order_list = order_list,
@@ -4361,7 +4386,10 @@ get_extended_one_monthly_variable <- function(
       auto = do_auto,
       do_stepwise = auto_do_stepwise,
       do_approximation = auto_do_approximation)
-
+    toc()
+    # print("fit_arima_monthly")
+    # print(fit_arima_monthly)
+    
     mdata_ext <- extend_and_qtr(
       data_mts = monthly_variable_ts, 
       final_horizon_date = final_forecast_horizon , 
@@ -4399,19 +4427,11 @@ get_extended_monthly_variables <- function(
   # print(auto_do_stepwise)
   # print("auto_do_approximation")
   # print(auto_do_approximation)
+  # 
   
-  print("In ger extended monthly variables")
-  print("do_auto")
-  print(do_auto)
-  print("use_demetra")
-  print(use_demetra)
-  print("auto_do_step_wise")
-  print(auto_do_step_wise)
-  print("auto_do_aproximation")
-  print(auto_do_aproximation)
-
   # print("final_forecast_horizon")
   # print(final_forecast_horizon)
+  
   
   monthly_data_names <- colnames(monthly_data_ts)
   monthly_data_external_names <- colnames(monthly_data_external_ts)
@@ -5806,17 +5826,6 @@ list_of_rmse_plots <- function(selected_models_tbl, extra_models = NULL) {
 
 
 
-
-logyoy <- function(logfc_ts, log_data_ts) {
-  full_log_ts <- ts(c(log_data_ts, logfc_ts), frequency = 4,
-                    start = stats::start(log_data_ts))
-  
-  diff_full_log_ts <- diff(full_log_ts, lag = 4)
-  
-  diff_log_fc <- window(diff_full_log_ts, start = stats::start(logfc_ts))
-  
-  return(diff_log_fc)
-}
 
 logyoy <- function(logfc_ts, log_data_ts) {
   full_log_ts <- ts(c(log_data_ts, logfc_ts), frequency = 4,
@@ -7965,7 +7974,8 @@ ts_data_for_arima <- function(data_path, external_data_path, all_logs = FALSE,
   names(lead_m) <- colnames(monthly_ts)
   names(lead_q_external) <- colnames(external_monthly_ts)
   names(lead_m_external) <- colnames(external_monthly_ts)
-
+  
+  
 
   return(list(
     monthly_ts = monthly_ts, 
