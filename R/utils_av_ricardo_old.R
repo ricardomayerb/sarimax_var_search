@@ -867,18 +867,37 @@ calc_bp <- function(vec_of_dQ, levQ, cut_1 = 1, cut_2 = 5) {
 }
 
 
-check_resid_Arima <- function(fit_Arima, type = "Ljung-Box") {
+check_resid_Arima <- function(fit_Arima, type = "Ljung-Box", pval_arima = 0.05,
+                              lags_for_test = NULL, output = "is_white_noise") {
   
-  this_fitdf <- sum(fit_Arima[["arma"]][1:4]) 
+  residuals <- residuals(fit_Arima)
+  freq <- frequency(residuals)
+  # this_fitdf <- sum(fit_Arima[["arma"]][1:4]) 
+  this_fitdf <- length(fit_Arima[["coef"]])
+
+  if(is.null(lags_for_test)) {
+    this_lag <- ifelse(freq > 1, 2 * freq, 10)
+  } else {
+    this_lag <- lags_for_test
+  }
   
-  test_object <- Box.test(fit_Arima[["residuals"]], lag = 8, 
-                          type = "Ljung-Box", fitdf = this_fitdf)
+  this_lag <- min(this_lag, length(residuals)/5)
   
+  this_lag <- max(this_fitdf+3, this_lag)
+  test_object <- Box.test(zoo::na.approx(residuals), fitdf = this_fitdf, 
+                          lag = this_lag, type = "Ljung-Box")
+
   pval <- test_object[["p.value"]]
   
-  is_white_noise <- pval > 0.05
+  if (output == "pval") {
+    return(pval)
+  }
+
+  if (output == "is_white_noise") {
+    is_white_noise <- pval > pval_arima
+    return(is_white_noise)
+  }
   
-  return(is_white_noise)
 }
 
 
@@ -896,14 +915,14 @@ check_resid_VAR <- function(fit_VAR, type = "PT.asymptotic", lags.pt = 16) {
 
 
 check_resid_VAR_Arima <- function(model_function, fit, type_VAR = "PT.asymptotic", 
-                                  lags.pt_VAR = 16){
+                                  lags.pt_VAR = 16, pval_arima = 0.05){
   if (model_function == "VAR") {
     is_white_noise <- check_resid_VAR(fit_VAR = fit, type = type_VAR, 
                                       lags.pt = lags.pt_VAR)
   }
   
   if (model_function == "Arima") {
-    is_white_noise <- check_resid_Arima(fit)
+    is_white_noise <- check_resid_Arima(fit, pval_arima = pval_arima)
   }
   
   return(is_white_noise)
@@ -1417,8 +1436,7 @@ cv_arimax <- function(y_ts,
       
       if (use_demetra) {
         
-        do_auto <- TRUE
-        
+        do_auto <- FALSE
         this_x_order_list <- x_order_list[[x]]
         # print("x")
         # print(x)
@@ -1453,7 +1471,7 @@ cv_arimax <- function(y_ts,
         # print(paste("in cv_arimax just before geomv use_full_sample_monthly_order:", 
         #             use_full_sample_monthly_order))
         
-        do_auto = TRUE
+        do_auto <-  TRUE
         this_x_order_list <- x_order_list[[x]]
          # print("cv arima, if !usedemetra, force. constan and usedm")
          # print(force.constant)
@@ -5655,7 +5673,7 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
   # "imp_consumer", "imp_intermediate", "imp_capital" for Mexico
   extra_vars_to_drop <- list(Argentina = c("emae", "", "", "", "", "", "", "", "", "", ""), 
                              Bolivia = c("igae", "hidrocarburo", "", "", "", "", "", "", "", "", "", ""), 
-                             Brasil = c("imp_capital", "", "", "", "", "", "", "", "", "", "", ""), 
+                             Brasil = c("imp_capital", "cred", "", "", "", "", "", "", "", "", "", ""), 
                              Chile = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Colombia = c("", "", "", "", "", "", "", "", "", "", "", ""), 
                              Ecuador = c("confianza_con", "confianza_emp", "m1", "rm", "", "", "", "", "", ""), 
@@ -5709,27 +5727,13 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
     
     this_m_q <- this_m  %>%
       collapse_by(period = "quarterly") %>%
-      group_by(date) %>% transmute_all(mean, na.rm = TRUE) %>%
+      group_by(date) %>% transmute_all(mean) %>%
       distinct(date, .keep_all = TRUE) %>% 
       ungroup() 
-    
-    # if(country_names[i] == "Argentina") {
-    #   print("this_m[, m1]")
-    #   print(this_m %>% select(date, m1) %>% tail(n = 24))
-    # 
-    #   print("this_m_q[, m1]")
-    #   print(this_m_q %>% select(date, m1) %>% tail(n = 8))
-    #   print("this_m_q[, m2]")
-    #   print(this_m_q %>% select(date, m2) %>% tail(n = 8))
-    #   
-    # }
     
     all_files_m_q[[i]] <- this_m_q
     
     m_and_q <- left_join(this_q, this_m_q, by = "date")
-    
-    # print("m_and_q %>% select(date, m1) %>% tail")
-    # print(m_and_q %>% select(date, m1) %>% tail(n = 8))
     
     # this_vars_to_drop <- variables_to_drop[[i]]
     m_and_q <- drop_this_vars(m_and_q, this_variables_to_drop)
@@ -5747,18 +5751,6 @@ get_raw_data_ts <- function(country = NULL, data_path = "./data/excel/"){
     
     countries_merged_q_m[[i]] <- m_and_q
     countries_merged_q_m_ts[[i]] <- m_and_q_ts
-    
-    # print("m_and_q_ts[, c(m1)]")
-    # print(m_and_q_ts[, c("m1")])
-    # 
-    # print("m_and_q_ts[, c(m2)]")
-    # print(m_and_q_ts[, c("m2")])
-    # 
-    # print("countries_merged_q_m_ts[, c(m1)]")
-    # print(countries_merged_q_m_ts[, c("m1")])
-    # 
-    # print("countries_merged_q_m_ts[, c(m2)]")
-    # print(countries_merged_q_m_ts[, c("m2")])
     
   }
   
@@ -6450,22 +6442,34 @@ logyoy <- function(logfc_ts, log_data_ts) {
 
 
 
-make_model_name <- function(variables, lags, model_function = NULL) {
+make_model_name <- function(variables, lags, model_function = NULL, 
+                            base_variable = "rgdp") {
   
   variables <- sort(variables)
   
   colap_variables <- paste(variables, collapse = "_")
   # print(colap_variables)
   
-  if (is.null(model_function)) {
-    short_name <- paste(colap_variables, lags, sep = "_")
-    short_name <- str_remove(short_name, "rgdp_")
-    model_name <- short_name
+  if (variables == base_variable) {
+    if (is.null(model_function)) {
+      short_name <- paste(colap_variables, lags, sep = "_")
+      model_name <- short_name
+    } else {
+      long_name <- paste(model_function, colap_variables, lags, sep = "_")
+      model_name <- long_name
+    }
   } else {
-    long_name <- paste(model_function, colap_variables, lags, sep = "_")
-    long_name <- str_remove(long_name, "rgdp_")
-    model_name <- long_name
+    if (is.null(model_function)) {
+      short_name <- paste(colap_variables, lags, sep = "_")
+      short_name <- str_remove(short_name, "rgdp_")
+      model_name <- short_name
+    } else {
+      long_name <- paste(model_function, colap_variables, lags, sep = "_")
+      long_name <- str_remove(long_name, "rgdp_")
+      model_name <- long_name
+    }
   }
+
   return(model_name)
 }
 
@@ -6647,8 +6651,8 @@ make_models_tblsemiold <- function(arima_res, var_models_and_rmse, VAR_data, h_m
 
 
 
-make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
-                            ave_rmse_sel = FALSE, force.constant) {
+make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max, 
+                            force.constant, ave_rmse_sel = FALSE, pval_arima = 0.05) {
   
   
   # print("In make models tbl")
@@ -6792,7 +6796,9 @@ make_models_tbl <- function(arima_res, var_models_and_rmse, VAR_data, h_max,
            is_stable = map2(model_function, fit, 
                             ~my_stability_fun(model_type = .x, model_object = .y)),
            is_white_noise = map2(model_function, fit, 
-                                 ~check_resid_VAR_Arima(model_function = .x, fit = .y))
+                                 ~check_resid_VAR_Arima(model_function = .x, 
+                                                        fit = .y,
+                                                        pval_arima = pval_arima))
            ) %>% 
     ungroup() %>% filter(is_stable == TRUE, is_white_noise == TRUE) %>% 
     group_by(rmse_h) %>% 
@@ -9608,7 +9614,7 @@ what_rgdp_transformation <- function(country_name, model_type,  var_transform_ti
         country = c("Argentina", "Bolivia", "Brasil", "Chile", "Colombia", 
                     "Ecuador", "Mexico", "Paraguay", "Peru", "Uruguay"),
         transformation = c("diff_yoy", "diff_yoy", "yoy", "yoy", "yoy",
-                           "diff", "yoy", "diff_yoy", "yoy", "diff_yoy"))
+                           "diff", "yoy", "diff_yoy", "diff", "diff_yoy"))
     }
     
     this_country_gdp_transform <- subset(x = var_transform_tibble,

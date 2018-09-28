@@ -6,6 +6,8 @@ country_data_level_ts <- get_raw_data_ts(country = country_name)
 rgdp_level_ts <- country_data_level_ts[,"rgdp"]
 rgdp_yoy_ts <- make_yoy_ts(rgdp_level_ts)
 
+print(country_data_level_ts[,"m1"])
+print(country_data_level_ts[,"m2"])
 
 # # Argentina only
 # emae_level_ts <-  country_data_level_ts[,"emae"]
@@ -47,8 +49,14 @@ reco_all_variables <- reduce(sta_reco_list, rbind)
 country_transformed_data <- follow_rec(country_data_level_ts, 
                                        reco_all_variables)
 
+country_transformed_data[, "m1"]
+country_transformed_data[, "m2"]
+
 VAR_data_for_estimation  <- na.omit(country_transformed_data)
 saveRDS(VAR_data_for_estimation , "./data/VAR_data_Argentina.rds")
+
+VAR_data_for_estimation[, "m1"]
+
 
 rgdp_rec <- reco_all_variables[reco_all_variables$variable == "rgdp", ][["kpss_05_level"]]
 
